@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Helix Validate · Live Example</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- 1) Helix core, then 2) the validation plugin -->
+  <script src="./dist/helix.js"></script>
+  <script src="./plugins/helix-validation.js"></script>
+
+  <style>
+    :root { --hx-bg: #0d1117; }
+    body { background: #f5f7fb; }
+
+    .hero {
+      background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
+      color: #fff;
+      border-radius: 1rem;
+    }
+    .hero code { color: #ffe08a; background: rgba(255,255,255,.12); padding: .1rem .4rem; border-radius: .35rem; }
+
+    .demo-card { border: none; border-radius: 1rem; box-shadow: 0 10px 30px rgba(13,38,76,.08); }
+
+    /* ── Validation visual states (plugin emits hx-* classes) ── */
+    .hx-error-msg { display: block; }
+    .hx-err {
+      display: block;
+      color: #dc3545;
+      font-size: .85rem;
+      margin-top: .35rem;
+    }
+    .hx-err--remote  { color: #dc3545; font-weight: 600; }
+    .hx-err--pending { color: #6c757d; font-style: italic; }
+
+    input.hx-invalid, select.hx-invalid, textarea.hx-invalid {
+      border-color: #dc3545 !important;
+      box-shadow: 0 0 0 .2rem rgba(220,53,69,.15);
+    }
+    input.hx-valid, select.hx-valid, textarea.hx-valid {
+      border-color: #198754 !important;
+      box-shadow: 0 0 0 .2rem rgba(25,135,84,.12);
+    }
+    input.hx-validating {
+      border-color: #0d6efd !important;
+      box-shadow: 0 0 0 .2rem rgba(13,110,253,.12);
+    }
+
+    .field-hint { font-size: .8rem; color: #6c757d; }
+    .attr-pill {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: .72rem;
+      background: #eef2ff;
+      color: #4338ca;
+      padding: .1rem .45rem;
+      border-radius: .35rem;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+
+<body>
+<div id="app" class="container py-5" style="max-width: 880px;">
+
+  <!-- ── Hero ── -->
+  <div class="hero p-4 p-md-5 mb-5">
+    <h1 class="fw-bold mb-2">Helix Validate</h1>
+    <p class="mb-0 fs-5 opacity-75">
+      Reactive, zero-config form validation. Drop <code>v-validate</code> and
+      <code>data-hx-*</code> attributes on your inputs — no per-field JavaScript required.
+    </p>
+  </div>
+
+  <!-- ── Success / error banners (reactive Helix state) ── -->
+  <div class="alert alert-success d-flex flex-column gap-1" v-if="ui.success">
+    <strong>✅ Form submitted successfully!</strong>
+    <ul class="mb-0 small">
+      <li v-for="row in ui.summary" :key="row.label">
+        <span class="fw-semibold text-capitalize" v-text="row.label"></span>:
+        <span v-text="row.value"></span>
+      </li>
+    </ul>
+  </div>
+  <div class="alert alert-danger" v-if="ui.error" v-text="ui.error"></div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- DEMO 1 — Full sign-up form                                    -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div class="card demo-card mb-5">
+    <div class="card-body p-4 p-md-5">
+      <h3 class="card-title mb-4">Create your account</h3>
+
+      <!-- NOTE: no v-model on validated inputs — the directive owns the value.
+           Each input self-validates via v-validate / data-hx-* attributes. -->
+      <form id="signupForm" @submit.prevent="onSubmit" novalidate>
+
+        <!-- Full name -->
+        <div class="mb-3">
+          <label class="form-label">Full name</label>
+          <input class="form-control" name="name" type="text"
+                 placeholder="Ada Lovelace"
+                 v-validate="required|minLength:3">
+          <span class="attr-pill">v-validate="required|minLength:3"</span>
+        </div>
+
+        <!-- Email -->
+        <div class="mb-3">
+          <label class="form-label">Email address</label>
+          <input class="form-control" name="email" type="email"
+                 placeholder="ada@example.com"
+                 v-validate="required"
+                 data-hx-email
+                 data-hx-email-message="Hmm, that doesn't look like a valid email.">
+          <span class="attr-pill">required + data-hx-email (custom message)</span>
+        </div>
+
+        <!-- Username with remote (async) availability check -->
+        <div class="mb-3">
+          <label class="form-label">Username</label>
+          <input class="form-control" name="username" type="text"
+                 placeholder="try: admin, root, test (taken)"
+                 v-validate="required|minLength:3"
+                 data-hx-remote="/api/check-username"
+                 data-hx-remote-message="Could not reach the server."
+                 data-hx-pending-text="Checking availability…"
+                 data-hx-debounce="500">
+          <div class="field-hint mt-1">
+            <span class="attr-pill">data-hx-remote</span> calls an API as you type.
+            Names <em>admin, root, test, john, helix</em> are simulated as taken.
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="mb-3">
+          <label class="form-label">Password</label>
+          <input class="form-control" id="password" name="password" type="password"
+                 placeholder="At least 8 characters"
+                 v-validate="required|minLength:8"
+                 data-hx-pattern="(?=.*[A-Za-z])(?=.*\d).+"
+                 data-hx-pattern-message="Include at least one letter and one number.">
+          <span class="attr-pill">required|minLength:8 + pattern</span>
+        </div>
+
+        <!-- Confirm password (cross-field via data-hx-same-as) -->
+        <div class="mb-3">
+          <label class="form-label">Confirm password</label>
+          <input class="form-control" name="confirm" type="password"
+                 placeholder="Re-type your password"
+                 v-validate="required"
+                 data-hx-same-as="#password">
+          <span class="attr-pill">data-hx-same-as="#password"</span>
+        </div>
+
+        <!-- Age (numeric range) -->
+        <div class="mb-3">
+          <label class="form-label">Age</label>
+          <input class="form-control w-50" name="age" type="number"
+                 placeholder="18 – 120"
+                 v-validate="required|integer|between:18,120">
+          <span class="attr-pill">required|integer|between:18,120</span>
+        </div>
+
+        <!-- Website (optional → only validated when filled) -->
+        <div class="mb-3">
+          <label class="form-label">Website <span class="text-muted">(optional)</span></label>
+          <input class="form-control" name="website" type="text"
+                 placeholder="https://your-site.dev"
+                 v-validate="url">
+          <span class="attr-pill">url (skips empty values)</span>
+        </div>
+
+        <!-- Terms (custom 'accepted' rule registered in JS below) -->
+        <div class="mb-4 form-check">
+          <input class="form-check-input" id="terms" name="terms" type="checkbox"
+                 v-validate="accepted"
+                 data-hx-trigger="change"
+                 data-hx-auto-dirty
+                 data-hx-class-handler="parent">
+          <label class="form-check-label" for="terms">
+            I agree to the Terms of Service
+          </label>
+          <span class="attr-pill ms-1">custom rule via rules.add()</span>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary px-4" type="submit">Create account</button>
+          <button class="btn btn-outline-secondary" type="button" @click="onReset">Reset</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- DEMO 2 — Standalone field + programmatic check                -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div class="card demo-card mb-5">
+    <div class="card-body p-4 p-md-5">
+      <h3 class="card-title mb-2">Newsletter (standalone field)</h3>
+      <p class="text-muted">
+        A single validated input — no surrounding form needed. The button reads the
+        field state through <code>el.__hxField</code>.
+      </p>
+
+      <div class="alert alert-info py-2" v-if="ui.newsletterMsg" v-text="ui.newsletterMsg"></div>
+
+      <div class="input-group">
+        <input class="form-control" id="newsletter" name="newsletter_email" type="email"
+               placeholder="you@example.com"
+               v-validate="required|email"
+               data-hx-trigger="eager">
+        <button class="btn btn-success" type="button" @click="onSubscribe">Subscribe</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="text-center text-muted small mb-0">
+    Powered by Helix <span v-text="helixVersion"></span> + Helix Validate
+    <span v-text="validateVersion"></span>
+  </p>
+</div>
+
+<script>
+  /* ────────────────────────────────────────────────────────────────
+     1. Configure Helix and install the validation plugin globally.
+        With a single global install, the validate/form/list directives
+        are registered once on the global directive table and resolved
+        as a fallback during binding.
+     ──────────────────────────────────────────────────────────────── */
+  Helix.config.prefix = 'v-';
+
+  Helix.use(HelixValidatePlugin, {
+    trigger:  'eager',   // validate on blur first, then live on every keystroke
+    debounce: 400,       // debounce for remote/async checks
+    showAllErrors: false,// show one message per field at a time
+    messages: {
+      // `sameAs` is the rule's internal name (data-hx-same-as maps to it).
+      sameAs: 'Passwords do not match.'
+    }
+  });
+
+  // Grab the plugin API from its namespace (registered during install).
+  const $v = Helix.namespace('validate');
+
+  /* 2. Register a custom rule for the "I agree" checkbox.
+        Built-in `required` treats boolean false as "present", so we add
+        an `accepted` rule that demands an explicitly truthy value. */
+  $v.rules.add('accepted', (value) =>
+    (value === true || value === 'true' || value === 'on' || value === 1)
+      ? null
+      : 'You must accept the Terms of Service to continue.'
+  );
+
+  /* 3. Stub the network so the remote-validation demo works without a backend.
+        Replace this with a real endpoint in production. */
+  const _realFetch = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    const urlStr = typeof input === 'string' ? input : (input && input.url) || '';
+    if (urlStr.indexOf('/api/check-username') === 0) {
+      const value = decodeURIComponent((urlStr.split('value=')[1] || '')).toLowerCase();
+      const taken = ['admin', 'root', 'test', 'john', 'helix'];
+      const isTaken = taken.includes(value);
+      const payload = isTaken
+        ? { valid: false, message: `"${value}" is already taken — pick another.` }
+        : { valid: true };
+      return new Promise((resolve) => {
+        setTimeout(() => resolve(new Response(JSON.stringify(payload), {
+          status: 200, headers: { 'Content-Type': 'application/json' }
+        })), 650);
+      });
+    }
+    return _realFetch(input, init);
+  };
+
+  /* ────────────────────────────────────────────────────────────────
+     4. Create + mount the app. createApp keeps the install single
+        (it does not re-run global plugins), so binding stays clean.
+     ──────────────────────────────────────────────────────────────── */
+  const app = Helix.createApp(({ reactive }) => {
+    const ui = reactive({
+      success: false,
+      error: '',
+      summary: [],
+      newsletterMsg: ''
+    });
+
+    const fieldsIn = (formEl) =>
+      Array.from(formEl.querySelectorAll('[name]'))
+        .map((el) => ({ el, f: el.__hxField }))
+        .filter((x) => x.f);
+
+    const onSubmit = async () => {
+      const formEl = document.getElementById('signupForm');
+      const entries = fieldsIn(formEl);
+
+      // Touch + run every field's validators, then read the merged error state.
+      entries.forEach(({ f }) => f.touch());
+      await Promise.all(entries.map(({ f }) => f.validate()));
+
+      const firstInvalid = entries.find(({ f }) => f.errors.value.length > 0);
+      if (firstInvalid) {
+        ui.success = false;
+        ui.error = 'Please fix the highlighted fields and try again.';
+        firstInvalid.el.focus();
+        return;
+      }
+
+      ui.error = '';
+      ui.summary = entries.map(({ el }) => ({
+        label: el.getAttribute('name'),
+        value: el.type === 'checkbox' ? (el.checked ? 'Yes' : 'No') : el.value
+      }));
+      ui.success = true;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const onReset = () => {
+      const formEl = document.getElementById('signupForm');
+      fieldsIn(formEl).forEach(({ el, f }) => {
+        if (el.type === 'checkbox') { el.checked = false; f.reset(false); }
+        else { el.value = ''; f.reset(''); }
+      });
+      ui.success = false;
+      ui.error = '';
+      ui.summary = [];
+    };
+
+    const onSubscribe = async () => {
+      const el = document.getElementById('newsletter');
+      const f = el && el.__hxField;
+      if (!f) return;
+      f.touch();
+      await f.validate();
+      if (f.errors.value.length === 0) {
+        ui.newsletterMsg = '🎉 Thanks! Subscribed ' + el.value;
+        el.value = '';
+        f.reset('');
+      } else {
+        ui.newsletterMsg = '';
+      }
+    };
+
+    return {
+      ui,
+      onSubmit,
+      onReset,
+      onSubscribe,
+      helixVersion: Helix.version,
+      validateVersion: ($v.config && $v.version) || '2.1.5'
+    };
+  });
+
+  app.mount('#app');
+</script>
+</body>
+</html>
