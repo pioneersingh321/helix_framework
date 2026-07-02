@@ -2,6 +2,11 @@
 
 Helix.js is a blazing-fast, lightweight, O(1) reactive JavaScript framework inspired by Vue.js. This repository is structured as a clean Git project containing the latest production-ready Helix Core library, its official plugin ecosystem, and archives of past versions.
 
+
+> [!TIP]
+> **No Build Steps Required!**
+> Unlike Vue, React, or other complex reactive frameworks, Helix.js requires absolutely **no build process, compilation, or bundler setup (Vite, Webpack, npm install)**. Simply reference the script file in a `<script>` tag and start using reactivity directly in your browser.
+
 ---
 
 ## 📁 Repository Structure
