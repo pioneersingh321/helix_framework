@@ -1,12 +1,10 @@
 # Helix.js Framework
 
-Helix.js is a blazing-fast, lightweight, O(1) reactive JavaScript framework inspired by Vue.js. This repository contains the latest stable Helix Core framework and its official plugins.
+Helix.js is a blazing-fast, lightweight, O(1) reactive JavaScript framework inspired by Vue.js. This repository is structured as a clean Git project containing the latest production-ready Helix Core library, its official plugin ecosystem, and archives of past versions.
 
 ---
 
 ## 📁 Repository Structure
-
-The project has been organized into a clean structure suitable for git projects:
 
 ```
 helix_framework/
@@ -32,7 +30,7 @@ helix_framework/
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Installation & Quick Start
 
 To use Helix.js, load the core script and any required plugins in your HTML file:
 
@@ -77,106 +75,233 @@ To use Helix.js, load the core script and any required plugins in your HTML file
 
 ## 🧠 Helix Core API Reference
 
-### Configuration (`Helix.config`)
-Configure global features before mounting your application.
-```javascript
-Helix.config.prefix = 'v-';              // Custom directive prefix
-Helix.config.debug = true;                // Enable debug warnings
-Helix.config.allowInlineExpressions = true; // Allow simple JS in attribute directives
-```
+### 1. Global Configuration (`Helix.config`)
+Configure global framework variables prior to mounting any apps:
+* **`Helix.config.prefix`** (Default: `'v-'`): Change the prefix of custom directives.
+* **`Helix.config.debug`** (Default: `false`): Enable warning and trace log outputs in the developer console.
+* **`Helix.config.allowInlineExpressions`** (Default: `true`): Allows running inline JavaScript expressions in HTML elements.
+* **`Helix.config.removeAttributeBindings`** (Default: `false`): Strips custom directives from DOM nodes after mounting.
 
-### Reactivity
-* **`Helix.reactive(object)`**: Creates a deep reactive proxy of the provided object.
-* **`Helix.watch(getter, callback, options)`**: Observes a reactive getter and fires a callback on change.
+### 2. Reactivity System
+* **`Helix.reactive(object)`**: Generates a deep reactive Proxy. Changes to properties nested anywhere inside trigger DOM renders.
+* **`Helix.ref(value)`**: Wraps a primitive value in a reactive container with a single `.value` property.
+* **`Helix.watch(getter, callback, options)`**: Observes reactive changes and triggers custom actions.
+  * *Options*: `immediate: true` (run callback immediately on bind), `deep: true` (deeply watch nested object structures).
   ```javascript
   Helix.watch(() => state.count, (newVal, oldVal) => {
     console.log(`Count changed from ${oldVal} to ${newVal}`);
   });
   ```
-* **`Helix.effect(fn)`**: Runs a function immediately and auto-tracks reactive variables inside it to re-run on updates.
+* **`Helix.effect(fn)`**: Executes a function immediately, tracks all reactive properties read during execution, and automatically re-runs when those properties change.
   ```javascript
   Helix.effect(() => {
-    document.title = `Count: ${state.count}`;
+    console.log("Current user email is: ", state.user.email);
   });
   ```
 
+### 3. Custom Directives API
+Register global directives that bind to DOM element lifecycle events:
+```javascript
+Helix.directive('focus', {
+  mounted(el, binding) {
+    el.focus();
+  },
+  updated(el, binding) {
+    // Fired when binding value updates
+  },
+  unmounted(el) {
+    // Teardown listeners here
+  }
+});
+```
+
 ---
 
-## 🔌 Core Plugins Overview
+## 🔌 Core Plugins Documentation
 
-All active plugins are located under the `plugins/` directory:
+All stable, production plugins are located in the `plugins/` directory.
 
 ### 1. Helix Validation (`plugins/helix-validation.js` - v2.1.5)
-Zero-configuration interactive form validation. Simply add the `v-validate` directive and validation attributes to your input elements.
-* **Usage**:
-  ```html
-  <script src="./plugins/helix-validation.js"></script>
-  ```
-  ```html
-  <form id="signupForm" v-validate>
-    <input name="email" data-hx-rules="required|email">
-    <span class="hx-error-msg"></span>
-  </form>
-  ```
+Zero-configuration interactive validation framework. Bind a form using the `v-validate` (or `data-hx-form`) directive and define rules using HTML data attributes.
 
-### 2. Helix Fetch (`plugins/helix-fetch.js` - v2.8.2)
-A unified Fetch wrapper featuring asynchronous request queueing, automatic background polling, and AbortController request cancellation.
-* **Usage**:
-  ```javascript
-  const fetchInstance = Helix.$fetch.request({
-    url: '/api/data',
-    pollInterval: 5000,
-    onSuccess: (data) => console.log(data)
-  });
-  ```
+#### Zero-JS Rules (via DOM attributes):
+| Attribute | Description | Example |
+|---|---|---|
+| `data-hx-required` | Field is mandatory | `<input data-hx-required>` |
+| `data-hx-email` | Must be a valid email format | `<input data-hx-email>` |
+| `data-hx-url` | Must be a valid URL | `<input data-hx-url>` |
+| `data-hx-numeric` | Value must be numbers only | `<input data-hx-numeric>` |
+| `data-hx-integer` | Value must be integers only | `<input data-hx-integer>` |
+| `data-hx-minlength="n"` | Minimum string length is `n` | `<input data-hx-minlength="5">` |
+| `data-hx-maxlength="n"` | Maximum string length is `n` | `<input data-hx-maxlength="20">` |
+| `data-hx-min="n"` | Minimum numerical value is `n` | `<input data-hx-min="18">` |
+| `data-hx-max="n"` | Maximum numerical value is `n` | `<input data-hx-max="100">` |
+| `data-hx-between="min,max"` | Numerical value must be between bounds | `<input data-hx-between="1,10">` |
+| `data-hx-pattern="regex"` | Value must match regex | `<input data-hx-pattern="^[A-Z]+$">` |
+| `data-hx-same-as="#id"` | Must match the value of target selector | `<input data-hx-same-as="#password">` |
+| `data-hx-one-of="a,b,c"` | Value must match one of comma-split keys | `<input data-hx-one-of="admin,editor">` |
+| `data-hx-debounce="ms"` | Debounce time in milliseconds | `<input data-hx-debounce="500">` |
+| `data-hx-{rule}-message` | Custom error message for the specific rule | `data-hx-required-message="Email required!"` |
 
-### 3. Helix Axios (`plugins/helix-axios.js` - v2.2.0)
-An advanced Axios wrapper supporting retry backoffs (idempotent request guard), request deduplication fingerprints, and out-of-order response guardrails.
-* **Usage**:
-  ```javascript
-  Helix.$axios.get('/api/resource', { dedupe: true });
-  ```
+#### Programmatic APIs:
+Instantiated automatically on the Helix instance or returned via injection:
+```javascript
+const $v = Helix.$validation;
 
-### 4. Helix Loader (`plugins/helix-loader.js` - v2.5)
-Provides a global loading overlay as well as target-specific loaders using clean Glassmorphism or Dark themes.
-* **Usage**:
-  ```html
-  <div v-loading="state.isLoading" hx-loading-config="theme:glass;icon:spinner"></div>
-  ```
+// Create field validation manually
+const emailField = $v.field('', 'required|email', { debounce: 300 });
 
-### 5. Helix Notify (`plugins/helix-notify.js` - v2.1)
-An overlay wrapper for SweetAlert2, organizing Toast notification queues, custom clinical or glass alert dialogs, and AbortSignal async modal flows.
-* **Usage**:
-  ```javascript
-  Helix.$notify.toast('Item added!', { type: 'success' });
-  ```
-
-### 6. Helix Model (`plugins/helix-model.js` - v2.2.1)
-An in-memory query engine featuring structured index keys, AST parsing, filtering pipelines, and memory-safe Top-K streams.
-
-### 7. Helix Behavior (`plugins/helix-behavior.js` - v1.3.1)
-An interactive pipe-delimited HTML script tool enabling simple reactive trigger cycles inside standard elements without writing custom JS.
+// Programmatic rule validation
+$v.check('not-an-email', 'required|email').then(errors => {
+  console.log(errors); // ['Must be a valid email address']
+});
+```
 
 ---
 
-## 🛠️ Development & Git Commands
+### 2. Helix Behavior Scripting (`plugins/helix-behavior.js` - v1.3.1)
+An interactive pipe-delimited HTML script tool enabling simple reactive trigger cycles inside standard elements without writing custom JS.
 
-To set up a local development copy:
+#### Pipeline Syntax:
+Add `h-pipe` attributes on your HTML structure:
+```html
+<button h-pipe="click -> toggle(active) | wait(1000) | hide">
+  Click Me
+</button>
+```
 
-1. **Clone the repository**:
-   ```bash
-   git clone <repository-url>
-   cd helix_framework
-   ```
+#### Built-in Pipeline Commands:
+* **DOM Mutations**:
+  * `put(value, selector?)`: Sets value or textContent.
+  * `html(content, selector?)`: Injects innerHTML.
+  * `swap(content, selector?)`: Swaps outerHTML.
+  * `toggle(className)` / `add(className)` / `remove(className)`: Class modifications.
+  * `take(className)`: Restricts class exclusively to this element among its siblings.
+  * `show()` / `hide()`: Changes element visibility.
+  * `empty()`: Deletes all child nodes.
+  * `removeEl()`: Deletes the element.
+  * `focus()` / `blur()`: Standard browser focus toggles.
+  * `scroll()`: Scrolls page smoothly to current element.
+* **Control Flows & Requests**:
+  * `fetch(url, options)`: Performs async HTTP fetch.
+  * `wait(ms)`: Halts pipeline execution for specified milliseconds.
+  * `send(eventName)` / `trigger(eventName)`: Dispatches custom DOM events.
+  * `prevent()`: Invokes `event.preventDefault()`.
+  * `stop()`: Invokes `event.stopPropagation()`.
+  * `set(statePath, value)`: Updates Helix reactive state values directly.
+  * `fallback(value)`: Catches pipe errors and fallbacks to static values.
 
-2. **Check Git Status**:
-   ```bash
-   git status
-   ```
+#### Graph Cycle Detection:
+The behavior engine compiles pipes into dependency graphs. If a cross-reactive cycle loop is detected (e.g. element A triggers element B, which triggers element A), the engine freezes both nodes automatically to prevent browser memory lockups and outputs a `[behavior] CROSS-CYCLE DETECTED` console error.
 
-3. **Running Examples**:
-   You can serve this project directory using local HTTP servers (e.g., MAMP, live-server, or python http.server).
-   ```bash
-   python -m http.server 8000
-   ```
-   Open `http://localhost:8000/index.html` or `http://localhost:8000/index-validation.html` to run interactive dashboards and view console tests.
+---
+
+### 3. Helix Fetch (`plugins/helix-fetch.js` - v2.8.2)
+A unified Fetch wrapper featuring request queueing, automatic background polling, and AbortController request cancellation.
+
+#### Key APIs:
+* **`Helix.$fetch.get(url, options)`** / **`post(url, body, options)`** / **`put()`** / **`delete()`** / **`patch()`**
+* **`Helix.$fetch.request(config)`**: Initiates queries.
+  * *Config Options*:
+    * `pollInterval`: Run background queries periodically.
+    * `tag`: Tag string for bulk cache invalidation.
+    * `cache`: Enable response caching.
+    * `timeout`: Request timeout limit.
+* **`Helix.$fetch.mutate(url, options)`**: Declares lazy requests that must be executed explicitly via returned `.execute()` handlers.
+* **`Helix.$fetch.invalidate(tag)`**: Invalidates cached responses sharing the tag.
+* **`Helix.$fetch.clearCache()`**: Drops all cached queries.
+
+---
+
+### 4. Helix Axios (`plugins/helix-axios.js` - v2.2.0)
+An advanced Axios wrapper supporting retry backoffs (idempotent request guard), request deduplication fingerprints, and out-of-order response guardrails.
+
+#### Key APIs:
+* **`Helix.$http.get(url, config)`** / **`post()`** / **`put()`** / **`patch()`** / **`delete()`** / **`head()`** / **`options()`**
+* **Reactive Hooks**:
+  * **`Helix.$http.useGet(url, options)`** / **`usePost()`** / **`usePut()`** / **`usePatch()`** / **`useDelete()`**
+  * Returns a reactive object: `{ data, error, loading, completedAt, headers, execute(), cancel() }`.
+* **`Helix.$http.useUpload(url, file, config)`**: Uploads binary attachments with structured progress bars.
+* **`Helix.$http.setToken(token, type)`** / **`clearToken()`**: Configures/wipes Bearer auth headers.
+* **`Helix.$http.raw`**: Underlying base Axios instance.
+
+---
+
+### 5. Helix Form (`plugins/helix-form.js` - v2.0.0)
+Extracts and serializes DOM forms directly into typed JSON structures, supporting arrays and nested structures via name indices.
+
+#### Input Naming Syntaxes:
+* `name="user[name]"`: Serializes into `{ user: { name: 'value' } }`
+* `name="tags[]"`: Serializes into `{ tags: ['value'] }`
+* `name="age:number"`: Automatically casts string input into standard numeric variable.
+* `name="active:boolean"`: Automatically casts checkbox/string to Boolean.
+
+#### APIs:
+* **`Helix.$form.serializeJSON(formElement)`**: Returns structured JSON values.
+* **`Helix.$form.toFormData(object)`**: Converts nested objects directly into `FormData` layouts suitable for multipart uploads.
+* **`Helix.$form.preparePayload(body, headers)`**: Auto-detects structures and sets up multipart vs JSON payloads.
+
+---
+
+### 6. Helix Loader (`plugins/helix-loader.js` - v2.5)
+Renders page-level overlays or specific element containers with animations.
+
+#### APIs:
+* **`Helix.$loader.show(config)`**: Shows the global overlay.
+  * *Config Options*: `theme: 'glass' | 'dark'`, `text: 'Loading...'`, `allowHtmlIcon: false`.
+* **`Helix.$loader.hide()`**: Dismisses overlays.
+* **`Helix.$loader.text(newText)`**: Changes message contents dynamically.
+* **`v-loading` (Directive)**: Binds element-level loading cards.
+  * Example: `<div v-loading="state.isLoading" hx-loading-config="theme:glass"></div>`
+
+---
+
+### 7. Helix Notify (`plugins/helix-notify.js` - v2.1)
+An overlay wrapper for SweetAlert2, organizing Toast notification queues, custom clinical or glass alert dialogs, and AbortSignal async modal flows.
+
+#### APIs:
+* **`Helix.$notify.toast(title, options)`**: Queue-safe, non-blocking toast popups.
+* **`Helix.$notify.alert(title, text, options)`**: Standard popup messages.
+* **`Helix.$notify.confirm(title, text, options)`**: Promise-based confirmations.
+* **`Helix.$notify.confirm3(title, text, options)`**: Confirm dialogs with three buttons (e.g. Yes, No, Cancel).
+* **`Helix.$notify.prompt(title, placeholder, options)`**: Reads text input values asynchronously.
+* **`Helix.$notify.async(title, text, promiseFn, options)`**: Locks screen with spinner until `promiseFn` resolves or rejects. Supports abort parameters.
+
+---
+
+### 8. Helix Model (`plugins/helix-model.js` - v2.2.1)
+A client-side query and storage engine featuring AST compile paths, sorted index hashes, and memory-safe paging.
+
+#### Fluent Queries:
+```javascript
+const DB = Helix.$model(usersData);
+
+const results = DB
+  .where('role', '=', 'admin')
+  .whereBetween('age', [21, 65])
+  .orderBy('name', 'asc')
+  .limit(10)
+  .get(); // Materializes array
+```
+
+#### Query Builders list:
+* `where(field, operator, value)` / `whereNot(...)`
+* `whereIn(field, values[])` / `whereNotIn(...)`
+* `whereBetween(field, [min, max])` / `whereNotBetween(...)`
+* `whereInstanceOf(type)`
+* `search(fields[], queryText)`: Text search indexing.
+* `orderBy(field, direction)` / `sortBy(field)` / `sortByDesc(field)`
+* `limit(count, offset)` / `forPage(page, perPage)`
+* `select(fields)` / `except(fields)`: Projections.
+* `pluck(field)`: Flattens to single column array.
+* `unique(field)`: Filters out duplicate entries.
+* `groupBy(field)`: Returns key-grouped maps.
+* `join()`, `leftJoin()`, `rightJoin()`, `innerJoin()`: Combine model collections.
+
+#### Materialization:
+* `get()` / `all()` / `toArray()`: Returns execution array.
+* `first()` / `last()`: Returns matching boundary object.
+* `count()`: Total matches.
+* `paginate(perPage, currentPage)`: Returns pagination metadata and rows.
+
+---
