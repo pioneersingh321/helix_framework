@@ -44,9 +44,14 @@
  *   5. Array mutations fire a single guarded "*" trigger instead of "length" + "*"
  *      (and index sets no longer double-fire key + "*"); the wildcard is skipped
  *      entirely when the array has no observers.
+ *
+ * v11.1.7-fix3:
+ *   - hx-bind:class object form now splits multi-class keys on whitespace before
+ *     classList.toggle (e.g. { 'ri-heart-fill text-danger': cond }). Previously a
+ *     key with a space threw InvalidCharacterError from DOMTokenList.toggle.
  * Released under the MIT License.
  */
-window.Helix = (function() {
+window.Helix = (function () {
   const VERSION = "11.1.7";
   /* Helix.js Reactive Framework */
   const RAW = /* @__PURE__ */ Symbol("__hx_raw");
@@ -505,7 +510,7 @@ window.Helix = (function() {
   }
   const arrayInstrumentations = {};
   ["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill", "copyWithin"].forEach((method) => {
-    arrayInstrumentations[method] = function(...args) {
+    arrayInstrumentations[method] = function (...args) {
       pauseTracking();
       const res = Array.prototype[method].apply(this[RAW], args);
       resumeTracking();
@@ -693,8 +698,8 @@ window.Helix = (function() {
     refObj[IS_REF] = true;
     refObj[RAW] = refObj;
     const { track: trackFn, trigger: triggerFn } = factory(
-        () => { if (_track) _track(); },
-        () => { if (_trigger) _trigger(); }
+      () => { if (_track) _track(); },
+      () => { if (_trigger) _trigger(); }
     );
     _track = trackFn;
     _trigger = triggerFn;
@@ -1503,7 +1508,15 @@ window.Helix = (function() {
           if (arg === "class") {
             el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.CLASS;
             if (typeof result === "object" && result !== null) {
-              Object.keys(result).forEach((k) => el.classList.toggle(k, !!result[k]));
+              Object.keys(result).forEach((k) => {
+                const on = !!result[k];
+                // A single object key may contain several space-separated class
+                // names (e.g. { 'ri-heart-fill text-danger': cond }). classList
+                // tokens cannot contain whitespace, so split and toggle each one.
+                for (const token of String(k).split(/\s+/)) {
+                  if (token) el.classList.toggle(token, on);
+                }
+              });
             } else {
               const newClass = result || "";
               if (el.className !== newClass) el.className = newClass;
@@ -1589,7 +1602,7 @@ window.Helix = (function() {
                 if (resolved !== undefined) return resolved;
 
                 // 2. JSON literal: numbers, booleans, arrays, objects
-                try { return JSON.parse(a); } catch {}
+                try { return JSON.parse(a); } catch { }
 
                 // 3. Quoted string literal
                 if ((a.startsWith('"') && a.endsWith('"')) || (a.startsWith("'") && a.endsWith("'"))) {
@@ -1857,7 +1870,7 @@ window.Helix = (function() {
         childNodes.forEach((child) => {
           if (child.nodeType === 1) {
             const hasSlotDirective = Array.from(child.attributes || []).some(
-                (attr) => attr.name.startsWith("v-slot:") || attr.name.startsWith("#")
+              (attr) => attr.name.startsWith("v-slot:") || attr.name.startsWith("#")
             );
             if (hasSlotDirective || child.tagName.toLowerCase() === "template") {
               slotTemplates.push(child);
@@ -1886,10 +1899,10 @@ window.Helix = (function() {
         Array.from(node.attributes || []).forEach((attr) => {
           if (attr.name.startsWith("@") || attr.name.startsWith(`${appConfig.prefix}on:`)) {
             const evtName = normalizeEventName(
-            attr.name
-            .replace(/^@/, "")
-            .replace(new RegExp(`^${appConfig.prefix}on:`), "")
-          );
+              attr.name
+                .replace(/^@/, "")
+                .replace(new RegExp(`^${appConfig.prefix}on:`), "")
+            );
             if (!listeners[evtName]) listeners[evtName] = [];
             listeners[evtName].push((...args) => {
               const targetFn = resolveRaw(attr.value, ctx);
@@ -2243,7 +2256,7 @@ window.Helix = (function() {
       const errorHandlers = listeners.get('bus:error');
       if (errorHandlers) {
         for (const fn of [...errorHandlers]) {
-          try { fn({ event, error, listener }); } catch (_) {}
+          try { fn({ event, error, listener }); } catch (_) { }
         }
       }
     };
@@ -2251,7 +2264,7 @@ window.Helix = (function() {
     const onEvent = (event, handler) => {
       if (typeof handler !== "function") {
         warn(`Bus handler for "${event}" must be a function.`);
-        return () => {};
+        return () => { };
       }
       if (!listeners.has(event)) listeners.set(event, /* @__PURE__ */ new Set());
       listeners.get(event).add(handler);
