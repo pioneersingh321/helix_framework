@@ -117,6 +117,75 @@ Helix.directive('focus', {
 
 ---
 
+## 🔌 Helix Plugin System (`Helix.use`)
+
+Helix supports global extensions through a modular plugin registration API: `Helix.use(plugin, options)`.
+
+### How to Create and Use a Custom Plugin
+
+A plugin is simply a JavaScript object containing an `install(app, options)` method. Below is the custom debugger plugin structure implemented in `index.html`:
+
+```javascript
+// 1. Define the plugin structure
+const HelixDebug = {
+  install(app, options = { color: '#00ff00' }) {
+    console.log("🛠️ Helix Debugger Active");
+
+    // Register custom directive: v-debug (Logs element context on click)
+    app.directive('debug', {
+      mounted(el, binding) {
+        const { value: val, ctx, trackCleanup } = binding;
+        
+        const handler = () => {
+          console.group(`🔍 Helix Debug [${val || 'Current Context'}]`);
+          console.log("Context Data:", ctx);
+          console.log("Element Reference:", el);
+          console.groupEnd();
+        };
+        
+        el.addEventListener('click', handler);
+        
+        // Register cleanup callback to prevent memory leaks
+        trackCleanup(() => el.removeEventListener('click', handler));
+      }
+    });
+
+    // Register custom directive: v-trace (Flashes border on value changes)
+    app.directive('trace', {
+      mounted(el, binding) {
+        const { value: val, ctx, trackCleanup } = binding;
+        
+        const unwatch = app.watch(
+          () => app.resolvePath(val, ctx),
+          (newVal, oldVal) => {
+            if (newVal === oldVal) return;
+            const originalBorder = el.style.outline;
+            el.style.outline = `2px solid ${options.color}`;
+            setTimeout(() => { el.style.outline = originalBorder; }, 300);
+          }
+        );
+        
+        trackCleanup(unwatch);
+      }
+    });
+  }
+};
+
+// 2. Install the plugin with options
+Helix.use(HelixDebug, { color: '#ff0000' });
+```
+
+Once installed, directives registered by the plugin can be used in DOM nodes:
+```html
+<!-- Clicking this logs the state.item context to the console -->
+<div v-debug="item">Inspect Me</div>
+
+<!-- This flashes a red border whenever state.count changes -->
+<span v-trace="state.count" v-text="state.count"></span>
+```
+
+---
+
 ## 🔌 Core Plugins Documentation
 
 All stable, production plugins are located in the `plugins/` directory.
@@ -305,3 +374,122 @@ const results = DB
 * `paginate(perPage, currentPage)`: Returns pagination metadata and rows.
 
 ---
+
+## 🧪 Advanced Design Patterns (from `index.html`)
+
+### 1. Global Standalone Reactive Stores
+Rather than nesting all reactive state directly inside components, you can define standalone global stores in external files. This enables simple, out-of-the-box global state sharing:
+
+```javascript
+// Standalone global reactive store definition
+const AppStore = Helix.reactive({
+    candidate: null,
+    theme: 'light',
+    serverStatus: 'Online',
+    cpuLoad: 45,
+    batchCount: 0,
+
+    get hasCandidate() {
+        return this.candidate !== null;
+    },
+
+    updateCandidate(data) {
+        this.candidate = { ...this.candidate, ...data };
+        console.log("Candidate updated globally:", this.candidate);
+    },
+    
+    logout() {
+        this.candidate = null;
+    }
+});
+```
+
+### 2. Microtask Batching & Post-Flush Queueing (`queuePostFlushCb`)
+Helix updates DOM nodes asynchronously by batching changes in a microtask scheduler. If you need to make assertions or inspect the DOM immediately after modifying reactive data, use `queuePostFlushCb`:
+
+```javascript
+import { queuePostFlushCb } from 'Helix';
+
+function triggerUpdates() {
+  AppStore.batchCount = 0;
+  
+  // Modifying the state 1000 times synchronously
+  for (let i = 1; i <= 1000; i++) {
+    AppStore.batchCount = i;
+  }
+
+  const displayEl = document.getElementById('count-display');
+  // At this point, the DOM hasn't rendered the updates yet:
+  console.log("DOM text immediately after loop:", displayEl.innerText); // "0"
+
+  // Use the post-flush queue to inspect the DOM after the scheduler flushes
+  queuePostFlushCb(() => {
+    console.log("DOM text after scheduler flush:", displayEl.innerText); // "1000"
+  });
+}
+```
+
+### 3. Component Architecture: Props & Emits
+Helix components support custom attributes (Props) and event listeners (Emits) matching Vue conventions:
+
+#### Registering Component:
+```javascript
+Helix.component("user-form", {
+  emits: ['add-user'], 
+  setup({ reactive, emit }) {
+    const localState = reactive({ name: "" });
+
+    const submit = () => {
+      if (!localState.name) return;
+      // Emit events to the parent context (normalizes custom case conventions)
+      emit("addUser", { id: Date.now(), name: localState.name });
+      localState.name = "";
+    };
+
+    return {
+      localState,
+      submit,
+      template: `
+        <form @submit.prevent="submit" class="d-flex gap-2"> 
+          <input v-model="localState.name" placeholder="Enter name">
+          <button type="submit">Add User</button>
+        </form>
+      `
+    };
+  }
+});
+```
+
+#### Mounting and Listening on Parent Context:
+```html
+<div id="content">
+  <!-- Parent mounts component and listens to emitted event -->
+  <user-form @add-user="addUser"></user-form>
+</div>
+
+<script>
+  Helix.mount('#content', ({ reactive }) => {
+    const state = reactive({ users: [] });
+
+    const addUser = (userData) => {
+      state.users.push(userData);
+    };
+
+    return { state, addUser };
+  });
+</script>
+```
+
+---
+
+## 🛠️ Testing & Live Demos
+
+To host local environments:
+
+1. **Serve Files**: Use a local server (like Python, PHP, or live-server node packages) in the project root:
+   ```bash
+   python -m http.server 8000
+   ```
+2. **Open Pages**:
+   * Core Reactivity: `http://localhost:8000/index.html`
+   * Validation Engine: `http://localhost:8000/index-validation.html`
