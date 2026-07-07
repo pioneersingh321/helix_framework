@@ -1,6 +1,6 @@
 # 🧬 Helix.js Framework
 
-[![Version](https://img.shields.io/badge/version-11.1.7--fix3-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
+[![Version](https://img.shields.io/badge/version-11.1.8-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
 [![Bundle Size](https://img.shields.io/badge/bundle-109KB--uncompressed-teal.svg?style=flat-square)](#)
 [![Reactivity](https://img.shields.io/badge/reactivity-signal--native-blue.svg?style=flat-square)](#)
 [![Build Step](https://img.shields.io/badge/build-zero--build--step-orange.svg?style=flat-square)](#)
@@ -49,7 +49,7 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 ```
 helix_framework/
 ├── dist/                 # Production distribution builds
-│   └── helix.js          # Core framework library (v11.1.7-fix3 Zenith Edition)
+│   └── helix.js          # Core framework library (v11.1.8 Zenith Edition)
 ├── plugins/              # Official stable plugins & custom directives
 │   ├── directives.js     # Extra custom directives (v-fetch, etc.)
 │   ├── helix-axios.js    # Axios HTTP client plugin (v2.2.0)
@@ -294,6 +294,37 @@ setup() {
 Toggles an element's visibility using the CSS `display` property, preserving the element in the DOM tree.
 ```html
 <div h-show="isToggled">Toggle display:none style</div>
+```
+
+### 9. Asynchronous Data Scopes (`h-scope`)
+Evaluates an expression (typically an asynchronous data fetch) and exposes the result as a reactive state to the entire descendant subtree:
+
+```html
+<div h-scope:user="fetch('/api/user').then(res => res.json())">
+  <div h-if="user.$loading">Loading...</div>
+  <div h-if="user.$error" class="text-danger">Error: {{ user.$error.message }}</div>
+  
+  <div h-if="user.$data">
+    <span>Username: {{ user.name }}</span>
+    <button @click="user.refresh()">Refresh</button>
+  </div>
+</div>
+```
+
+#### Scope Properties:
+*   `user.$loading`: Boolean indicating if the promise/expression is currently resolving.
+*   `user.$error`: The error object if the expression throws or rejects.
+*   `user.$data`: The raw resolved value of the expression.
+*   `user.refresh()`: Re-evaluates the expression and refreshes the scope.
+*   **Auto-Spreading:** If the resolved result is a plain object, all of its keys are spread directly onto the scope object (e.g. `user.name` from a `{ name: "Alice" }` result).
+
+#### Fallback Defaults (`h-scope-default`):
+Provide fallback values for keys that are missing or `undefined` on the resolved result:
+```html
+<div h-scope:user="fetch('/api/user').then(res => res.json())"
+     h-scope-default:user='{"name": "Anonymous", "role": "Guest"}'>
+  <!-- name defaults to "Anonymous", role to "Guest" initially -->
+</div>
 ```
 
 ---

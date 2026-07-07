@@ -2,7 +2,7 @@
 
 A lightweight, Vue-inspired reactive JavaScript framework — signal-native reactivity, declarative HTML directives, components, and a plugin ecosystem, all in a single dependency-free file that runs directly in the browser.
 
-**Version:** `11.1.7` · **Size:** single file, no build step · **License:** MIT
+**Version:** `11.1.8` · **Size:** single file, no build step · **License:** MIT
 
 ---
 

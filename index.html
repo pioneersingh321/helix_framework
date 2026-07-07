@@ -1,6 +1,6 @@
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>Helix Js Docs</title>
@@ -8,9 +8,11 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
   <script src="./dist/helix.js"></script>
-  
+
   <style>
-    body { overflow-x: hidden; }
+    body {
+      overflow-x: hidden;
+    }
 
     .sidebar {
       height: 100vh;
@@ -40,248 +42,243 @@
 
 <body>
 
-<div class="sidebar bg-light p-3">
-  <h4 class="mb-4">MicroVue 10.5</h4>
-  <ul class="nav flex-column">
-    <li class="nav-item"><a class="nav-link active" href="#intro">Intro</a></li>
-    <li class="nav-item"><a class="nav-link" href="#reactivity">Reactivity</a></li>
-    <li class="nav-item"><a class="nav-link" href="#model">v-model</a></li>
-    <li class="nav-item"><a class="nav-link" href="#vif">v-if</a></li>
-    <li class="nav-item"><a class="nav-link" href="#vfor">v-for</a></li>
-  </ul>
-</div>
-
-<div class="content" id="content">
-    
-  <section id="intro">
-    <h2>Introduction</h2>
-    <p>MicroVue is a blazing-fast, O(1) reactive framework.</p>
-  </section>
-
-  <section id="reactivity" class="mt-5" >
-    <h2>Reactivity</h2>
-    <button class="btn btn-primary" @click="state.increment">Increment</button>
-    <p class="mt-2" >Count: <span v-text="state.count"></span></p>
-  </section>
-
-  <section id="model" class="mt-5">
-    <h2>v-model</h2>
-    <input class="form-control" v-model="state.name">
-    <p class="mt-2">Hello <span v-text="state.name"></span></p>
-  </section>
-
-  <section id="vif" class="mt-5">
-    <h2>v-if</h2>
-    <button class="btn btn-warning" @click="state.toggleMe">Toggle</button>
-    <p class="mt-2" v-if="state.show">Now you see me 👀</p>
-  </section>
-
-  <section id="vfor" class="mt-5">
-    <h2>v-for</h2>
-    <ul class="list-group">
-      <li class="list-group-item" v-for="(item, index) in state.list" :key="index" v-debug="item">
-        Item <span v-text="item"></span>
-      </li>
+  <div class="sidebar bg-light p-3">
+    <h4 class="mb-4">MicroVue 10.5</h4>
+    <ul class="nav flex-column">
+      <li class="nav-item"><a class="nav-link active" href="#intro">Intro</a></li>
+      <li class="nav-item"><a class="nav-link" href="#reactivity">Reactivity</a></li>
+      <li class="nav-item"><a class="nav-link" href="#model">v-model</a></li>
+      <li class="nav-item"><a class="nav-link" href="#vif">v-if</a></li>
+      <li class="nav-item"><a class="nav-link" href="#vfor">v-for</a></li>
     </ul>
+  </div>
 
-    <button class="btn btn-secondary mt-3" @click="state.addListItems">Add to List</button>
-  </section>
+  <div class="content" id="content">
 
-  <section class="mt-5">
-    <h2>Conditionals (Grades)</h2>
-    <p v-if="state.grade == 80">A</p>
-    <p v-if="state.grade == 50">B</p>
-    <p v-if="state.grade == 90">Fail</p>
-  </section>
+    <section id="intro">
+      <h2>Introduction</h2>
+      <p>MicroVue is a blazing-fast, O(1) reactive framework.</p>
+    </section>
 
-  <section class="mt-5">
-    <h2>Various Form Bindings</h2>
-    
-    <div class="mb-3">
-      <label>Number Bound:</label>
-      <input type="number" class="form-control w-25" v-model="state.age">
-      <p>Age: <span v-text="state.age"></span></p>
-    </div>
+    <section id="reactivity" class="mt-5">
+      <h2>Reactivity</h2>
+      <button class="btn btn-primary" @click="state.increment">Increment</button>
+      <p class="mt-2">Count: <span v-text="state.count"></span></p>
+    </section>
 
-    <div class="mb-3">
-      <label><input type="checkbox" v-model="state.done"> Checkbox Done</label>
-      <p>Status: <span v-text="state.done"></span></p>
-    </div>
+    <section id="model" class="mt-5">
+      <h2>v-model</h2>
+      <input class="form-control" v-model="state.name">
+      <p class="mt-2">Hello <span v-text="state.name"></span></p>
+    </section>
 
-    <div class="mb-3">
-      <label><input type="radio" value="M" v-model="state.gender"> Male</label>
-      <label><input type="radio" value="F" v-model="state.gender"> Female</label>
-      <p>Selected: <span v-text="state.gender"></span></p>
-    </div>
+    <section id="vif" class="mt-5">
+      <h2>v-if</h2>
+      <button class="btn btn-warning" @click="state.toggleMe">Toggle</button>
+      <p class="mt-2" v-if="state.show">Now you see me 👀</p>
+    </section>
 
-    <div class="mb-3">
-      <p :class="state.color">Dynamic Class Text (Color: <span v-text="state.color"></span>)</p>
-    </div>
+    <section id="vfor" class="mt-5">
+      <h2>v-for</h2>
+      <ul class="list-group">
+        <li class="list-group-item" v-for="(item, index) in state.list" :key="index" v-debug="item">
+          Item <span v-text="item"></span>
+        </li>
+      </ul>
 
-    <div class="mb-3" style="background: #e9ecef; padding: 10px;">
-      <div v-html="state.rawHtml"></div>
-    </div>
-  </section>
+      <button class="btn btn-secondary mt-3" @click="state.addListItems">Add to List</button>
+    </section>
 
-  <section class="mt-5">
-    <h4>Create User (Async Logic)</h4>
-    <form @submit.prevent="submitForm">
+    <section class="mt-5">
+      <h2>Conditionals (Grades)</h2>
+      <p v-if="state.grade == 80">A</p>
+      <p v-if="state.grade == 50">B</p>
+      <p v-if="state.grade == 90">Fail</p>
+    </section>
+
+    <section class="mt-5">
+      <h2>Various Form Bindings</h2>
+
+      <div class="mb-3">
+        <label>Number Bound:</label>
+        <input type="number" class="form-control w-25" v-model="state.age">
+        <p>Age: <span v-text="state.age"></span></p>
+      </div>
+
+      <div class="mb-3">
+        <label><input type="checkbox" v-model="state.done"> Checkbox Done</label>
+        <p>Status: <span v-text="state.done"></span></p>
+      </div>
+
+      <div class="mb-3">
+        <label><input type="radio" value="M" v-model="state.gender"> Male</label>
+        <label><input type="radio" value="F" v-model="state.gender"> Female</label>
+        <p>Selected: <span v-text="state.gender"></span></p>
+      </div>
+
+      <div class="mb-3">
+        <p :class="state.color">Dynamic Class Text (Color: <span v-text="state.color"></span>)</p>
+      </div>
+
+      <div class="mb-3" style="background: #e9ecef; padding: 10px;">
+        <div v-html="state.rawHtml"></div>
+      </div>
+    </section>
+
+    <section class="mt-5">
+      <h4>Create User (Async Logic)</h4>
+      <form @submit.prevent="submitForm">
         <input class="form-control mb-2" placeholder="Name" v-model="state.formState.name">
         <input class="form-control mb-2" placeholder="Email" v-model="state.formState.email">
 
         <button class="btn btn-primary" :disabled="state.loading">
-            <span v-text="state.buttonText"></span>
+          <span v-text="state.buttonText"></span>
         </button>
-    </form>
+      </form>
 
-    <p class="text-success mt-2" v-if="state.successMessage" v-text="state.successMessage"></p>
-    <p class="text-danger mt-2" v-if="state.errorMessage" v-text="state.errorMessage"></p>
-  </section>
+      <p class="text-success mt-2" v-if="state.successMessage" v-text="state.successMessage"></p>
+      <p class="text-danger mt-2" v-if="state.errorMessage" v-text="state.errorMessage"></p>
+    </section>
 
-  <section class="mt-5">
-    <p>Sum (A + B): <span v-text="state.sum"></span> || A:<span v-text="state.a"></span>  B:<span v-text="state.b"></span> </p>
-    <button class="btn btn-info" @click="state.doubleScore">Change A (<span v-text="state.a"></span>)</button>
-  </section>
+    <section class="mt-5">
+      <p>Sum (A + B): <span v-text="state.sum"></span> || A:<span v-text="state.a"></span> B:<span
+          v-text="state.b"></span> </p>
+      <button class="btn btn-info" @click="state.doubleScore">Change A (<span v-text="state.a"></span>)</button>
+    </section>
 
-  <section class="mt-5 mb-3">
-    <h4>Components & Slots</h4>
-    <my-card :title="state.msg">
+    <section class="mt-5 mb-3">
+      <h4>Components & Slots</h4>
+      <my-card :title="state.msg">
         <p>Hello from Parent injected via Slot Engine!</p>
-    </my-card>
-  </section>
+      </my-card>
+    </section>
 
-<section class="mt-5">
-    <h4>User Form (Emit-Based Comm)</h4>
-    
-    <user-form @add-user="addUser"></user-form>
-    
-    <ul class="mt-3 list-group">
+    <section class="mt-5">
+      <h4>User Form (Emit-Based Comm)</h4>
+
+      <user-form @add-user="addUser"></user-form>
+
+      <ul class="mt-3 list-group">
         <li class="list-group-item" v-for="u in state.users" :key="u.id">
-            <span v-text="u.name"></span>
+          <span v-text="u.name"></span>
         </li>
-    </ul>
-</section>
+      </ul>
+    </section>
 
-  <section class="mt-5">
-    <h4>Bind Global Data</h4>
-    <div class="header">
+    <section class="mt-5">
+      <h4>Bind Global Data</h4>
+      <div class="header">
         System: <span v-text="store.systemStatus"></span> <br>
         Server: <span v-text="store.serverStatus"></span> <br>
         CPU Load: <span v-text="store.cpuLoad"></span>
-    </div>
+      </div>
 
-    <div v-if="store.hasCandidate">
+      <div v-if="store.hasCandidate">
         <h4>Candidate Profile</h4>
         <p>Name: <span v-text="store.candidate.full_name"></span></p>
-        <button class="btn btn-danger"  v-on:click="store.logout">Clear Data</button>
-    </div>
-    
-    <div v-if="!store.hasCandidate">
+        <button class="btn btn-danger" v-on:click="store.logout">Clear Data</button>
+      </div>
+
+      <div v-if="!store.hasCandidate">
         <p>No candidate selected.</p>
-    </div>
-  </section>
+      </div>
+    </section>
 
 
-  <section class="mt-5">
-  <h4>Dynamic Styling</h4>
-  <button class="btn" 
-       :class="{
+    <section class="mt-5">
+      <h4>Dynamic Styling</h4>
+      <button class="btn" :class="{
         'btn-success': state.isActive, 
         'btn-secondary': !state.isActive
-        }"
-       @click="state.toggleActive">
-    Toggle Class State
-  </button>
-  <div :style="state.dynamicStyle" class="mt-2 p-2">Color Box</div>
-</section>
+        }" @click="state.toggleActive">
+        Toggle Class State
+      </button>
+      <div :style="state.dynamicStyle" class="mt-2 p-2">Color Box</div>
+    </section>
 
 
-<section class="mt-5">
-  <h4>Array Operations</h4>
-  <div class="btn-group">
-    <button class="btn btn-success" @click="state.listMethods.add">Push</button>
-    <button class="btn btn-danger" @click="state.listMethods.removeLast">Pop</button>
-    <button class="btn btn-warning" @click="state.listMethods.reverseList">Reverse</button>
-  </div>
-  <ul class="mt-2">
-    <li v-for="n in state.numbers" v-text="n"></li>
-  </ul>
-</section>
+    <section class="mt-5">
+      <h4>Array Operations</h4>
+      <div class="btn-group">
+        <button class="btn btn-success" @click="state.listMethods.add">Push</button>
+        <button class="btn btn-danger" @click="state.listMethods.removeLast">Pop</button>
+        <button class="btn btn-warning" @click="state.listMethods.reverseList">Reverse</button>
+      </div>
+      <ul class="mt-2">
+        <li v-for="n in state.numbers" v-text="n"></li>
+      </ul>
+    </section>
 
 
-<section class="mt-5">
-  <h4>Dropdown Change Ebent</h4>
+    <section class="mt-5">
+      <h4>Dropdown Change Ebent</h4>
 
-  <div class="row">
-  <div class="col-md-3 mb-3">
-      <label for="recurrence_type" class="form-label mb-0">
+      <div class="row">
+        <div class="col-md-3 mb-3">
+          <label for="recurrence_type" class="form-label mb-0">
             Schedule Type </label>
-    
-    <select 
-      name="recurrence_type" 
-      id="recurrence_type" 
-      class="form-select" 
-      v-on:change="toggle.update"
-      required="">
-      <option value="" selected disabled>Schedule Type</option>
-      <option value="weekly">Weekly</option>
-      <option value="biweekly">Every 2 Weeks</option>
-      <option value="monthly">Monthly</option>
-      <option value="interval">Every X Days</option>
-  </select>
 
-  <div v-show="toggle.schedule_field === 'weekly' || toggle.schedule_field === 'biweekly'">
-      <h4>Weekly Schedule</h4>
+          <select name="recurrence_type" id="recurrence_type" class="form-select" v-on:change="toggle.update"
+            required="">
+            <option value="" selected disabled>Schedule Type</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Every 2 Weeks</option>
+            <option value="monthly">Monthly</option>
+            <option value="interval">Every X Days</option>
+          </select>
+
+          <div v-show="toggle.schedule_field === 'weekly' || toggle.schedule_field === 'biweekly'">
+            <h4>Weekly Schedule</h4>
+          </div>
+
+          <div v-show="toggle.isWeeklyOrBiweekly">
+            <h4>BiWeekly Schedule</h4>
+          </div>
+
+          <div v-show="toggle.schedule_field === 'monthly' ">
+            <h4>Monthly Schedule</h4>
+          </div>
+
+          <div v-show="state.toggle.schedule_field === 'interval'">
+            <h4>Every X Days Schedule</h4>
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+
+
+    <section class="mt-5" id="nested-test">
+      <h4>Deep Nesting Test</h4>
+      <p>User: <span v-text="state.account.profile.name"></span></p>
+      <p>Role: <span v-text="state.account.profile.role"></span></p>
+      <button class="btn btn-sm btn-outline-primary" @click="state.account.profile.promote">Promote to Lead</button>
+    </section>
+
+
+    <section class="mt-5">
+      <h4>cheduler Batching Test</h4>
+      <p>Final Count: <span id="count-display" v-text="store.batchCount"></span></p>
+      <button class="btn btn-primary" @click="store.updateBatchCount">Run 1000 Updates</button>
+    </section>
+
+
   </div>
 
-    <div v-show="toggle.isWeeklyOrBiweekly">
-      <h4>BiWeekly Schedule</h4>
-  </div>
-
-     <div v-show="toggle.schedule_field === 'monthly' ">
-      <h4>Monthly Schedule</h4>
-  </div>
-
-      <div v-show="state.toggle.schedule_field === 'interval'">
-      <h4>Every X Days Schedule</h4>
-  </div>
-    
-    </div>
-  </div>
-
-</section>
-
-
-<section class="mt-5" id="nested-test">
-    <h4>Deep Nesting Test</h4>
-    <p>User: <span v-text="state.account.profile.name"></span></p>
-    <p>Role: <span v-text="state.account.profile.role"></span></p>
-    <button class="btn btn-sm btn-outline-primary" @click="state.account.profile.promote">Promote to Lead</button>
-</section>
-
-
-<section class="mt-5">
-  <h4>cheduler Batching Test</h4>
-  <p>Final Count: <span id="count-display" v-text="store.batchCount"></span></p>
-  <button class="btn btn-primary" @click="store.updateBatchCount">Run 1000 Updates</button>
-</section>
-
-
-</div>
-
-<script>
-  document.querySelectorAll('.nav-link').forEach(link => {
-    link.addEventListener('click', function(e) {
-      e.preventDefault();
-      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-      this.classList.add('active');
-      const target = document.querySelector(this.getAttribute('href'));
-      target.scrollIntoView({ behavior: 'smooth' });
+  <script>
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        this.classList.add('active');
+        const target = document.querySelector(this.getAttribute('href'));
+        target.scrollIntoView({ behavior: 'smooth' });
+      });
     });
-  });
-</script>
+  </script>
 
-<script>
+  <script>
     // 1. Configure Framework
     Helix.config.prefix = 'v-';
     Helix.config.debug = true;
@@ -289,84 +286,84 @@
     Helix.config.removeAttributeBindings = false;
 
     // 1. Extract the tools you need directly from the core
-    const { reactive, computed, effect, watch , signal, queuePostFlushCb} = Helix;
+    const { reactive, computed, effect, watch, signal, queuePostFlushCb } = Helix;
 
-   const HelixDebug = {
-  install(app, options = { color: '#00ff00' }) {
-    console.log("🛠️ Helix Debugger Active");
+    const HelixDebug = {
+      install(app, options = { color: '#00ff00' }) {
+        console.log("🛠️ Helix Debugger Active");
 
-    // ── v-debug: Click to log context ──
-    app.directive('debug', {
-      mounted(el, binding) {
-        // binding = { value, arg, modifiers, ctx, instance, trackCleanup, bindNode }
-        const { value: val, ctx, trackCleanup } = binding;
-        
-        const handler = () => {
-          console.group(`🔍 MicroVue Debug [${val || 'Current Context'}]`);
-          console.log("Context Data:", ctx);
-          console.log("Element Reference:", el);
-          console.groupEnd();
-        };
-        el.addEventListener('click', handler);
-        
-        // Use trackCleanup for proper cleanup
-        trackCleanup(() => el.removeEventListener('click', handler));
-      }
-    });
+        // ── v-debug: Click to log context ──
+        app.directive('debug', {
+          mounted(el, binding) {
+            // binding = { value, arg, modifiers, ctx, instance, trackCleanup, bindNode }
+            const { value: val, ctx, trackCleanup } = binding;
 
-    // ── v-trace: Flash border on value change ──
-    app.directive('trace', {
-      mounted(el, binding) {
-        const { value: val, ctx, trackCleanup } = binding;
-        
-        const unwatch = app.watch(
-          () => app.resolvePath(val, ctx),
-          (newVal, oldVal) => {
-            if (newVal === oldVal) return;
-            const originalBorder = el.style.outline;
-            el.style.outline = `2px solid ${options.color}`;
-            setTimeout(() => { el.style.outline = originalBorder; }, 300);
+            const handler = () => {
+              console.group(`🔍 MicroVue Debug [${val || 'Current Context'}]`);
+              console.log("Context Data:", ctx);
+              console.log("Element Reference:", el);
+              console.groupEnd();
+            };
+            el.addEventListener('click', handler);
+
+            // Use trackCleanup for proper cleanup
+            trackCleanup(() => el.removeEventListener('click', handler));
           }
-        );
-        
-        // Return cleanup function or use trackCleanup
-        trackCleanup(unwatch);
+        });
+
+        // ── v-trace: Flash border on value change ──
+        app.directive('trace', {
+          mounted(el, binding) {
+            const { value: val, ctx, trackCleanup } = binding;
+
+            const unwatch = app.watch(
+              () => app.resolvePath(val, ctx),
+              (newVal, oldVal) => {
+                if (newVal === oldVal) return;
+                const originalBorder = el.style.outline;
+                el.style.outline = `2px solid ${options.color}`;
+                setTimeout(() => { el.style.outline = originalBorder; }, 300);
+              }
+            );
+
+            // Return cleanup function or use trackCleanup
+            trackCleanup(unwatch);
+          }
+        });
       }
-    });
-  }
-};
+    };
     // Installation
     Helix.use(HelixDebug, { color: '#ff0000' });
 
     // 2. Create a standalone reactive store
     const inventory = reactive({
-        apples: 10,
-        oranges: 5,
-        pricePerFruit: 2
+      apples: 10,
+      oranges: 5,
+      pricePerFruit: 2
     });
 
     // 3. Create a standalone computed signal
     const totalFruits = computed(() => {
-        return inventory.apples + inventory.oranges;
+      return inventory.apples + inventory.oranges;
     });
 
     const totalValue = computed(() => {
-        return totalFruits.value * inventory.pricePerFruit;
+      return totalFruits.value * inventory.pricePerFruit;
     });
 
     // 4. Create a standalone effect to trigger logic when data changes
     effect(() => {
-        console.log(`[SYSTEM LOG] Total Fruits: ${totalFruits.value} | Value: $${totalValue.value}`);
+      console.log(`[SYSTEM LOG] Total Fruits: ${totalFruits.value} | Value: $${totalValue.value}`);
     });
 
     // --- Let's test it in the console! ---
 
     console.log("Selling 3 apples...");
-    inventory.apples -= 3; 
+    inventory.apples -= 3;
     // Instantly logs: "[SYSTEM LOG] Total Fruits: 12 | Value: $24"
 
     console.log("Price went up!");
-    inventory.pricePerFruit = 5; 
+    inventory.pricePerFruit = 5;
     // Instantly logs: "[SYSTEM LOG] Total Fruits: 12 | Value: $60"
 
     // 2. Custom Directive: Restore v-html functionality
@@ -379,25 +376,25 @@
     // });
 
     // 3. Define Components First
-    Helix.component("my-card", ({ reactive, props, onMounted  }) => {
-        const localState = reactive({
-            count: 0,
-            items: [1, 2, 3]
-        });
+    Helix.component("my-card", ({ reactive, props, onMounted }) => {
+      const localState = reactive({
+        count: 0,
+        items: [1, 2, 3]
+      });
 
-        onMounted(() => console.log("my-card Mounted"));
+      onMounted(() => console.log("my-card Mounted"));
 
-        const addItem = () => {
-            localState.items.push(localState.items.length + 1);
-        };
+      const addItem = () => {
+        localState.items.push(localState.items.length + 1);
+      };
 
-        const updateCount = () => {
-            localState.count = localState.count +1;
-        };
+      const updateCount = () => {
+        localState.count = localState.count + 1;
+      };
 
-        return {
-            localState, addItem, updateCount, props,
-            template: `
+      return {
+        localState, addItem, updateCount, props,
+        template: `
                 <div class="card p-3">
                     <h3>Title Prop: <span v-text="props.title"></span></h3>
                     
@@ -418,97 +415,97 @@
                     </div>
                 </div>
             `
-        };
+      };
     });
 
     Helix.component("user-form", {
-    // ✅ Declare emits at the root level for validation
-    emits: ['add-user'], 
-    
-    setup({ reactive, emit,props }) {
+      // ✅ Declare emits at the root level for validation
+      emits: ['add-user'],
+
+      setup({ reactive, emit, props }) {
         const localState = reactive({ name: "" });
 
         const submit = () => {
-            if (!localState.name) return;
-            
-            // ✅ Use the emit pattern. 
-            // MicroVue normalizes "addUser" to "add-user" automatically
-            emit("addUser", { id: Date.now(), name: localState.name });
-            
-            localState.name = "";
+          if (!localState.name) return;
+
+          // ✅ Use the emit pattern. 
+          // MicroVue normalizes "addUser" to "add-user" automatically
+          emit("addUser", { id: Date.now(), name: localState.name });
+
+          localState.name = "";
         };
 
         return {
-            localState, submit,
-            template: `
+          localState, submit,
+          template: `
                 <form @submit.prevent="submit" class="d-flex gap-2"> 
                     <input class="form-control w-25" v-model="localState.name" placeholder="Enter name">
                     <button class="btn btn-primary" type="submit">Add User</button>
                 </form>
             `
         };
-    }
-});
-    
-   // This lives entirely outside of any component or app instance.
-   // By attaching it to 'window', any file or third-party script can reach it.
-    let  AppStore = Helix.reactive({
-        
-        // --- GLOBAL STATE ---
-        candidate: null,
-        theme: 'light',
-        systemStatus: 'Online',
+      }
+    });
 
-        serverStatus: 'Online',
-        cpuLoad: 45,
-        batchCount: 0,
+    // This lives entirely outside of any component or app instance.
+    // By attaching it to 'window', any file or third-party script can reach it.
+    let AppStore = Helix.reactive({
 
-        // --- GLOBAL COMPUTED ---
-        get hasCandidate() {
-            return this.candidate !== null;
-        },
+      // --- GLOBAL STATE ---
+      candidate: null,
+      theme: 'light',
+      systemStatus: 'Online',
 
-        // --- GLOBAL ACTIONS ---
-        // You can put your setStore logic directly inside the state!
-        updateCandidate(data) {
-            this.candidate = { ...this.candidate, ...data };
-            console.log("Candidate updated globally:", this.candidate);
-        },
-        
-        logout() {
-            console.log("Logging out...");
-            this.candidate = null;
-        },
+      serverStatus: 'Online',
+      cpuLoad: 45,
+      batchCount: 0,
 
-        updateBatchCount(){
-          this.batchCount = 0;
-            console.log("Updating batchCount...");
-             console.log("Starting 1000 rapid state changes...");
-                
-                // 1. Mutate the state 1000 times synchronously
-                for (let i = 1; i <= 1000; i++) {
-                    this.batchCount = i;
-                }
+      // --- GLOBAL COMPUTED ---
+      get hasCandidate() {
+        return this.candidate !== null;
+      },
 
-                // 2. The DOM should NOT be updated yet
-                const displayEl = document.getElementById('count-display');
-                console.log("DOM text immediately after loop:", displayEl.innerText); // Should be old value
+      // --- GLOBAL ACTIONS ---
+      // You can put your setStore logic directly inside the state!
+      updateCandidate(data) {
+        this.candidate = { ...this.candidate, ...data };
+        console.log("Candidate updated globally:", this.candidate);
+      },
 
-                // 3. Use the Post-Flush Hook to check the DOM after the scheduler runs
-                queuePostFlushCb(() => {
-                    console.log("DOM text after scheduler flush:", displayEl.innerText); // Should be 1000
-                    if (displayEl.innerText === "1000") {
-                        console.log("✅ BATCHING TEST PASSED: DOM updated exactly once!");
-                    } else {
-                        console.error("❌ BATCHING TEST FAILED");
-                    }
-                });
+      logout() {
+        console.log("Logging out...");
+        this.candidate = null;
+      },
+
+      updateBatchCount() {
+        this.batchCount = 0;
+        console.log("Updating batchCount...");
+        console.log("Starting 1000 rapid state changes...");
+
+        // 1. Mutate the state 1000 times synchronously
+        for (let i = 1; i <= 1000; i++) {
+          this.batchCount = i;
         }
+
+        // 2. The DOM should NOT be updated yet
+        const displayEl = document.getElementById('count-display');
+        console.log("DOM text immediately after loop:", displayEl.innerText); // Should be old value
+
+        // 3. Use the Post-Flush Hook to check the DOM after the scheduler runs
+        queuePostFlushCb(() => {
+          console.log("DOM text after scheduler flush:", displayEl.innerText); // Should be 1000
+          if (displayEl.innerText === "1000") {
+            console.log("✅ BATCHING TEST PASSED: DOM updated exactly once!");
+          } else {
+            console.error("❌ BATCHING TEST FAILED");
+          }
+        });
+      }
     });
 
 
     setTimeout(() => {
-        // No need for 'setStore()'. Just call the action or mutate directly!
+      // No need for 'setStore()'. Just call the action or mutate directly!
       AppStore.updateCandidate({ full_name: "John Doe" });
     }, 2000);
 
@@ -517,227 +514,228 @@
     // Run this block immediately, and re-run it whenever 
     // serverStatus OR cpuLoad changes!
     Helix.effect(() => {
-        // The framework tracks these reads automatically
-        const status = AppStore.serverStatus;
-        const load = AppStore.cpuLoad;
+      // The framework tracks these reads automatically
+      const status = AppStore.serverStatus;
+      const load = AppStore.cpuLoad;
 
-        if (status === 'Offline' || load > 90) {
-            console.warn("🚨 SYSTEM ALERT: Action Required!");
-            // e.g., Trigger an HTML5 Notification API
-        } else {
-            console.log("System is stable.");
-        }
+      if (status === 'Offline' || load > 90) {
+        console.warn("🚨 SYSTEM ALERT: Action Required!");
+        // e.g., Trigger an HTML5 Notification API
+      } else {
+        console.log("System is stable.");
+      }
     });
 
-// Testing the auto-tracking
-setTimeout(() => {
-    AppStore.cpuLoad = 95; 
-    // Instantly triggers the 🚨 SYSTEM ALERT
-
-
+    // Testing the auto-tracking
     setTimeout(() => {
+      AppStore.cpuLoad = 95;
+      // Instantly triggers the 🚨 SYSTEM ALERT
+
+
+      setTimeout(() => {
         AppStore.serverStatus = 'Offline';
 
         setTimeout(() => {
-            AppStore.cpuLoad = 80;
-             AppStore.serverStatus = 'Online';
-            // Instantly triggers the 🚨 SYSTEM ALERT
+          AppStore.cpuLoad = 80;
+          AppStore.serverStatus = 'Online';
+          // Instantly triggers the 🚨 SYSTEM ALERT
         }, 3000);
+
+      }, 3000);
 
     }, 3000);
 
-}, 3000);
 
+    // 1. Define the reactive object
+    let AppToggle = Helix.reactive({
+      schedule_field: '',
+      statusUpdated: false,
 
-// 1. Define the reactive object
-let AppToggle = Helix.reactive({
-   schedule_field: '',
-    statusUpdated: false,
-    
-    // Use standard method syntax, NOT arrow functions
-    logChange(event) {
+      // Use standard method syntax, NOT arrow functions
+      logChange(event) {
         console.log("Schedule Type changed:", event.target.value);
-        this.statusUpdated = true; 
-    }
-});
+        this.statusUpdated = true;
+      }
+    });
 
     // 4. Mount Main Application
     Helix.mount('#content', ({ reactive, watch }) => {
-        // Single Unified State Tree
-        const state = reactive({
-            // Intro / Reactivity
-            count: 0,
-            name: '',
-            show: true,
-            list: [1, 2, 3],
-            score: 70,
-            
-            // Forms
-            age: 0,
-            done: false,
-            gender: 'M',
-            color: 'text-danger',
-            rawHtml: '<b>Hello Native HTML Injection</b>',
-            
-            // Component Props
-            msg: 'Hello World',
-            users: [],
-            
-            // Native Computed (A + B)
-            a: 2,
-            b: 3,
-            get sum() {
-                return this.a + this.b;
-            },
-            toggleMe() {
-                this.show = !this.show;
-            },
+      // Single Unified State Tree
+      const state = reactive({
+        // Intro / Reactivity
+        count: 0,
+        name: '',
+        show: true,
+        list: [1, 2, 3],
+        score: 70,
 
-           // Change this to a method so it can perform an action
-            doubleScore() {
-                this.a = this.a + 1; // Or this.a++
-                this.b = this.b + 1; // Or this.b++
-                console.log("New value of A:", this.a);
-                console.log("New value of B:", this.b);
-            },
+        // Forms
+        age: 0,
+        done: false,
+        gender: 'M',
+        color: 'text-danger',
+        rawHtml: '<b>Hello Native HTML Injection</b>',
 
-            // Native Computed (Grade)
-            get grade() {
-                return this.score ;
-            },
-            addListItems() {
-                this.list.push(state.list.length + 1);
-            },
-            increment() {
-                this.count++;
-            },
-        
-            // Async Form State
-            formState: { name: "", email: "" },
-            loading: false,
-            successMessage: "",
-            errorMessage: "",
+        // Component Props
+        msg: 'Hello World',
+        users: [],
 
-            // Global Store Simulation
-            store: {},
-
-
-            // Add this native computed getter!
-            get buttonText() {
-                return this.loading ? 'Saving...' : 'Save';
-            },
-
-            isActive: true,
-            get buttonClass() {
-                return {
-                    'btn-success': this.isActive,
-                    'btn-secondary': !this.isActive
-                };
-            },
-            get dynamicStyle() {
-                return `background-color: ${this.isActive ? '#d4edda' : '#f8d7da'}; transition: 0.3s;`;
-            },
-            toggleActive() {
-                this.isActive = !this.isActive;
-            },
-
-            numbers: [10, 20, 30],
-            listMethods: {
-                add() { state.numbers.push(state.numbers.length * 10 + 10); },
-                removeLast() { state.numbers.pop(); },
-                reverseList() { state.numbers.reverse(); } 
-            },
-
-            account: {
-              profile: {
-                  name: "Alice",
-                  role: "Developer",
-                  promote() {
-                      // Testing if 'this' points to 'profile' correctly
-                      this.role = "Lead Developer";
-                  }
-              }
-          },
-          batchCount: 0,
-
-          toggle: {
-            schedule_field: '',
-            statusUpdated: false,
-            get isWeeklyOrBiweekly() {
-              return this.schedule_field === 'weekly' || this.schedule_field === 'biweekly';
-            },
-            update(event) {
-               this.schedule_field = event.target.value;
-                console.log("Schedule Type changed:", event.target.value);
-                this.statusUpdated = true;
-            }
+        // Native Computed (A + B)
+        a: 2,
+        b: 3,
+        get sum() {
+          return this.a + this.b;
         },
-        });
+        toggleMe() {
+          this.show = !this.show;
+        },
 
-        // Async Form Submission Handler
-        const submitForm = async () => {
-            state.loading = true;
-            state.successMessage = "";
-            state.errorMessage = "";
+        // Change this to a method so it can perform an action
+        doubleScore() {
+          this.a = this.a + 1; // Or this.a++
+          this.b = this.b + 1; // Or this.b++
+          console.log("New value of A:", this.a);
+          console.log("New value of B:", this.b);
+        },
 
-            try {
-                // Simulating an API call
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                if (!state.formState.name) throw new Error("Name is required");
+        // Native Computed (Grade)
+        get grade() {
+          return this.score;
+        },
+        addListItems() {
+          this.list.push(state.list.length + 1);
+        },
+        increment() {
+          this.count++;
+        },
 
-                state.successMessage = "User created successfully!";
-                state.formState.name = "";
-                state.formState.email = "";
-            } catch (err) {
-                state.errorMessage = err.message;
-            } finally {
-                state.loading = false;
+        // Async Form State
+        formState: { name: "", email: "" },
+        loading: false,
+        successMessage: "",
+        errorMessage: "",
+
+        // Global Store Simulation
+        store: {},
+
+
+        // Add this native computed getter!
+        get buttonText() {
+          return this.loading ? 'Saving...' : 'Save';
+        },
+
+        isActive: true,
+        get buttonClass() {
+          return {
+            'btn-success': this.isActive,
+            'btn-secondary': !this.isActive
+          };
+        },
+        get dynamicStyle() {
+          return `background-color: ${this.isActive ? '#d4edda' : '#f8d7da'}; transition: 0.3s;`;
+        },
+        toggleActive() {
+          this.isActive = !this.isActive;
+        },
+
+        numbers: [10, 20, 30],
+        listMethods: {
+          add() { state.numbers.push(state.numbers.length * 10 + 10); },
+          removeLast() { state.numbers.pop(); },
+          reverseList() { state.numbers.reverse(); }
+        },
+
+        account: {
+          profile: {
+            name: "Alice",
+            role: "Developer",
+            promote() {
+              // Testing if 'this' points to 'profile' correctly
+              this.role = "Lead Developer";
             }
-        };
+          }
+        },
+        batchCount: 0,
 
-        // Method to pass into component
-        const addUser = (userData) => {
-            state.users.push(userData);
-        };
+        toggle: {
+          schedule_field: '',
+          statusUpdated: false,
+          get isWeeklyOrBiweekly() {
+            return this.schedule_field === 'weekly' || this.schedule_field === 'biweekly';
+          },
+          update(event) {
+            this.schedule_field = event.target.value;
+            console.log("Schedule Type changed:", event.target.value);
+            this.statusUpdated = true;
+          }
+        },
+      });
 
-        // Watchers
-        watch(() => state.count, (newVal, oldVal) => {
-            console.log("Count changed:", oldVal, "→", newVal);
-        });
+      // Async Form Submission Handler
+      const submitForm = async () => {
+        state.loading = true;
+        state.successMessage = "";
+        state.errorMessage = "";
 
-        // Simulate external store update after 2 seconds
+        try {
+          // Simulating an API call
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          if (!state.formState.name) throw new Error("Name is required");
+
+          state.successMessage = "User created successfully!";
+          state.formState.name = "";
+          state.formState.email = "";
+        } catch (err) {
+          state.errorMessage = err.message;
+        } finally {
+          state.loading = false;
+        }
+      };
+
+      // Method to pass into component
+      const addUser = (userData) => {
+        state.users.push(userData);
+      };
+
+      // Watchers
+      watch(() => state.count, (newVal, oldVal) => {
+        console.log("Count changed:", oldVal, "→", newVal);
+      });
+
+      // Simulate external store update after 2 seconds
+      setTimeout(() => {
+        state.score = 80;
+        console.log("state.score 80 Updated from Timeout");
+
         setTimeout(() => {
-            state.score = 80;
-            console.log("state.score 80 Updated from Timeout");
-
-            setTimeout(() => {
-                state.score = 90;
-                console.log("state.score 90 Updated from Timeout");
+          state.score = 90;
+          console.log("state.score 90 Updated from Timeout");
 
 
-                setTimeout(() => {
-                    state.score = 50;
-                    console.log("state.score 50 Updated from Timeout");
-                }, 2000);
-
-            }, 2000);
+          setTimeout(() => {
+            state.score = 50;
+            console.log("state.score 50 Updated from Timeout");
+          }, 2000);
 
         }, 2000);
 
-        // Expose state and methods to the DOM
-        return {
-            state,
-            submitForm,
+      }, 2000);
 
-            addUser,
-            store: AppStore,
-            toggle: state.toggle,
-        };
+      // Expose state and methods to the DOM
+      return {
+        state,
+        submitForm,
+
+        addUser,
+        store: AppStore,
+        toggle: state.toggle,
+      };
     });
 
 
 
-</script>
+  </script>
 </body>
+
 </html>
