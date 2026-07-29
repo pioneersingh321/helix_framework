@@ -29,7 +29,7 @@ A lightweight, Vue-inspired reactive JavaScript framework — signal-native reac
 
 - **No build step.** Drop in one `<script>` tag and write reactive UIs directly in your HTML.
 - **Fine-grained reactivity.** A proxy-based signal system with `ref`, `reactive`, `computed`, `effect`, and `watch`, modeled on the Vue 3 reactivity core.
-- **Declarative directives.** `h-if`, `h-for`, `h-model`, `h-bind`, `h-on`, and more, with `:` and `@` shorthands.
+- **Declarative directives.** `hx-if`, `hx-for`, `hx-model`, `hx-bind`, `hx-on`, and more, with `:` and `@` shorthands.
 - **Composable.** Components with `setup()`, props, emits, slots, provide/inject, and an effect-scope-based cleanup model.
 - **Extensible.** A first-class plugin system with versioned dependencies, namespaces, and lifecycle-managed teardown.
 
@@ -65,7 +65,7 @@ const { createApp, reactive, computed } = window.Helix;
   <h1>{{ title }}</h1>
   <p>Count is {{ count }}</p>
   <button @click="increment">+1</button>
-  <input h-model="title" />
+  <input hx-model="title" />
 </div>
 
 <script src="helix_v11-1-7.js"></script>
@@ -108,7 +108,7 @@ Text interpolation uses double braces by default:
 <span>{{ user.name }}</span>
 ```
 
-Directives are HTML attributes prefixed with `h-` (configurable), with `:` as shorthand for `h-bind` and `@` as shorthand for `h-on`.
+Directives are HTML attributes prefixed with `hx-` (configurable), with `:` as shorthand for `hx-bind` and `@` as shorthand for `hx-on`.
 
 ---
 
@@ -199,17 +199,17 @@ watchEffect((onCleanup) => {
 
 ## Template directives
 
-All directives use the `h-` prefix by default. `:x` is shorthand for `h-bind:x` and `@x` is shorthand for `h-on:x`.
+All directives use the `hx-` prefix by default. `:x` is shorthand for `hx-bind:x` and `@x` is shorthand for `hx-on:x`.
 
 ### Text & HTML
 
 ```html
-<span h-text="message"></span>   <!-- sets textContent -->
-<div h-html="richContent"></div> <!-- sets innerHTML (trusted content only) -->
+<span hx-text="message"></span>   <!-- sets textContent -->
+<div hx-html="richContent"></div> <!-- sets innerHTML (trusted content only) -->
 <span>{{ message }}</span>       <!-- interpolation -->
 ```
 
-### Attribute binding — `h-bind` / `:`
+### Attribute binding — `hx-bind` / `:`
 
 ```html
 <a :href="url">link</a>
@@ -231,7 +231,7 @@ All directives use the `h-` prefix by default. `:x` is shorthand for `h-bind:x` 
 <div :style="{ color: theme.color, fontSize: size + 'px' }"></div>
 ```
 
-### Event handling — `h-on` / `@`
+### Event handling — `hx-on` / `@`
 
 ```html
 <button @click="save">Save</button>
@@ -246,40 +246,40 @@ All directives use the `h-` prefix by default. `:x` is shorthand for `h-bind:x` 
 
 Supported event modifiers: **`.prevent`** (calls `preventDefault()`) and **`.stop`** (calls `stopPropagation()`).
 
-### Two-way binding — `h-model`
+### Two-way binding — `hx-model`
 
 Works with text inputs, textareas, checkboxes, radios, and single/multiple selects. Numeric inputs (`type="number"`) coerce to `Number` automatically.
 
 ```html
-<input h-model="form.email" />
-<input type="checkbox" h-model="form.subscribe" />
-<input type="radio" value="a" h-model="form.choice" />
-<select h-model="form.country">…</select>
-<select multiple h-model="form.tags">…</select>
+<input hx-model="form.email" />
+<input type="checkbox" hx-model="form.subscribe" />
+<input type="radio" value="a" hx-model="form.choice" />
+<select hx-model="form.country">…</select>
+<select multiple hx-model="form.tags">…</select>
 ```
 
-### Conditional rendering — `h-if`
+### Conditional rendering — `hx-if`
 
 ```html
-<div h-if="isLoggedIn">Welcome back</div>
+<div hx-if="isLoggedIn">Welcome back</div>
 ```
 
 The element is fully created when the condition becomes truthy and completely destroyed (with its effects and listeners) when it becomes falsy.
 
-### List rendering — `h-for`
+### List rendering — `hx-for`
 
 ```html
 <ul>
-  <li h-for="item in items" :key="item.id">{{ item.name }}</li>
+  <li hx-for="item in items" :key="item.id">{{ item.name }}</li>
 </ul>
 ```
 
 Provide a `:key` for stable, keyed reconciliation. Without one, object items are auto-keyed per list instance. The reconciler uses a longest-increasing-subsequence diff to minimize DOM moves.
 
-### Template refs — `h-ref`
+### Template refs — `hx-ref`
 
 ```html
-<input h-ref="emailInput" />
+<input hx-ref="emailInput" />
 ```
 
 ```js
@@ -290,10 +290,10 @@ setup() {
 }
 ```
 
-### Visibility — `h-show`
+### Visibility — `hx-show`
 
 ```html
-<div h-show="isVisible">Toggles display:none instead of removing</div>
+<div hx-show="isVisible">Toggles display:none instead of removing</div>
 ```
 
 ---
@@ -317,7 +317,7 @@ app.component("user-card", {
   template: `
     <div class="card" @click="toggle">
       <strong>{{ name }}</strong>
-      <p h-show="expanded"><slot></slot></p>
+      <p hx-show="expanded"><slot></slot></p>
     </div>
   `
 });

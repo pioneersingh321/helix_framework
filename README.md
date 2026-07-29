@@ -1,6 +1,6 @@
 # 🧬 Helix.js Framework
 
-[![Version](https://img.shields.io/badge/version-11.1.16-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
+[![Version](https://img.shields.io/badge/version-11.1.17-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
 [![Bundle Size](https://img.shields.io/badge/bundle-109KB--uncompressed-teal.svg?style=flat-square)](#)
 [![Reactivity](https://img.shields.io/badge/reactivity-signal--native-blue.svg?style=flat-square)](#)
 [![Build Step](https://img.shields.io/badge/build-zero--build--step-orange.svg?style=flat-square)](#)
@@ -36,18 +36,16 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 ## ✨ Core Features
 
 *   🚀 **Zero Build Step:** Drop in a single `<script>` tag and start writing reactive UIs directly in your HTML.
-*   ⚡ **Fine-Grained Reactivity:** A proxy-based signal system with `ref`, `reactive`, `computed`, `effect`, and `watch` modeled after Vue 3's reactive engine.
-*   🎨 **Declarative HTML Directives:** Bind data with `h-if`, `h-for`, `h-model`, `h-bind`, and `h-on` (with `:` and `@` shorthands).
+*   ⚡ **Fine-Grained Reactivity Engine:** A proxy-based signal system with `ref`, `reactive`, `computed`, `effect`, `watch`, `watchEffect`, `memo`, and `effectScope` modeled after Vue 3's reactive engine.
+*   🎨 **Declarative HTML Directives:** Bind data with `hx-if`, `hx-for`, `hx-model`, `hx-bind`, and `hx-on` (with `:` and `@` shorthands).
+*   🔌 **Single-Execution Plugin Engine (v11.1.17):** `Helix.use()` & `app.use()` featuring automated single-execution deduplication (`_executed` lifecycle tracking), semver validation, and teardown cleanup.
 *   🧱 **Composable Scoped Components:** Define elements with `setup()`, props, custom emits, slots, and an effect-scope cleanup model.
-*   📦 **Async Components & Fallbacks:** Lazy-load components with `defineAsyncComponent`, fallback loaders, retry control (`onError`), and preloading (`Helix.preload`).
+*   ⏳ **Async Components & Suspense:** Lazy-load components with `defineAsyncComponent`, fallback loaders, preloading (`Helix.preload`), and built-in `<Suspense>` UI state management.
+*   🛡️ **Error Boundaries & Resilience:** Catch descendant component errors with `createErrorBoundary()` and `onErrorCaptured()`, plus global `Helix.onError()`.
+*   🛠️ **DevTools & Memory Profiler:** Dynamic component tree inspection (`inspectTree()`), active dependency tracking (`inspectDeps()`), render performance profiling (`profile()`), and memory diagnostics (`checkMemoryLeaks()`).
 *   ⚡ **Priority Batch Transactions:** Group mutations with `Helix.batch()`, `Helix.batch.high()`, `Helix.batch.low()`, and priority effects (`"high"`, `"normal"`, `"low"`).
 *   🌐 **Unified ScopeScheduler:** Single timer tick loop driving dirty scope refreshes with microtask batch deduplication.
-*   🛡️ **Memory-Safe Teardown & Error Boundaries:** Automatic listener collection, memory leak detection, `createErrorBoundary()`, and `onErrorCaptured()`.
-*   🔌 **First-Class Plugins & Lifecycles:** Plugin SDK (`definePlugin`), schema validation, semver resolution, and full lifecycle hooks (`install`, `mounted`, `updated`, `unmount`, `destroy`).
 *   🌳 **Public DOM Utilities (`Helix.dom`):** Low-level DOM binding, inspection (`dom.inspect`), cleanup (`dom.cleanup`), and element destruction (`dom.destroy`).
-*   🎯 **Scoped Reactivity API (`effectScope`):** Create composable reactive scopes with `effectScope(detached)` and `onScopeDispose()`.
-*   ⏳ **Built-in `<suspense>` Component:** Handle template-driven async UI states with `#fallback` and `#default` slot rendering.
-*   👀 **Enhanced Watch API (`watch`, `watchEffect`):** Multi-source array watching, `once: true` auto-unwatch, and deep collection traversal.
 *   🛠️ **DevTools Introspection APIs (`Helix.devtools`):** Real-time inspection of active scopes (`getScopes`), running effects (`getEffects`), dependency graphs (`getDependencies`), and timings (`getTimings`).
 *   ⏱️ **Built-in Performance Profiler:** Measure render duration, effect executions, and mount metrics via `Helix.profile()`.
 *   🧠 **Memoized Computations (`Helix.memo`):** Cache heavy calculations and re-evaluate only when inputs or dependencies update.
@@ -115,11 +113,11 @@ Here is a simple example demonstrating reactive text, input modeling, conditiona
   <h1>{{ title }}</h1>
   <p>Count is: {{ count }}</p>
   
-  <!-- Directives default to the "h-" prefix -->
+  <!-- Directives default to the "hx-" prefix -->
   <button @click="increment">+1 Increment</button>
-  <input h-model="title" placeholder="Update title..." />
+  <input hx-model="title" placeholder="Update title..." />
   
-  <p h-if="count >= 5">🎉 Count is 5 or higher!</p>
+  <p hx-if="count >= 5">🎉 Count is 5 or higher!</p>
 </div>
 
 <script src="./dist/helix.js"></script>
@@ -141,7 +139,7 @@ Here is a simple example demonstrating reactive text, input modeling, conditiona
 
 > [!TIP]
 > **Prefer Vue-Style `v-` Directives?**
-> By default, Helix uses the `h-` prefix. You can switch to Vue's `v-` prefix globally before mounting your app:
+> By default, Helix uses the `hx-` prefix. You can switch to Vue's `v-` prefix globally before mounting your app:
 > ```javascript
 > Helix.config.prefix = 'v-';
 > Helix.config.allowInlineExpressions = true; // Enables evaluating full inline JS
@@ -209,11 +207,36 @@ watchEffect((onCleanup) => {
 });
 ```
 
+### `memo(runner, depsOrKeyFn)`
+Creates a memoized computation with explicit dependency tracking. Re-runs the runner only when the dependency values change.
+```javascript
+const state = reactive({ a: 10, b: 5 });
+const product = memo(
+  () => state.a * state.b,
+  () => [state.a, state.b]
+);
+console.log(product.value); // 50
+```
+
+### `effectScope(detached?)`
+Creates an effect scope object that can capture reactive effects (computed, watch, effect) created within it, allowing them to be disposed of together.
+```javascript
+const scope = effectScope();
+scope.run(() => {
+  const count = ref(0);
+  watch(count, (val) => console.log(val));
+});
+// Dispose all captured effects
+scope.stop();
+```
+
 ### 🛠️ Reactivity Utilities
 
 | API Method | Purpose |
 | :--- | :--- |
-| `shallowRef` / `shallowReactive` | Restricts reactivity strictly to the root properties. |
+| `memo` | Optimized memoized computation with custom dependency array evaluation. |
+| `effectScope` / `onScopeDispose` | Creates and disposes composable reactive effect scopes. |
+| `shallowRef` / `shallowReactive` | Restricts reactivity strictly to root properties. |
 | `readonly` / `shallowReadonly` | Returns an immutable, read-only wrapper of a reactive object. |
 | `isRef` / `unref` / `toValue` | Inspects, unwraps, or extracts value variables. |
 | `toRef` / `toRefs` | Destructures reactive object properties into distinct reactive refs. |
@@ -221,22 +244,21 @@ watchEffect((onCleanup) => {
 | `isProxy` / `isShallow` | Inspects the Proxy characteristics of an object. |
 | `customRef` | Creates custom refs specifying explicit dependency tracking (`track` / `trigger`). |
 | `nextTick` | Awaits the resolution of the next queued DOM rendering flush. |
-| `EffectScope` | Aggregates multiple effects for collective garbage collection. |
 
 ---
 
 ## 🔌 Directive Bindings Reference
 
-All directives use the `h-` prefix by default. Attribute shorthand `:` stands for `h-bind:`, and `@` represents `h-on:`.
+All directives use the `hx-` prefix by default. Attribute shorthand `:` stands for `hx-bind:`, and `@` represents `hx-on:`.
 
 ### 1. Interpolation & Text
 *   **`{{ expression }}`**: Double-brace syntax inserts text values safely.
-*   **`h-text="message"`**: Updates the node's `textContent`.
-*   **`h-html="richMessage"`**: Updates the node's `innerHTML`.
+*   **`hx-text="message"`**: Updates the node's `textContent`.
+*   **`hx-html="richMessage"`**: Updates the node's `innerHTML`.
     > [!WARNING]
-    > **XSS Vulnerability:** Never render unsanitized user-generated content via `h-html`.
+    > **XSS Vulnerability:** Never render unsanitized user-generated content via `hx-html`.
 
-### 2. Attribute Bindings (`h-bind` / `:`)
+### 2. Attribute Bindings (`hx-bind` / `:`)
 Binds reactive state to standard element attributes (e.g., `:href`, `:src`, `:disabled`).
 ```html
 <a :href="url">Link</a>
@@ -253,7 +275,7 @@ Binds reactive state to standard element attributes (e.g., `:href`, `:src`, `:di
     <div :style="{ color: activeColor, fontSize: fontSize + 'px' }"></div>
     ```
 
-### 3. Event Handling (`h-on` / `@`)
+### 3. Event Handling (`hx-on` / `@`)
 Listens to native DOM events. Supports inline invocations, custom arguments, and event parameter references (`$event`).
 ```html
 <button @click="increment">Click</button>
@@ -264,34 +286,34 @@ Listens to native DOM events. Supports inline invocations, custom arguments, and
 *   `@submit.prevent`: Invokes `event.preventDefault()`.
 *   `@click.stop`: Invokes `event.stopPropagation()`.
 
-### 4. Two-Way Model Bindings (`h-model`)
+### 4. Two-Way Model Bindings (`hx-model`)
 Synchronizes state with forms including inputs, textareas, checkboxes, radio inputs, and select dropdowns.
 ```html
-<input type="text" h-model="form.email" />
-<input type="checkbox" h-model="form.agree" />
-<select h-model="form.city">
+<input type="text" hx-model="form.email" />
+<input type="checkbox" hx-model="form.agree" />
+<select hx-model="form.city">
   <option value="london">London</option>
 </select>
 ```
 
-### 5. Conditional Rendering (`h-if`)
-Conditionally renders an element. Elements under `h-if` are fully created when truthy and completely destroyed along with nested event handlers when falsy to prevent memory leaks.
+### 5. Conditional Rendering (`hx-if`)
+Conditionally renders an element. Elements under `hx-if` are fully created when truthy and completely destroyed along with nested event handlers when falsy to prevent memory leaks.
 ```html
-<div h-if="isLoggedIn">Welcome Back!</div>
+<div hx-if="isLoggedIn">Welcome Back!</div>
 ```
 
-### 6. List Rendering (`h-for`)
+### 6. List Rendering (`hx-for`)
 Loops through arrays to render lists of items. Providing a `:key` enables optimal DOM node reconciliation via Helix's **longest-increasing-subsequence** diff algorithm.
 ```html
 <ul>
-  <li h-for="item in items" :key="item.id">{{ item.name }}</li>
+  <li hx-for="item in items" :key="item.id">{{ item.name }}</li>
 </ul>
 ```
 
-### 7. Template Refs (`h-ref`)
+### 7. Template Refs (`hx-ref`)
 References elements directly inside the component scope.
 ```html
-<input h-ref="usernameInput" />
+<input hx-ref="usernameInput" />
 ```
 ```javascript
 setup() {
@@ -301,21 +323,21 @@ setup() {
 }
 ```
 
-### 8. Visibility Toggle (`h-show`)
+### 8. Visibility Toggle (`hx-show`)
 Toggles an element's visibility using the CSS `display` property, preserving the element in the DOM tree.
 ```html
-<div h-show="isToggled">Toggle display:none style</div>
+<div hx-show="isToggled">Toggle display:none style</div>
 ```
 
-### 9. Asynchronous Data Scopes (`h-scope`)
+### 9. Asynchronous Data Scopes (`hx-scope`)
 Evaluates an expression (typically an asynchronous data fetch) and exposes the result as a reactive state to the entire descendant subtree:
 
 ```html
-<div h-scope:user="fetch('/api/user').then(res => res.json())">
-  <div h-if="user.$loading">Loading...</div>
-  <div h-if="user.$error" class="text-danger">Error: {{ user.$error.message }}</div>
+<div hx-scope:user="fetch('/api/user').then(res => res.json())">
+  <div hx-if="user.$loading">Loading...</div>
+  <div hx-if="user.$error" class="text-danger">Error: {{ user.$error.message }}</div>
   
-  <div h-if="user.$data">
+  <div hx-if="user.$data">
     <span>Username: {{ user.name }}</span>
     <button @click="user.refresh()">Refresh</button>
   </div>
@@ -329,11 +351,11 @@ Evaluates an expression (typically an asynchronous data fetch) and exposes the r
 *   `user.refresh()`: Re-evaluates the expression and refreshes the scope.
 *   **Auto-Spreading:** If the resolved result is a plain object, all of its keys are spread directly onto the scope object (e.g. `user.name` from a `{ name: "Alice" }` result).
 
-#### Fallback Defaults (`h-scope-default`):
+#### Fallback Defaults (`hx-scope-default`):
 Provide fallback values for keys that are missing or `undefined` on the resolved result:
 ```html
-<div h-scope:user="fetch('/api/user').then(res => res.json())"
-     h-scope-default:user='{"name": "Anonymous", "role": "Guest"}'>
+<div hx-scope:user="fetch('/api/user').then(res => res.json())"
+     hx-scope-default:user='{"name": "Anonymous", "role": "Guest"}'>
   <!-- name defaults to "Anonymous", role to "Guest" initially -->
 </div>
 ```
@@ -423,13 +445,13 @@ Helix.$bus.off("notify-user", handler);
 
 ## 🧩 Plugins & Namespaces
 
-Extend Helix with global namespaces, custom components, and custom directives using `app.use()`. The system features semver dependency resolution.
+Extend Helix with global namespaces, custom components, and custom directives using `Helix.use()` or `app.use()`. The system features semver dependency resolution and a **Single-Execution Plugin Engine (v11.1.17)** with automated `_executed` state tracking so `install()` runs **exactly once**.
 
 ```javascript
 const NetworkPlugin = {
   name: "helix-network",
   version: "1.0.0",
-  requires: { "helix-fetch": ">=2.0.0" }, // plugin dependencies check
+  requires: { "helix-fetch": ">=2.0.0" }, // semver dependency resolution
   install(app, options) {
     // 1. Expose namespace APIs
     app.namespace("net", {
@@ -439,7 +461,7 @@ const NetworkPlugin = {
     // 2. Register directives
     app.directive("ping-on-click", {
       mounted(el) {
-        el.addEventListener("click", app.$net.ping);
+        el.addEventListener("click", app.namespace("net").ping);
       }
     });
 
@@ -451,7 +473,8 @@ const NetworkPlugin = {
   }
 };
 
-app.use(NetworkPlugin);
+// Global installation (single execution guaranteed)
+Helix.use(NetworkPlugin);
 ```
 
 ### Plugin Registry Inspection
@@ -469,17 +492,17 @@ Configure global configuration parameters prior to mounting any application inst
 
 ```javascript
 Helix.config.debug = true;         // Enables developer console warning flags
-Helix.config.prefix = "h-";        // Sets custom directive attributes
+Helix.config.prefix = "hx-";       // Sets custom directive attributes
 Helix.config.delimiters = ["{{", "}}"]; // Custom text interpolators
 ```
 
 | Config Option | Default Value | Description |
 | :--- | :--- | :--- |
 | `debug` | `false` | Enable validation and performance traces inside the developer console. |
-| `prefix` | `"h-"` | Custom HTML tag prefix for directive bindings. |
+| `prefix` | `"hx-"` | Custom HTML tag prefix for directive bindings. |
 | `delimiters` | `["{{", "}}"]` | Opening and closing string sequences for template text variables. |
 | `allowInlineExpressions` | `false` | Enables executing full inline JS code. (E.g. `@click="state.val++"`). |
-| `removeAttributeBindings` | `true` | Wipes custom directives (`h-if`, `h-model`) from nodes after compilation. |
+| `removeAttributeBindings` | `true` | Wipes custom directives (`hx-if`, `hx-model`) from nodes after compilation. |
 | `rethrowErrors` | `true` | Directs error handler cycles to re-throw runtime failures. |
 | `slowThreshold` | `2` | Threshold limit in milliseconds for logging slow operation warnings. |
 
@@ -536,7 +559,7 @@ A powerful pipeline execution engine that handles DOM events and state triggers 
 
 #### Syntax Overview:
 ```html
-<button h-pipe="click -> toggle(active) | wait(1000) | hide">
+<button hx-pipe="click -> toggle(active) | wait(1000) | hide">
   Run Pipeline
 </button>
 ```
@@ -763,7 +786,7 @@ Helix.component("profile-editor", {
   },
   template: `
     <form @submit.prevent="submit">
-      <input h-model="profile.name" />
+      <input hx-model="profile.name" />
       <button type="submit">Save</button>
     </form>
   `

@@ -64,6 +64,37 @@ import {
 
 ---
 
+## Framework Configuration (`Helix.config`)
+
+Helix provides global configuration defaults via `Helix.config`:
+
+```javascript
+// Configure framework options before mounting apps
+Helix.config.prefix = 'hx-';                 // Default directive prefix (e.g. hx-text, hx-model)
+Helix.config.debug = true;                   // Enables detailed console debugging
+Helix.config.allowInlineExpressions = true;  // Allows inline expressions in directives
+Helix.config.warnInlineExpressions = false;  // Disables warnings for inline expressions
+Helix.config.removeAttributeBindings = true; // Removes directive attributes after compilation
+Helix.config.delimiters = ["{{", "}}"];      // Interpolation delimiters
+Helix.config.slowThreshold = 2;              // Render slow threshold warning (ms)
+Helix.config.rethrowErrors = true;           // Rethrows errors to global window error handler
+```
+
+### Configuration Options Reference
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `prefix` | `string` | `'hx-'` | Prefix used for HTML template directives (e.g. `hx-text`, `hx-model`, `hx-if`). |
+| `debug` | `boolean` | `false` | Enables verbose debug mode in developer console. |
+| `allowInlineExpressions` | `boolean` | `false` | Enables inline JS expression evaluation inside template directives. |
+| `warnInlineExpressions` | `boolean` | `false` | Triggers console warnings when inline JS expressions are evaluated. |
+| `removeAttributeBindings` | `boolean` | `true` | Automatically strips directive attributes from DOM elements after mounting. |
+| `delimiters` | `string[]` | `["{{", "}}"]` | Custom interpolation syntax delimiters. |
+| `slowThreshold` | `number` | `2` | Execution threshold (ms) for reporting slow renders or effects. |
+| `rethrowErrors` | `boolean` | `true` | Controls whether uncaught template errors bubble up to global window error events. |
+
+---
+
 ## Feature Examples
 
 ### 1. Application & Components

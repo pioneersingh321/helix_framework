@@ -18,20 +18,20 @@ to change.
 Helix.use(HelixDirectivesPlugin);
 ```
 
-## `h-debounce`
+## `hx-debounce`
 
 ```html
 <!-- bare function reference, default event (input), default delay (300ms) -->
-<input h-debounce="handleSearch">
+<input hx-debounce="handleSearch">
 
 <!-- call syntax with $event -->
-<input h-debounce="handleSearch($event)">
+<input hx-debounce="handleSearch($event)">
 
 <!-- explicit delay -->
-<input h-debounce="[handleSearch($event), 500]">
+<input hx-debounce="[handleSearch($event), 500]">
 
 <!-- custom event via directive argument -->
-<button h-debounce:click="[saveDraft(), 1000]">Save</button>
+<button hx-debounce:click="[saveDraft(), 1000]">Save</button>
 ```
 
 Value syntax:
