@@ -811,7 +811,10 @@ If you are hosting the workspace under a local web server like MAMP, access them
 
 ---
 
-## 🚀 Releases & Changelog
+## 🚀 Releases & Downloads (v11.1.17)
 
-- **Latest Release**: [v11.1.17](https://github.com/pioneersingh321/helix_framework/releases/tag/v11.1.17)
-- **Full Changelog**: See [dist/Changelog.md](file:///d:/mamp/htdocs/helix_framework/dist/Changelog.md) for full release notes and history.
+- 📦 **Release Archive**: [helix-v11.1.17.zip](file:///d:/mamp/htdocs/helix_framework/dist/helix-v11.1.17.zip)
+- 📄 **Development Bundle**: [dist/helix.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.js) (147 KB)
+- ⚡ **Production Minified**: [dist/helix.min.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.min.js) (65 KB)
+- 📋 **Full Changelog**: [dist/Changelog.md](file:///d:/mamp/htdocs/helix_framework/dist/Changelog.md)
+- 🏷️ **GitHub Tag & Release**: [v11.1.17](https://github.com/pioneersingh321/helix_framework/releases/tag/v11.1.17)
