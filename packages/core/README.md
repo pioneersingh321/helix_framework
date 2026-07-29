@@ -2,19 +2,43 @@
 
 The core reactive framework engine for **Helix.js** (v11.1.17).
 
-`helix-core` provides fine-grained reactivity, component architecture, template directive binding, dependency injection, and a robust plugin registry system.
+`helix-core` provides fine-grained reactivity, setup-based component architecture, template directive binding, dependency injection, async component suspense, error boundaries, memory profiling, and a single-execution plugin registry.
 
 ---
 
-## Features
+## Key Features
 
-- ⚡ **Fine-Grained Reactivity Engine**: `reactive()`, `ref()`, `computed()`, `effect()`, `watch()`, `watchEffect()`, `memo()`, and `effectScope()`.
-- 🧩 **Component Architecture**: Lightweight setup-based component registration with `Helix.component()` and `createApp()`.
-- 🔌 **Plugin System**: Seamless global and app-level plugin installation with `Helix.use()` and `app.use()`.
-- 🎯 **Directive Engine**: Custom directive registration (`Helix.directive()`) with lifecycle hooks (`mounted`, `updated`, `unmounted`).
-- ⚡ **Scheduler & Batching**: Optimised async render queues (`queueJob`, `queuePostFlushCb`, `batch`).
-- 📡 **Event Bus**: Built-in pub/sub event system (`$bus`).
-- 🛠️ **DevTools & Profiler**: Dynamic component tree inspection (`inspectTree()`), active effect tracking, and memory profiling.
+### ⚡ 1. Fine-Grained Reactivity Engine
+- **Proxies & Refs**: `reactive()`, `shallowReactive()`, `readonly()`, `shallowReadonly()`, `ref()`, `shallowRef()`, `customRef()`, `toRef()`, `toRefs()`, `toValue()`.
+- **Computed & Memo**: `computed()` for memoized values and `memo()` for custom dependency array tracking.
+- **Effects & Watchers**: `effect()`, `simpleEffect()`, `batch()`, `watch()`, and `watchEffect()`.
+- **Effect Scopes**: `effectScope()`, `getCurrentScope()`, `onScopeDispose()`, `createEffectGroup()`, and `ScopeScheduler` for clean memory management.
+
+### 🔌 2. Single-Execution Plugin System (v11.1.17 Compliant)
+- **Global & App Plugins**: `Helix.use()` and `app.use()` with automated deduplication (`_executed` state tracking).
+- **Dependency Validation**: `validatePluginDependencies()` with semver range resolution.
+- **Plugin Lifecycle**: `definePlugin()`, `triggerPluginLifecycle()`, and `registry` inspection.
+
+### 🧩 3. Component & Template System
+- **App Instances**: `Helix.createApp()` and `Helix.mount()`.
+- **Global & Local Components**: `Helix.component()` and `app.component()`.
+- **Custom Directives**: `Helix.directive()` supporting `mounted`, `updated`, and `unmounted` hooks.
+- **Namespaces**: `Helix.namespace()` for grouping APIs under modular namespaces.
+
+### ⏳ 4. Async Components & Suspense
+- **Async Loaders**: `defineAsyncComponent()` with retries, timeouts, and fallback handling.
+- **Preloading**: `preload()` and `preloadAll()` for instant user interaction.
+- **Suspense Component**: Built-in `<Suspense>` component for managing loading and error UI states.
+
+### 🛡️ 5. Error Boundaries & Resilience
+- **Error Boundaries**: `createErrorBoundary()` and `onErrorCaptured()` to catch descendant component errors gracefully.
+- **Global Error Handler**: `Helix.onError()` for global exception logging and recovery.
+
+### 🛠️ 6. DevTools, Inspection & Profiler
+- **Component Tree Inspector**: `inspectTree()` and `inspectComponent()`.
+- **Dependency Inspector**: `inspectDeps()` and active effect graph inspection.
+- **Performance Profiler**: `profile()` and `getProfileData()` to measure render and compute performance.
+- **Memory Diagnostics**: `checkMemoryLeaks()` for memory leak tracking.
 
 ---
 
@@ -27,91 +51,114 @@ The core reactive framework engine for **Helix.js** (v11.1.17).
 
 ### ES Module Import
 ```javascript
-import { createApp, reactive, computed, ref, watch } from 'helix-core';
+import { 
+  createApp, 
+  reactive, 
+  computed, 
+  ref, 
+  watch, 
+  effectScope, 
+  defineAsyncComponent 
+} from 'helix-core';
 ```
 
 ---
 
-## Basic Usage
+## Feature Examples
 
-### 1. Creating and Mounting an Application
+### 1. Application & Components
 
 ```html
 <div id="app">
   <h1 hx-text="state.title"></h1>
-  <button @click="increment">Count: <span hx-text="state.count"></span></button>
+  <user-card></user-card>
 </div>
 
 <script>
-  Helix.mount('#app', ({ reactive }) => {
-    const state = reactive({
-      title: 'Hello Helix.js',
-      count: 0
-    });
-
-    const increment = () => {
-      state.count++;
+  Helix.component('user-card', ({ reactive }) => {
+    const user = reactive({ name: 'Alice', role: 'Architect' });
+    return {
+      user,
+      template: `<div class="card">
+        <h4 hx-text="user.name"></h4>
+        <p hx-text="user.role"></p>
+      </div>`
     };
+  });
 
-    return { state, increment };
+  Helix.mount('#app', ({ reactive }) => {
+    const state = reactive({ title: 'Dashboard' });
+    return { state };
   });
 </script>
 ```
 
-### 2. Standalone Reactivity & Watchers
+### 2. Effect Scopes & Automatic Cleanup
 
 ```javascript
-import { reactive, computed, watch, effect } from 'helix-core';
+import { effectScope, reactive, watch, onScopeDispose } from 'helix-core';
 
-const store = reactive({
-  apples: 5,
-  oranges: 10
+const scope = effectScope();
+const state = reactive({ count: 0 });
+
+scope.run(() => {
+  watch(() => state.count, (val) => {
+    console.log(`Count changed to ${val}`);
+  });
+
+  onScopeDispose(() => {
+    console.log('Effect scope cleaned up!');
+  });
 });
 
-const totalFruits = computed(() => store.apples + store.oranges);
+state.count++; // Logs: Count changed to 1
 
-effect(() => {
-  console.log(`Total fruits available: ${totalFruits.value}`);
-});
-
-watch(() => store.apples, (newVal, oldVal) => {
-  console.log(`Apples updated from ${oldVal} to ${newVal}`);
-});
-
-store.apples = 12; // Triggers effect & watcher automatically
+// Stop scope and dispose all internal watchers/effects
+scope.stop();
+state.count++; // No log (scope is inactive)
 ```
 
-### 3. Registering Custom Directives
+### 3. Async Component with Fallback
 
 ```javascript
-Helix.directive('tooltip', {
-  mounted(el, binding) {
-    el.setAttribute('title', binding.value);
-  },
-  updated(el, binding) {
-    el.setAttribute('title', binding.value);
+import { defineAsyncComponent } from 'helix-core';
+
+const AsyncChart = defineAsyncComponent({
+  loader: () => import('./ChartComponent.js'),
+  delay: 200,
+  timeout: 5000,
+  retries: 3
+});
+```
+
+### 4. Memory Profiling & Performance Measurement
+
+```javascript
+import { profile, getProfileData } from 'helix-core';
+
+profile(() => {
+  // Execute heavy computations or reactive updates
+  for (let i = 0; i < 1000; i++) {
+    state.items.push(i);
   }
 });
+
+const metrics = getProfileData();
+console.log(`Execution Duration: ${metrics.duration}ms`);
 ```
 
 ---
 
-## API Reference
+## API Summary
 
-### Core Reactivity
-- `reactive(object)`: Creates a deep reactive proxy.
-- `ref(value)`: Creates a reactive reference container (`ref.value`).
-- `computed(getter)`: Creates a memoized reactive getter.
-- `effect(fn, options)`: Runs a function reactively when dependencies change.
-- `watch(source, cb, options)`: Watches a reactive source or getter for changes.
-- `memo(runner, depsFn)`: Optimized memoized computation block.
-
-### Application Lifecycle
-- `Helix.createApp(rootComponent)`: Initializes an application instance.
-- `Helix.mount(selector, setupFn)`: Mounts an app onto a DOM selector.
-- `Helix.use(plugin, options)`: Installs a global plugin.
-- `Helix.component(name, definition)`: Registers a component globally.
-- `Helix.directive(name, definition)`: Registers a directive globally.
+| Module | Core Exports |
+|---|---|
+| **Reactivity** | `reactive`, `ref`, `computed`, `effect`, `watch`, `watchEffect`, `memo`, `batch`, `toRaw`, `toRef`, `toRefs`, `toValue`, `customRef` |
+| **Scope** | `effectScope`, `getCurrentScope`, `onScopeDispose`, `ScopeScheduler`, `createEffectGroup` |
+| **App & Runtime** | `createApp`, `mount`, `component`, `directive`, `provide`, `inject`, `rebind`, `namespace` |
+| **Plugins** | `use`, `unuse`, `definePlugin`, `validatePluginDependencies`, `triggerPluginLifecycle`, `registry` |
+| **Async & Suspense** | `defineAsyncComponent`, `preload`, `preloadAll`, `Suspense` |
+| **Diagnostics** | `createErrorBoundary`, `onErrorCaptured`, `inspectTree`, `inspectDeps`, `profile`, `checkMemoryLeaks` |
 
 ---
 
