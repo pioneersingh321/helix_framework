@@ -808,3 +808,10 @@ Simply open the HTML files directly in your browser:
 If you are hosting the workspace under a local web server like MAMP, access them via localhost:
 *   **Helix playground & API demos:** [http://localhost/helix_framework/index.html](http://localhost/helix_framework/index.html)
 *   **Zero-Config validation playground:** [http://localhost/helix_framework/index-validation.html](http://localhost/helix_framework/index-validation.html)
+
+---
+
+## 🚀 Releases & Changelog
+
+- **Latest Release**: [v11.1.17](https://github.com/pioneersingh321/helix_framework/releases/tag/v11.1.17)
+- **Full Changelog**: See [dist/Changelog.md](file:///d:/mamp/htdocs/helix_framework/dist/Changelog.md) for full release notes and history.

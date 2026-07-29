@@ -1,5 +1,14 @@
 # Helix.js Changelog
 
+## v11.1.17
+
+### Added & Improved
+
+- 🔌 **Single-Execution Plugin Lifecycle**: Implemented automated `_executed` state tracking in `app.use()` and `Helix.use()` to guarantee plugin `install()` calls run **exactly once**. Removed duplicate re-invocation loops in `createAndMount()`.
+- 🛠️ **Vite / Rollup IIFE Build Standardization**: Configured `output.exports: 'named'` across all 12 package `vite.config.js` build files (`core`, `helix-model`, `helix-directives`, `helix-tooltip`, `helix-scope`, `helix-validation`, `helix-loader`, `helix-axios`, `helix-notify`, `helix-fetch`, `helix-helpers`, `helix-validation-schema`) to eliminate Rollup named/default export bundle warnings.
+- 🎨 **Prefix & Documentation Standardization**: Standardized global directive default prefix to `hx-` (`Helix.config.prefix = 'hx-'`) across all documentation, quickstart examples, and package READMEs.
+- 📚 **Comprehensive Package Documentation**: Created and updated rich `README.md` files with code examples, API summary tables, and feature breakdowns for core and all ecosystem plugins.
+
 ## v11.1.8
 
 ### Added
