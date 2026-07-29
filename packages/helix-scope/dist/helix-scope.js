@@ -1,4 +1,4 @@
-this.HelixScopePlugin = function() {
+(function(exports) {
   "use strict";
   function getPrefix() {
     if (typeof window !== "undefined" && window.Helix && window.Helix.config && window.Helix.config.prefix) {
@@ -924,5 +924,6 @@ this.HelixScopePlugin = function() {
   } else if (typeof console !== "undefined") {
     console.warn("[helix-scope] Helix not found - load helix.js before this script.");
   }
-  return HelixScopePlugin;
-}();
+  exports.default = HelixScopePlugin;
+  Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: "Module" } });
+})(this.HelixScopePlugin = this.HelixScopePlugin || {});

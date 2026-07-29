@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: !isMin,
       rollupOptions: {
         output: {
+          exports: 'named',
           extend: true
         }
       }

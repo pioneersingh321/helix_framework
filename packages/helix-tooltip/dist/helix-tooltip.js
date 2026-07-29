@@ -1,4 +1,4 @@
-this.HelixTooltipPlugin = function() {
+(function(exports) {
   "use strict";
   const PLACEMENTS = ["top", "bottom", "left", "right"];
   const FALLBACK_CHAINS = {
@@ -1056,5 +1056,6 @@ this.HelixTooltipPlugin = function() {
   if (root.Helix && typeof root.Helix.directive === "function") {
     HelixTooltipPlugin.install(root.Helix, {});
   }
-  return HelixTooltipPlugin;
-}();
+  exports.default = HelixTooltipPlugin;
+  Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: "Module" } });
+})(this.HelixTooltipPlugin = this.HelixTooltipPlugin || {});

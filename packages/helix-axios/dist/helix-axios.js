@@ -117,7 +117,7 @@ this.HelixAxiosPlugin = function() {
   const BODYLESS_METHODS = ["get", "head"];
   const IDEMPOTENT_METHODS = ["get", "head", "options"];
   const DEFAULTS = {
-    baseURL: "https://api.example.com",
+    baseURL: "/",
     timeout: 1e4,
     retries: 0,
     retryDelay: 300,
