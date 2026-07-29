@@ -1,0 +1,16 @@
+{
+  "name": "helix-scope",
+  "version": "2.0.0",
+  "description": "Scope plugin for Helix.js framework",
+  "main": "dist/helix-scope.js",
+  "module": "dist/helix-scope.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  }
+}

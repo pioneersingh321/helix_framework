@@ -1,0 +1,16 @@
+{
+  "name": "helix-model",
+  "version": "2.2.1",
+  "description": "Model plugin for Helix.js framework",
+  "main": "dist/helix-model.js",
+  "module": "dist/helix-model.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  }
+}

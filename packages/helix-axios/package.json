@@ -1,0 +1,16 @@
+{
+  "name": "helix-axios",
+  "version": "2.2.0",
+  "description": "Axios HTTP plugin for Helix.js framework",
+  "main": "dist/helix-axios.js",
+  "module": "dist/helix-axios.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  }
+}

@@ -3,319 +3,1054 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Helix Js Docs</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🧬 Helix.js Developer Console</title>
 
+  <!-- Bootstrap 5 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
 
+  <!-- Core Helix JS -->
   <script src="./dist/helix.js"></script>
+  <script src="./plugins/scope/helix-scope.js"></script>
 
   <style>
+    :root {
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --accent-color: #2563eb;
+      --accent-glow: rgba(37, 99, 235, 0.08);
+      --success-color: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.08);
+      --danger-color: #ef4444;
+      --danger-glow: rgba(239, 68, 68, 0.08);
+      --warning-color: #f59e0b;
+      --warning-glow: rgba(245, 158, 11, 0.08);
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --sidebar-width: 280px;
+    }
+
     body {
+      background-color: var(--bg-color);
+      color: var(--text-primary);
+      font-family: 'Plus Jakarta Sans', sans-serif;
       overflow-x: hidden;
     }
 
+    /* Sidebar Styling */
     .sidebar {
       height: 100vh;
       position: fixed;
-      width: 260px;
+      width: var(--sidebar-width);
       overflow-y: auto;
-      border-right: 1px solid #ddd;
+      background-color: #ffffff;
+      border-right: 1px solid var(--card-border);
+      z-index: 100;
+      padding: 1.5rem;
     }
 
-    .content {
-      margin-left: 260px;
-      padding: 30px;
+    .sidebar-header {
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text-primary);
+    }
+
+    .nav-link {
+      color: var(--text-secondary);
+      font-weight: 500;
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      margin-bottom: 0.3rem;
+      transition: all 0.2s ease;
+    }
+
+    .nav-link:hover {
+      color: var(--text-primary);
+      background-color: #f1f5f9;
     }
 
     .nav-link.active {
-      font-weight: 600;
-      color: #0d6efd;
+      color: #ffffff !important;
+      background-color: var(--accent-color) !important;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
     }
 
+    /* Main Content Area */
+    .content {
+      margin-left: var(--sidebar-width);
+      padding: 2.5rem;
+    }
+
+    /* Cards & Layout */
+    .glass-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2.5rem;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.03), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
+      transition: box-shadow 0.2s ease;
+    }
+
+    .glass-card:hover {
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+
+    .sandbox-box {
+      background-color: #f8fafc;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    h2 {
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text-primary);
+      border-bottom: 2px solid var(--card-border);
+      padding-bottom: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    h3 {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 0.5rem;
+    }
+
+    h4 {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+    }
+
+    .text-muted-custom {
+      color: var(--text-secondary);
+    }
+
+    /* Code Blocks */
     pre {
-      background: #f8f9fa;
-      padding: 12px;
+      background-color: #0f172a !important;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 1rem;
+      color: #f8fafc;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      margin: 0;
+      overflow-x: auto;
+    }
+
+    /* Controls */
+    .form-control,
+    .form-select {
+      background-color: #ffffff;
+      border: 1px solid var(--card-border);
+      color: var(--text-primary);
       border-radius: 6px;
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+      background-color: #ffffff;
+      border-color: var(--accent-color);
+      color: var(--text-primary);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .btn-primary {
+      background-color: var(--accent-color);
+      border-color: var(--accent-color);
+      box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
+    }
+
+    .btn-primary:hover {
+      background-color: #1d4ed8;
+      border-color: #1d4ed8;
+    }
+
+    /* Custom directive highlights */
+    [hx-trace] {
+      transition: outline 0.3s ease;
     }
   </style>
 </head>
 
 <body>
 
-  <div class="sidebar bg-light p-3">
-    <h4 class="mb-4">MicroVue 10.5</h4>
+  <!-- Navigation Sidebar -->
+  <div class="sidebar">
+    <div class="mb-4">
+      <h3 class="sidebar-header d-flex align-items-center gap-2">
+        <span>🧬 Helix.js</span>
+      </h3>
+      <span class="badge bg-secondary" id="helix-version-badge">Loading version...</span>
+    </div>
     <ul class="nav flex-column">
-      <li class="nav-item"><a class="nav-link active" href="#intro">Intro</a></li>
-      <li class="nav-item"><a class="nav-link" href="#reactivity">Reactivity</a></li>
-      <li class="nav-item"><a class="nav-link" href="#model">v-model</a></li>
-      <li class="nav-item"><a class="nav-link" href="#vif">v-if</a></li>
-      <li class="nav-item"><a class="nav-link" href="#vfor">v-for</a></li>
+      <li class="nav-item"><a class="nav-link active" href="#reactivity">⚡ Core Reactivity</a></li>
+      <li class="nav-item"><a class="nav-link" href="#styling">🎨 Dynamic Bindings</a></li>
+      <li class="nav-item"><a class="nav-link" href="#lists">📋 Loops & Conditionals</a></li>
+      <li class="nav-item"><a class="nav-link" href="#model">✍️ Form Controls</a></li>
+      <li class="nav-item"><a class="nav-link" href="#components">🧱 Components & Events</a></li>
+      <li class="nav-item"><a class="nav-link" href="#async-scopes">📡 Async Scopes</a></li>
+      <li class="nav-item"><a class="nav-link" href="#directives">🧩 Custom Directives</a></li>
+      <li class="nav-item"><a class="nav-link" href="#fallbacks">🛡️ Directive Fallbacks</a></li>
+      <li class="nav-item"><a class="nav-link" href="#v11-features">🚀 v11.1.16 Features</a></li>
     </ul>
   </div>
 
+  <!-- Main Content View -->
   <div class="content" id="content">
 
-    <section id="intro">
-      <h2>Introduction</h2>
-      <p>MicroVue is a blazing-fast, O(1) reactive framework.</p>
-    </section>
+    <!-- ⚡ Core Reactivity -->
+    <section id="reactivity" class="mb-5 pt-4">
+      <div class="glass-card">
+        <h2>⚡ Section 1: Core Reactivity</h2>
+        <div class="row">
+          <div class="col-lg-6">
 
-    <section id="reactivity" class="mt-5">
-      <h2>Reactivity</h2>
-      <button class="btn btn-primary" @click="state.increment">Increment</button>
-      <p class="mt-2">Count: <span v-text="state.count"></span></p>
-    </section>
+            <!-- Reactivity Counter -->
+            <div class="sandbox-box">
+              <h4>1. Basic Reactive Counter</h4>
+              <p class="text-muted-custom">Uses fine-grained dependency tracking to batch updates onto microtasks.</p>
+              <button class="btn btn-primary btn-sm" @click="state.increment">Increment Count</button>
+              <p class="mt-3 fs-6 mb-0">Count value: <span hx-text="state.count" class="badge bg-secondary"></span></p>
+            </div>
 
-    <section id="model" class="mt-5">
-      <h2>v-model</h2>
-      <input class="form-control" v-model="state.name">
-      <p class="mt-2">Hello <span v-text="state.name"></span></p>
-    </section>
+            <!-- Computed Properties -->
+            <div class="sandbox-box">
+              <h4>2. Native Computed Properties</h4>
+              <p class="text-muted-custom">Evaluates sum recursively on dependency mutations.</p>
+              <p class="fs-6">Sum (A + B): <span hx-text="state.sum" class="badge bg-info text-white"></span> (A: <span
+                  hx-text="state.a"></span> | B: <span hx-text="state.b"></span>)</p>
+              <button class="btn btn-info btn-sm text-white" @click="state.doubleScore">Modify A & B (+1)</button>
+            </div>
 
-    <section id="vif" class="mt-5">
-      <h2>v-if</h2>
-      <button class="btn btn-warning" @click="state.toggleMe">Toggle</button>
-      <p class="mt-2" v-if="state.show">Now you see me 👀</p>
-    </section>
+            <!-- Deep Nesting -->
+            <div class="sandbox-box" id="nested-test">
+              <h4>3. Deep Nesting Mutator</h4>
+              <p class="text-muted-custom">Deep proxy traps handle nested property sets correctly.</p>
+              <p class="mb-1">User: <strong hx-text="state.account.profile.name"></strong></p>
+              <p>Role: <span hx-text="state.account.profile.role" class="text-warning font-weight-bold"></span></p>
+              <button class="btn btn-sm btn-outline-primary" @click="state.account.profile.promote">Promote
+                Profile</button>
+            </div>
 
-    <section id="vfor" class="mt-5">
-      <h2>v-for</h2>
-      <ul class="list-group">
-        <li class="list-group-item" v-for="(item, index) in state.list" :key="index" v-debug="item">
-          Item <span v-text="item"></span>
-        </li>
-      </ul>
+            <!-- New Character Counter -->
+            <div class="sandbox-box">
+              <h4>4. Reactive Length Tracker</h4>
+              <p class="text-muted-custom">Tracks textarea characters with computed limit indicators.</p>
+              <textarea class="form-control mb-2" rows="2" hx-model="state.charText"
+                placeholder="Type text..."></textarea>
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="small" :class="state.charCountClass">
+                  Length: <span hx-text="state.charCount"></span> / 50
+                </span>
+                <span hx-if="state.charText.length > 50" class="text-danger small font-weight-bold">Limit
+                  Exceeded!</span>
+              </div>
+            </div>
 
-      <button class="btn btn-secondary mt-3" @click="state.addListItems">Add to List</button>
-    </section>
-
-    <section class="mt-5">
-      <h2>Conditionals (Grades)</h2>
-      <p v-if="state.grade == 80">A</p>
-      <p v-if="state.grade == 50">B</p>
-      <p v-if="state.grade == 90">Fail</p>
-    </section>
-
-    <section class="mt-5">
-      <h2>Various Form Bindings</h2>
-
-      <div class="mb-3">
-        <label>Number Bound:</label>
-        <input type="number" class="form-control w-25" v-model="state.age">
-        <p>Age: <span v-text="state.age"></span></p>
-      </div>
-
-      <div class="mb-3">
-        <label><input type="checkbox" v-model="state.done"> Checkbox Done</label>
-        <p>Status: <span v-text="state.done"></span></p>
-      </div>
-
-      <div class="mb-3">
-        <label><input type="radio" value="M" v-model="state.gender"> Male</label>
-        <label><input type="radio" value="F" v-model="state.gender"> Female</label>
-        <p>Selected: <span v-text="state.gender"></span></p>
-      </div>
-
-      <div class="mb-3">
-        <p :class="state.color">Dynamic Class Text (Color: <span v-text="state.color"></span>)</p>
-      </div>
-
-      <div class="mb-3" style="background: #e9ecef; padding: 10px;">
-        <div v-html="state.rawHtml"></div>
-      </div>
-    </section>
-
-    <section class="mt-5">
-      <h4>Create User (Async Logic)</h4>
-      <form @submit.prevent="submitForm">
-        <input class="form-control mb-2" placeholder="Name" v-model="state.formState.name">
-        <input class="form-control mb-2" placeholder="Email" v-model="state.formState.email">
-
-        <button class="btn btn-primary" :disabled="state.loading">
-          <span v-text="state.buttonText"></span>
-        </button>
-      </form>
-
-      <p class="text-success mt-2" v-if="state.successMessage" v-text="state.successMessage"></p>
-      <p class="text-danger mt-2" v-if="state.errorMessage" v-text="state.errorMessage"></p>
-    </section>
-
-    <section class="mt-5">
-      <p>Sum (A + B): <span v-text="state.sum"></span> || A:<span v-text="state.a"></span> B:<span
-          v-text="state.b"></span> </p>
-      <button class="btn btn-info" @click="state.doubleScore">Change A (<span v-text="state.a"></span>)</button>
-    </section>
-
-    <section class="mt-5 mb-3">
-      <h4>Components & Slots</h4>
-      <my-card :title="state.msg">
-        <p>Hello from Parent injected via Slot Engine!</p>
-      </my-card>
-    </section>
-
-    <section class="mt-5">
-      <h4>User Form (Emit-Based Comm)</h4>
-
-      <user-form @add-user="addUser"></user-form>
-
-      <ul class="mt-3 list-group">
-        <li class="list-group-item" v-for="u in state.users" :key="u.id">
-          <span v-text="u.name"></span>
-        </li>
-      </ul>
-    </section>
-
-    <section class="mt-5">
-      <h4>Bind Global Data</h4>
-      <div class="header">
-        System: <span v-text="store.systemStatus"></span> <br>
-        Server: <span v-text="store.serverStatus"></span> <br>
-        CPU Load: <span v-text="store.cpuLoad"></span>
-      </div>
-
-      <div v-if="store.hasCandidate">
-        <h4>Candidate Profile</h4>
-        <p>Name: <span v-text="store.candidate.full_name"></span></p>
-        <button class="btn btn-danger" v-on:click="store.logout">Clear Data</button>
-      </div>
-
-      <div v-if="!store.hasCandidate">
-        <p>No candidate selected.</p>
-      </div>
-    </section>
-
-
-    <section class="mt-5">
-      <h4>Dynamic Styling</h4>
-      <button class="btn" :class="{
-        'btn-success': state.isActive, 
-        'btn-secondary': !state.isActive
-        }" @click="state.toggleActive">
-        Toggle Class State
-      </button>
-      <div :style="state.dynamicStyle" class="mt-2 p-2">Color Box</div>
-    </section>
-
-
-    <section class="mt-5">
-      <h4>Array Operations</h4>
-      <div class="btn-group">
-        <button class="btn btn-success" @click="state.listMethods.add">Push</button>
-        <button class="btn btn-danger" @click="state.listMethods.removeLast">Pop</button>
-        <button class="btn btn-warning" @click="state.listMethods.reverseList">Reverse</button>
-      </div>
-      <ul class="mt-2">
-        <li v-for="n in state.numbers" v-text="n"></li>
-      </ul>
-    </section>
-
-
-    <section class="mt-5">
-      <h4>Dropdown Change Ebent</h4>
-
-      <div class="row">
-        <div class="col-md-3 mb-3">
-          <label for="recurrence_type" class="form-label mb-0">
-            Schedule Type </label>
-
-          <select name="recurrence_type" id="recurrence_type" class="form-select" v-on:change="toggle.update"
-            required="">
-            <option value="" selected disabled>Schedule Type</option>
-            <option value="weekly">Weekly</option>
-            <option value="biweekly">Every 2 Weeks</option>
-            <option value="monthly">Monthly</option>
-            <option value="interval">Every X Days</option>
-          </select>
-
-          <div v-show="toggle.schedule_field === 'weekly' || toggle.schedule_field === 'biweekly'">
-            <h4>Weekly Schedule</h4>
           </div>
-
-          <div v-show="toggle.isWeeklyOrBiweekly">
-            <h4>BiWeekly Schedule</h4>
+          <div class="col-lg-6">
+            <h4>API Example Code</h4>
+            <pre><code>// Define state
+const state = reactive({
+  count: 0,
+  a: 2,
+  b: 3,
+  charText: '',
+  get sum() { return this.a + this.b; },
+  get charCount() { return this.charText.length; },
+  get charCountClass() { 
+    return this.charCount > 50 ? 'text-danger' : 'text-muted';
+  }
+});</code></pre>
           </div>
-
-          <div v-show="toggle.schedule_field === 'monthly' ">
-            <h4>Monthly Schedule</h4>
-          </div>
-
-          <div v-show="state.toggle.schedule_field === 'interval'">
-            <h4>Every X Days Schedule</h4>
-          </div>
-
         </div>
       </div>
-
     </section>
 
+    <!-- 🎨 Dynamic Bindings & Styling -->
+    <section id="styling" class="mb-5">
+      <div class="glass-card">
+        <h2>🎨 Section 2: Dynamic Bindings & Styling</h2>
+        <div class="row">
+          <div class="col-lg-6">
 
-    <section class="mt-5" id="nested-test">
-      <h4>Deep Nesting Test</h4>
-      <p>User: <span v-text="state.account.profile.name"></span></p>
-      <p>Role: <span v-text="state.account.profile.role"></span></p>
-      <button class="btn btn-sm btn-outline-primary" @click="state.account.profile.promote">Promote to Lead</button>
+            <!-- Text & HTML -->
+            <div class="sandbox-box">
+              <h4>1. Text & Sanitized HTML Bindings</h4>
+              <p class="text-muted-custom">`hx-text` updates textContent, while `hx-html` inserts cleaned DOM nodes
+                safely.</p>
+              <div class="p-2 border bg-white rounded mb-2">
+                <div hx-html="state.rawHtml"></div>
+              </div>
+            </div>
+
+            <!-- Styles & Classes -->
+            <div class="sandbox-box">
+              <h4>2. Class & Style Toggles</h4>
+              <p class="text-muted-custom">Toggles elements class list and parses inline key-separated styles
+                dynamically.</p>
+              <button class="btn" :class="{
+                'btn-success': state.isActive, 
+                'btn-secondary': !state.isActive
+                }" @click="state.toggleActive">
+                Toggle Active Class State
+              </button>
+              <div :style="state.dynamicStyle" class="mt-3 p-3 rounded text-dark font-weight-bold border">
+                Responsive Dynamic Styling Box
+              </div>
+            </div>
+
+            <!-- Dropdown Events -->
+            <div class="sandbox-box">
+              <h4>3. Dropdown Event Binding</h4>
+              <p class="text-muted-custom">Listens to recurrence selection to toggle layouts dynamically.</p>
+              <select name="recurrence_type" id="recurrence_type" class="form-select mb-3" hx-on:change="toggle.update"
+                required>
+                <option value="" selected disabled>Select schedule...</option>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Every 2 Weeks</option>
+                <option value="monthly">Monthly</option>
+                <option value="interval">Every X Days</option>
+              </select>
+
+              <div hx-show="toggle.schedule_field === 'weekly' || toggle.schedule_field === 'biweekly'"
+                class="alert alert-info py-2 small">
+                Weekly Schedule Config Enabled
+              </div>
+              <div hx-show="toggle.isWeeklyOrBiweekly" class="alert alert-primary py-2 small">
+                BiWeekly Schedule Config Enabled
+              </div>
+              <div hx-show="toggle.schedule_field === 'monthly'" class="alert alert-warning py-2 small">
+                Monthly Schedule Config Enabled
+              </div>
+              <div hx-show="state.toggle.schedule_field === 'interval'" class="alert alert-danger py-2 small">
+                Every X Days Schedule Config Enabled
+              </div>
+            </div>
+
+          </div>
+          <div class="col-lg-6">
+            <h4>Binding Templates</h4>
+            <pre><code>&lt;!-- class objects --&gt;
+&lt;button :class="{ 'btn-success': state.isActive }"&gt;
+
+&lt;!-- space-split classList keys supported --&gt;
+&lt;i :class="{ 'text-danger bg-light': cond }"&gt;&lt;/i&gt;
+
+&lt;!-- Raw HTML (sanitized) --&gt;
+&lt;div hx-html="state.rawHtml"&gt;&lt;/div&gt;</code></pre>
+          </div>
+        </div>
+      </div>
     </section>
 
+    <!-- 📋 Loops & Conditionals -->
+    <section id="lists" class="mb-5">
+      <div class="glass-card">
+        <h2>📋 Section 3: Loops & Conditionals</h2>
+        <div class="row">
+          <div class="col-lg-6">
 
-    <section class="mt-5">
-      <h4>cheduler Batching Test</h4>
-      <p>Final Count: <span id="count-display" v-text="store.batchCount"></span></p>
-      <button class="btn btn-primary" @click="store.updateBatchCount">Run 1000 Updates</button>
+            <!-- Visibility toggles -->
+            <div class="sandbox-box">
+              <h4>1. Visibility Toggles (hx-if / hx-show)</h4>
+              <button class="btn btn-warning btn-sm text-white" @click="state.toggleMe">Toggle Content</button>
+              <p class="mt-3 text-success font-weight-bold" hx-if="state.show">Now you see me 👀 (using hx-if)</p>
+            </div>
+
+            <!-- Grade thresholds -->
+            <div class="sandbox-box">
+              <h4>2. Conditional Grade Thresholds</h4>
+              <div class="p-2 border rounded bg-white">
+                Current score: <span hx-text="state.score" class="badge bg-secondary"></span>
+                <div class="mt-2 font-weight-bold">
+                  <span hx-if="state.grade == 80" class="text-success">Grade: A (Distinction)</span>
+                  <span hx-if="state.grade == 50" class="text-warning">Grade: B (Pass)</span>
+                  <span hx-if="state.grade == 90" class="text-danger">Grade: Fail</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- List loop arrays -->
+            <div class="sandbox-box">
+              <h4>3. Keyed Array Loops & Operations</h4>
+              <div class="btn-group mb-3 btn-group-sm">
+                <button class="btn btn-success" @click="state.listMethods.add">Push</button>
+                <button class="btn btn-danger" @click="state.listMethods.removeLast">Pop</button>
+                <button class="btn btn-warning" @click="state.listMethods.reverseList">Reverse</button>
+              </div>
+              <ul class="ps-3 mb-3">
+                <li hx-for="n in state.numbers" hx-text="n"></li>
+              </ul>
+
+              <ul class="list-group">
+                <li class="list-group-item bg-white border-light-subtle text-dark" hx-for="(item, index) in state.list"
+                  :key="index">
+                  Item index: <span hx-text="item"></span>
+                </li>
+              </ul>
+              <button class="btn btn-secondary btn-sm mt-2" @click="state.addListItems">Add Items</button>
+            </div>
+
+            <!-- New Filterable search list -->
+            <div class="sandbox-box">
+              <h4>4. Reactive Filterable Search List</h4>
+              <p class="text-muted-custom">Computed arrays update automatically as you filter.</p>
+              <input class="form-control mb-3" hx-model="state.searchQuery" placeholder="Search fruits...">
+              <ul class="list-group list-group-flush border rounded bg-white">
+                <li hx-for="fruit in state.filteredItems" class="list-group-item" hx-text="fruit"></li>
+                <li hx-if="state.filteredItems.length === 0" class="list-group-item text-danger text-center">No fruits
+                  found.</li>
+              </ul>
+            </div>
+
+          </div>
+          <div class="col-lg-6">
+            <h4>Code Snippet</h4>
+            <pre><code>// Search & Filter JavaScript
+const state = reactive({
+  searchQuery: '',
+  itemsToFilter: ['Apple', 'Banana', 'Orange'],
+  get filteredItems() {
+    return this.itemsToFilter.filter(item => 
+      item.toLowerCase().includes(
+        this.searchQuery.toLowerCase()
+      )
+    );
+  }
+});</code></pre>
+          </div>
+        </div>
+      </div>
     </section>
 
+    <!-- ✍️ Form Controls & Two-Way Modeling -->
+    <section id="model" class="mb-5">
+      <div class="glass-card">
+        <h2>✍️ Section 4: Form Controls & Two-Way Modeling</h2>
+        <div class="row">
+          <div class="col-lg-6">
+
+            <!-- Standard Inputs -->
+            <div class="sandbox-box">
+              <h4>1. Standard Inputs & Two-Way Bindings</h4>
+              <div class="mb-3">
+                <label class="form-label">Name:</label>
+                <input class="form-control" hx-model="state.name" placeholder="Type here...">
+                <p class="mt-2 text-muted-custom">Bound value: <span hx-text="state.name"
+                    class="text-dark font-weight-bold"></span></p>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Age Number:</label>
+                <input type="number" class="form-control w-50" hx-model="state.age">
+                <p class="mt-1">Age: <span hx-text="state.age"></span></p>
+              </div>
+
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="checkAgree" hx-model="state.done">
+                <label class="form-check-label" for="checkAgree">Check Box Completed</label>
+              </div>
+
+              <div class="d-block">
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="g" id="gM" value="M" hx-model="state.gender">
+                  <label class="form-check-label" for="gM">M</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="g" id="gF" value="F" hx-model="state.gender">
+                  <label class="form-check-label" for="gF">F</label>
+                </div>
+              </div>
+            </div>
+
+            <!-- New Password Strength -->
+            <div class="sandbox-box">
+              <h4>2. Password Strength Meter</h4>
+              <p class="text-muted-custom">Uses dynamic computed ratings to supply styling feedback.</p>
+              <input type="password" class="form-control mb-2" hx-model="state.password"
+                placeholder="Enter password...">
+              <p class="mb-0">Strength: <strong :class="state.passwordClass" hx-text="state.passwordStrength"></strong>
+              </p>
+            </div>
+
+            <!-- Async create user form -->
+            <div class="sandbox-box">
+              <h4>3. Async Creation Form Handler</h4>
+              <form @submit.prevent="submitForm">
+                <input class="form-control mb-2" placeholder="Name" hx-model="state.formState.name">
+                <input class="form-control mb-2" placeholder="Email" hx-model="state.formState.email">
+
+                <button class="btn btn-primary btn-sm" :disabled="state.loading">
+                  <span hx-text="state.buttonText"></span>
+                </button>
+              </form>
+
+              <p class="text-success mt-2 small" hx-if="state.successMessage" hx-text="state.successMessage"></p>
+              <p class="text-danger mt-2 small" hx-if="state.errorMessage" hx-text="state.errorMessage"></p>
+            </div>
+
+          </div>
+          <div class="col-lg-6">
+            <h4>Code Snippet</h4>
+            <pre><code>// Password strength check
+const state = reactive({
+  password: '',
+  get passwordStrength() {
+    const len = this.password.length;
+    if (len === 0) return 'None';
+    if (len < 6) return 'Weak';
+    if (len < 10) return 'Medium';
+    return 'Strong';
+  },
+  get passwordClass() {
+    const str = this.passwordStrength;
+    if (str === 'Weak') return 'text-danger';
+    if (str === 'Medium') return 'text-warning';
+    return 'text-success';
+  }
+});</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 🧱 Components & Events -->
+    <section id="components" class="mb-5">
+      <div class="glass-card">
+        <h2>🧱 Section 5: Components & Events</h2>
+        <div class="row">
+          <div class="col-lg-6">
+
+            <!-- Global Store -->
+            <div class="sandbox-box">
+              <h4>1. Global Store Simulation</h4>
+              <p class="text-muted-custom">Reactivity scales across stores outside of root apps.</p>
+              <div class="p-2 border rounded bg-white mb-2 shadow-sm small">
+                System: <span hx-text="store.systemStatus"></span> | CPU Load: <span hx-text="store.cpuLoad"></span>%
+              </div>
+              <div hx-if="store.hasCandidate" class="p-2 border border-success rounded bg-white shadow-sm small">
+                Candidate Profile: <strong hx-text="store.candidate?.full_name" class="text-success"></strong>
+                <button class="btn btn-xs btn-danger ms-2 px-2 py-0" @click="store.logout">Logout</button>
+              </div>
+            </div>
+
+            <!-- Scoped Component Slots -->
+            <div class="sandbox-box">
+              <h4>2. Component Slots & Props</h4>
+              <my-card :title="state.msg">
+                <p class="text-info mb-0 small">Hello from Parent injected via Slot Engine!</p>
+              </my-card>
+            </div>
+
+            <!-- Child Emits Parent communication -->
+            <div class="sandbox-box">
+              <h4>3. Emit-Based Child Communication</h4>
+              <user-form @add-user="addUser"></user-form>
+              <ul class="mt-2 ps-3 text-dark small">
+                <li hx-for="u in state.users" :key="u.id" hx-text="u.name"></li>
+              </ul>
+            </div>
+
+            <!-- Event Bus -->
+            <div class="sandbox-box">
+              <h4>4. Global Event Bus ($bus)</h4>
+              <button class="btn btn-outline-info btn-sm mb-2" onclick="triggerBusEvent()">Emit Event Bus
+                Message</button>
+              <div class="border rounded p-2 bg-white small">
+                Log: <span id="bus-log" class="text-warning">Waiting...</span>
+              </div>
+            </div>
+
+          </div>
+          <div class="col-lg-6">
+            <h4>Code Snippet</h4>
+            <pre><code>// Emits validation in component
+Helix.component("user-form", {
+  emits: ['add-user'],
+  setup({ reactive, emit }) {
+    const localState = reactive({ name: "" });
+    const submit = () => {
+      emit("addUser", { 
+        id: Date.now(), 
+        name: localState.name 
+      });
+      localState.name = "";
+    };
+    return { localState, submit };
+  }
+});</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 📡 Async Scopes -->
+    <section id="async-scopes" class="mb-5">
+      <div class="glass-card">
+        <h2>📡 Section 6: Async Data Scopes (hx-scope)</h2>
+        <div class="row">
+          <div class="col-lg-6">
+
+            <!-- GitHub User Scope -->
+            <div class="sandbox-box">
+              <h4>1. Asynchronous GitHub Fetch Scope</h4>
+              <div hx-scope:user="fetch('https://api.github.com/users/octocat').then(res => res.json())"
+                hx-scope-default:user='{"name": "Anonymous", "company": "GitHub Inc."}'>
+
+                <div hx-if="user.$loading" class="text-info my-2 small">
+                  <span class="spinner-border spinner-border-sm me-2"></span>Loading GitHub Profile...
+                </div>
+
+                <div hx-if="user.$error" class="text-danger my-2 small">
+                  Error: <span hx-text="user.$error.message"></span>
+                </div>
+
+                <div hx-if="user.$data"
+                  class="d-flex align-items-center gap-3 my-2 border p-3 rounded bg-white shadow-sm">
+                  <img :src="user.avatar_url" class="rounded-circle border" style="width: 50px; height: 50px;">
+                  <div>
+                    <h5 class="mb-0 text-dark" hx-text="user.name"></h5>
+                    <p class="mb-0 text-muted-custom small" hx-text="user.company"></p>
+                  </div>
+                </div>
+
+                <button class="btn btn-sm btn-outline-dark mt-2" @click="user.refresh()">Refresh Scope</button>
+              </div>
+            </div>
+
+            <!-- New Random Quote Scope -->
+            <div class="sandbox-box">
+              <h4>2. Async Advice Generator Scope</h4>
+              <p class="text-muted-custom">Resolves an API quote promise using spread result bindings.</p>
+              <div
+                hx-scope:slip="fetch('https://api.adviceslip.com/advice').then(res => res.json()).then(data => data.slip)">
+
+                <div hx-if="slip.$loading" class="text-info my-1 small">
+                  <span class="spinner-border spinner-border-sm me-2"></span>Getting advice...
+                </div>
+
+                <div hx-if="slip.$data" class="my-2 border p-3 rounded bg-light border-light-subtle">
+                  <p class="mb-0 font-italic text-dark">"{{ slip.advice }}"</p>
+                </div>
+
+                <button class="btn btn-sm btn-outline-dark" @click="slip.refresh()">Next Advice</button>
+              </div>
+            </div>
+
+          </div>
+          <div class="col-lg-6">
+            <h4>Code Snippet</h4>
+            <pre><code>&lt;!-- slip.advice resolves dynamically from 
+     the nested JSON response --&gt;
+&lt;div hx-scope:slip="fetch('...advice')"&gt;
+  &lt;div hx-if="slip.$data"&gt;
+    &lt;p&gt;"{{ slip.advice }}"&lt;/p&gt;
+  &lt;/div&gt;
+  &lt;button @click="slip.refresh()"&gt;Next&lt;/button&gt;
+&lt;/div&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 🧩 Custom Directives -->
+    <section id="directives" class="mb-5">
+      <div class="glass-card">
+        <h2>🧩 Section 7: Custom Directives</h2>
+        <div class="row">
+          <div class="col-lg-6">
+            <p class="text-muted-custom">Helix.js features an extensible directive system. Custom directives can be
+              registered globally or locally on apps to hook into node lifecycles.</p>
+
+            <!-- hx-debug -->
+            <div class="sandbox-box">
+              <h4>1. Debug Context Inspector (hx-debug)</h4>
+              <p class="text-muted-custom">Click the card below to print the current state context to the browser
+                console.</p>
+              <div class="p-3 border rounded bg-white text-primary text-center font-weight-bold" hx-debug="state"
+                style="cursor: pointer;">
+                🔍 Click Me to Inspect Context
+              </div>
+            </div>
+
+            <!-- hx-trace -->
+            <div class="sandbox-box">
+              <h4>2. Value Update Tracer (hx-trace)</h4>
+              <p class="text-muted-custom">Flashes a blue outline when the tracked property changes. Click the button to
+                watch it flash:</p>
+              <button class="btn btn-primary btn-sm mb-3" @click="state.increment">Increment Count</button>
+              <div hx-trace="state.count" class="p-3 border rounded bg-light text-dark font-weight-bold text-center">
+                Tracked Box (Count: <span hx-text="state.count"></span>)
+              </div>
+            </div>
+
+          </div>
+          <div class="col-lg-6">
+            <h4>Custom Directive Registration</h4>
+            <pre><code>// Debugger Directive Setup
+app.directive('debug', {
+  mounted(el, binding) {
+    const { value, ctx, trackCleanup } = binding;
+    const handler = () => {
+      console.log("Context Data:", ctx);
+    };
+    el.addEventListener('click', handler);
+    trackCleanup(() => 
+      el.removeEventListener('click', handler)
+    );
+  }
+});</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 🛡️ Directive Fallbacks -->
+    <section id="fallbacks" class="mb-5">
+      <div class="glass-card">
+        <h2>🛡️ Section 8: Directive Fallbacks</h2>
+        <p class="text-muted-custom">Demonstrates safety features of the `helix-next.js` (v11.1.12) release: automatic
+          path traversal protection prevents crash loops when mid-paths evaluate to null/undefined.</p>
+
+        <div class="mb-4 d-flex gap-2">
+          <button class="btn btn-success btn-sm" onclick="loadCandidate()">Simulate Candidate Load</button>
+          <button class="btn btn-danger btn-sm" onclick="clearCandidate()">Clear Candidate (Nullify)</button>
+        </div>
+
+        <div class="row">
+          <div class="col-lg-6">
+
+            <!-- 1. hx-text fallback -->
+            <div class="sandbox-box">
+              <h3>1. hx-text Fallback</h3>
+              <p class="text-muted-custom mb-1">Syntax: <code>hx-text="store.candidate?.full_name ?? 'Anonymous'"</code>
+              </p>
+              <div class="p-2 border rounded bg-white">
+                Rendered value: <strong><span
+                    hx-text="store.candidate?.full_name ?? 'Anonymous (Fallback Triggered)'"></span></strong>
+              </div>
+            </div>
+
+            <!-- 2. hx-html fallback -->
+            <div class="sandbox-box">
+              <h3>2. hx-html Fallback</h3>
+              <p class="text-muted-custom mb-1">Syntax:
+                <code>hx-html="store.candidate?.bioHtml ?? '&lt;em&gt;No bio provided&lt;/em&gt;'"</code>
+              </p>
+              <div class="p-2 border rounded bg-white">
+                Rendered value: <div
+                  hx-html="store.candidate?.bioHtml ?? '<em>No bio provided (Fallback HTML Triggered)</em>'"></div>
+              </div>
+            </div>
+
+            <!-- 3. hx-scope fallback -->
+            <div class="sandbox-box">
+              <h3>3. hx-scope Default Fallback</h3>
+              <p class="text-muted-custom mb-1">Syntax: <code>hx-scope-default:guest='{"name": "Guest Account"}'</code>
+              </p>
+              <div hx-scope:guest="store.nonexistentPromise"
+                hx-scope-default:guest='{"name": "Guest Account (Fallback Scope Triggered)", "role": "Visitor"}'>
+                <div class="p-2 border rounded bg-white">
+                  Profile: <strong hx-text="guest.name"></strong> | Role: <span hx-text="guest.role"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. hx-if fallback -->
+            <div class="sandbox-box">
+              <h3>4. hx-if Fallback</h3>
+              <p class="text-muted-custom mb-1">Syntax: <code>hx-if="store.candidate?.isActive ?? true"</code></p>
+              <div class="p-2 border rounded bg-white">
+                <span hx-if="store.candidate?.isActive ?? true" class="text-success font-weight-bold">
+                  ✓ Rendered (Undefined path resolved to true fallback!)
+                </span>
+                <span hx-if="!(store.candidate?.isActive ?? true)" class="text-danger font-weight-bold">
+                  ✗ Hidden
+                </span>
+              </div>
+            </div>
+
+            <!-- 5. hx-show fallback -->
+            <div class="sandbox-box">
+              <h3>5. hx-show Fallback</h3>
+              <p class="text-muted-custom mb-1">Syntax: <code>hx-show="store.candidate.isVerified ?? false"</code></p>
+              <div class="p-2 border rounded bg-white">
+                <span hx-show="store.candidate?.isVerified ?? false" class="text-success font-weight-bold">
+                  Visible (Undefined resolved to true!)
+                </span>
+                <span hx-show="!(store.candidate?.isVerified ?? false)" class="text-warning">
+                  Hidden (Undefined resolved to false fallback!)
+                </span>
+              </div>
+            </div>
+
+            <!-- 6. hx-hide fallback (Custom Directive) -->
+            <div class="sandbox-box">
+              <h3>6. hx-hide Fallback</h3>
+              <p class="text-muted-custom mb-1">Syntax: <code>hx-hide="store.candidate.isSuspended ?? true"</code></p>
+              <div class="p-2 border rounded bg-white">
+                <span hx-hide="store.candidate.isSuspended ?? true" class="text-danger">
+                  Hidden (Undefined resolved to hide = true!)
+                </span>
+                <span hx-hide="!(store.candidate.isSuspended ?? true)" class="text-success font-weight-bold">
+                  Visible (Suspended is false!)
+                </span>
+              </div>
+            </div>
+
+            <!-- 7. hx-model fallback -->
+            <div class="sandbox-box">
+              <h3>7. hx-model Fallback</h3>
+              <p class="text-muted-custom mb-1">Syntax: <code>hx-model="store.candidate.full_name"</code> (Binds to
+                model path even if mid-path candidate goes null/undefined, preventing engine crash loops)</p>
+              <input class="form-control" hx-model="store.candidate.full_name" placeholder="Waiting for candidate...">
+            </div>
+
+          </div>
+          <div class="col-lg-6">
+            <h4>Safety Mechanics</h4>
+            <pre><code>// Under the hood in helix-next.js:
+function resolveExpression(val, ctx, options) {
+  // If property path fails (e.g. store.candidate
+  // is null), the manual path walk catches it
+  // and returns 'fallback' directly, completely
+  // bypassing eval() to prevent runtime TypeError.
+  if (!exists && isSimplePathSyntax(val)) {
+    return fallback;
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 🚀 Section 9: v11.1.17 Core Features -->
+    <section id="v11-features" class="mb-5">
+      <div class="glass-card">
+        <h2>🚀 Section 9: v11.1.17 Core Enhancements</h2>
+        <div class="row">
+          <div class="col-lg-6">
+
+            <!-- 1. Priority Batching -->
+            <div class="sandbox-box">
+              <h4>1. Priority Batching (`Helix.batch.high`)</h4>
+              <p class="text-muted-custom">Executes multiple reactive updates synchronously in a single batch
+                transaction without intermediate DOM flashes.</p>
+              <button class="btn btn-sm btn-primary mb-2" @click="v11State.runBatch">Run Priority Batch (+3)</button>
+              <p class="mb-1">Batch Counter Value: <span hx-text="v11State.batchCounter"
+                  class="badge bg-primary"></span></p>
+              <p class="small text-muted mb-0"><span hx-text="v11State.batchLogs"></span></p>
+            </div>
+
+            <!-- 2. Public DOM Inspection API -->
+            <div class="sandbox-box" id="dom-inspect-target">
+              <h4>2. Public DOM API (`Helix.dom.inspect`)</h4>
+              <p class="text-muted-custom">Inspects binding metadata, directives, and patch flags on any DOM node.</p>
+              <button class="btn btn-sm btn-outline-dark mb-2" @click="v11State.inspectTarget">Inspect This
+                Element</button>
+              <pre class="bg-dark text-success p-2 rounded small" style="max-height: 140px; overflow-y: auto;"
+                hx-text="v11State.inspectResult || 'Click button to inspect...'"></pre>
+            </div>
+
+            <!-- 3. Effect Groups -->
+            <div class="sandbox-box">
+              <h4>3. Effect Groups (`Helix.effectGroup`)</h4>
+              <p class="text-muted-custom">Manage multiple reactive effects as a single unit with pause, resume, and
+                stop controls.</p>
+              <div class="btn-group btn-group-sm mb-2">
+                <button class="btn btn-warning" @click="v11State.pauseGroup">Pause Group</button>
+                <button class="btn btn-success" @click="v11State.resumeGroup">Resume Group</button>
+              </div>
+              <p class="mb-0">Group Status: <span class="badge bg-info" hx-text="v11State.groupStatus"></span> | Group
+                Counter: <strong hx-text="v11State.groupCount"></strong></p>
+            </div>
+
+            <!-- 5. effectScope & Disposal -->
+            <div class="sandbox-box">
+              <h4>5. Scoped Reactivity (`Helix.effectScope`)</h4>
+              <p class="text-muted-custom">Manage composable effect life cycles with top-level effect scopes and dispose
+                callbacks.</p>
+              <div class="btn-group btn-group-sm mb-2">
+                <button class="btn btn-primary" @click="v11State.startScope">Start Scope</button>
+                <button class="btn btn-danger" @click="v11State.stopScope">Stop Scope (Trigger Dispose)</button>
+              </div>
+              <p class="mb-0">Scope Status: <span class="badge bg-secondary" hx-text="v11State.scopeStatus"></span></p>
+            </div>
+
+            <!-- 6. Component Tree Inspector -->
+            <div class="sandbox-box">
+              <h4>6. Component Tree Inspector (`Helix.inspectTree`)</h4>
+              <p class="text-muted-custom">Introspect mounted component hierarchies in real-time for devtools
+                extensions.</p>
+              <button class="btn btn-sm btn-info text-white mb-2" @click="v11State.inspectComponentTree">Inspect App
+                Tree</button>
+              <pre class="bg-dark text-info p-2 rounded small" style="max-height: 140px; overflow-y: auto;"
+                hx-text="v11State.treeResult || 'Click button to inspect tree...'"></pre>
+            </div>
+
+            <!-- 7. Performance Profiler -->
+            <div class="sandbox-box">
+              <h4>7. Built-in Profiler (`Helix.profile`)</h4>
+              <p class="text-muted-custom">Profile application state mutations, render durations, and effect runs.</p>
+              <button class="btn btn-sm btn-success mb-2" @click="v11State.runProfiler">Run Performance Profile</button>
+              <pre class="bg-dark text-warning p-2 rounded small" style="max-height: 140px; overflow-y: auto;"
+                hx-text="v11State.profileResult || 'Click button to profile...'"></pre>
+            </div>
+
+            <!-- 8. Memoized Computations -->
+            <div class="sandbox-box">
+              <h4>8. Memoized Computations (`Helix.memo`)</h4>
+              <p class="text-muted-custom">Cache heavy calculation results and re-evaluate only when inputs or
+                dependencies change.</p>
+              <button class="btn btn-sm btn-outline-primary mb-2" @click="v11State.runMemo">Run Memoized
+                Calculation</button>
+              <p class="mb-0">Memoized Value: <strong hx-text="v11State.memoVal"></strong> | Calc Runs: <span
+                  class="badge bg-primary" hx-text="v11State.memoCalcRuns"></span></p>
+            </div>
+
+            <!-- 9. DevTools Introspection -->
+            <div class="sandbox-box">
+              <h4>9. DevTools Introspection (`Helix.devtools`)</h4>
+              <p class="text-muted-custom">Inspect running effects, active scopes, and dependency graphs in real-time.
+              </p>
+              <button class="btn btn-sm btn-secondary mb-2" @click="v11State.inspectEffects">Get Active Effects</button>
+              <pre class="bg-dark text-light p-2 rounded small" style="max-height: 140px; overflow-y: auto;"
+                hx-text="v11State.effectsResult || 'Click button to inspect active effects...'"></pre>
+            </div>
+
+            <!-- 10. Multi-Source Watch API -->
+            <div class="sandbox-box">
+              <h4>10. Multi-Source Watch (`Helix.watch`)</h4>
+              <p class="text-muted-custom">Watch array of sources simultaneously with immediate/once flush options.</p>
+              <button class="btn btn-sm btn-outline-info mb-2" @click="v11State.runMultiWatch">Trigger Multi-Watch
+                (+1)</button>
+              <p class="mb-0">Watch Result: <span class="badge bg-info text-dark" hx-text="v11State.watchResult"></span>
+              </p>
+            </div>
+
+          </div>
+
+          <div class="col-lg-6">
+            <h4>v11.1.17 Code Snippets</h4>
+            <pre><code>// 1. Priority Batching
+Helix.batch.high(() => {
+  state.count++;
+  state.name = "Alice";
+});
+
+// 2. Public DOM Inspection
+const info = Helix.dom.inspect(el);
+
+// 3. Effect Grouping
+const group = Helix.createEffectGroup("MyGroup");
+group.add(Helix.effect(() => { ... }));
+group.pause(); group.resume();
+
+// 4. Async Components
+const Card = Helix.defineAsyncComponent({
+  loader: () => import("./Card.js"),
+  delay: 200, timeout: 3000
+});
+Helix.preload([Card]);
+
+// 5. Scoped Reactivity
+const scope = Helix.effectScope();
+scope.run(() => {
+  Helix.onScopeDispose(() => console.log("Disposed!"));
+});
+scope.stop();
+
+// 6. Tree Inspector
+const tree = Helix.inspectTree(appInstance);
+
+// 7. Profiler
+Helix.profile(() => { state.count++; });
+const metrics = Helix.getProfileData();
+
+// 8. Memoized Computations
+const m = Helix.memo(() => state.a * state.b, () => [state.a, state.b]);
+console.log(m.value);
+
+// 9. DevTools Introspection
+const effects = Helix.devtools.getEffects();
+const deps = Helix.devtools.getDependencies(target);
+
+// 10. Multi-Source Watch API
+Helix.watch([refA, refB], ([a, b]) => {
+  console.log("Updated:", a, b);
+}, { once: true });</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
 
   </div>
 
   <script>
+    // Smooth scrolling & active links highlight
     document.querySelectorAll('.nav-link').forEach(link => {
       link.addEventListener('click', function (e) {
         e.preventDefault();
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         this.classList.add('active');
         const target = document.querySelector(this.getAttribute('href'));
-        target.scrollIntoView({ behavior: 'smooth' });
+        if (target) target.scrollIntoView({ behavior: 'smooth' });
       });
     });
   </script>
 
   <script>
     // 1. Configure Framework
-    Helix.config.prefix = 'v-';
+    Helix.config.prefix = 'hx-';
     Helix.config.debug = true;
     Helix.config.allowInlineExpressions = true;
     Helix.config.removeAttributeBindings = false;
 
-    // 1. Extract the tools you need directly from the core
-    const { reactive, computed, effect, watch, signal, queuePostFlushCb } = Helix;
+    // Display version on load
+    document.getElementById('helix-version-badge').textContent = `v${Helix.version}`;
 
+    // Extract core tools
+    const { reactive, computed, effect, watch, queuePostFlushCb } = Helix;
+
+    // Register Debugger directives
     const HelixDebug = {
-      install(app, options = { color: '#00ff00' }) {
+      name: 'helix-debug',
+      version: '0.1.1',
+      install(app, options = { color: '#2563eb' }) {
         console.log("🛠️ Helix Debugger Active");
 
-        // ── v-debug: Click to log context ──
         app.directive('debug', {
           mounted(el, binding) {
-            // binding = { value, arg, modifiers, ctx, instance, trackCleanup, bindNode }
             const { value: val, ctx, trackCleanup } = binding;
-
             const handler = () => {
-              console.group(`🔍 MicroVue Debug [${val || 'Current Context'}]`);
+              console.group(`🔍 Helix Debug [${val || 'Current Context'}]`);
               console.log("Context Data:", ctx);
               console.log("Element Reference:", el);
               console.groupEnd();
             };
             el.addEventListener('click', handler);
-
-            // Use trackCleanup for proper cleanup
             trackCleanup(() => el.removeEventListener('click', handler));
           }
         });
 
-        // ── v-trace: Flash border on value change ──
         app.directive('trace', {
           mounted(el, binding) {
             const { value: val, ctx, trackCleanup } = binding;
-
             const unwatch = app.watch(
               () => app.resolvePath(val, ctx),
               (newVal, oldVal) => {
@@ -325,57 +1060,39 @@
                 setTimeout(() => { el.style.outline = originalBorder; }, 300);
               }
             );
-
-            // Return cleanup function or use trackCleanup
             trackCleanup(unwatch);
+          }
+        });
+
+        // 8. Custom directive hide for Section 8
+        app.directive('hide', {
+          mounted(el, binding) {
+            this.updated(el, binding);
+          },
+          updated(el, { value: val, ctx }) {
+            const res = app.resolvePath(val, ctx);
+            el.style.display = res ? 'none' : '';
           }
         });
       }
     };
-    // Installation
-    Helix.use(HelixDebug, { color: '#ff0000' });
+    Helix.use(HelixDebug, { color: '#2563eb' });
 
-    // 2. Create a standalone reactive store
+    // 2. Standalone store test
     const inventory = reactive({
       apples: 10,
       oranges: 5,
       pricePerFruit: 2
     });
-
-    // 3. Create a standalone computed signal
-    const totalFruits = computed(() => {
-      return inventory.apples + inventory.oranges;
-    });
-
-    const totalValue = computed(() => {
-      return totalFruits.value * inventory.pricePerFruit;
-    });
-
-    // 4. Create a standalone effect to trigger logic when data changes
+    const totalFruits = computed(() => inventory.apples + inventory.oranges);
+    const totalValue = computed(() => totalFruits.value * inventory.pricePerFruit);
     effect(() => {
       console.log(`[SYSTEM LOG] Total Fruits: ${totalFruits.value} | Value: $${totalValue.value}`);
     });
-
-    // --- Let's test it in the console! ---
-
-    console.log("Selling 3 apples...");
     inventory.apples -= 3;
-    // Instantly logs: "[SYSTEM LOG] Total Fruits: 12 | Value: $24"
-
-    console.log("Price went up!");
     inventory.pricePerFruit = 5;
-    // Instantly logs: "[SYSTEM LOG] Total Fruits: 12 | Value: $60"
 
-    // 2. Custom Directive: Restore v-html functionality
-    // MicroVue.directive('html', (el, val, { ctx, trackCleanup }) => {
-    //     // Needs access to effect from inside the engine scope. 
-    //     // We use a small hack to bind it once natively, or evaluate the path directly since this is custom.
-    //     const pathParts = val.split('.');
-    //     const result = pathParts.reduce((acc, part) => acc?.[part], ctx);
-    //     el.innerHTML = result || '';
-    // });
-
-    // 3. Define Components First
+    // 3. Components Registration
     Helix.component("my-card", ({ reactive, props, onMounted }) => {
       const localState = reactive({
         count: 0,
@@ -395,105 +1112,83 @@
       return {
         localState, addItem, updateCount, props,
         template: `
-                <div class="card p-3">
-                    <h3>Title Prop: <span v-text="props.title"></span></h3>
-                    
-                    <div style="background:#f8f9fa; padding:10px; margin: 10px 0;">
-                        <slot></slot> 
-                    </div>
+          <div class="card p-3 border-light-subtle bg-white text-dark shadow-sm">
+            <h4 class="mb-3">Title Prop: <span hx-text="props.title"></span></h4>
+            
+            <div class="p-3 my-2 bg-light rounded border border-light-subtle">
+              <slot></slot> 
+            </div>
 
-                    <div>
-                        <button class="btn btn-sm btn-dark" @click="updateCount">Local +</button>
-                        <p>Count: <span v-text="localState.count"></span></p>
-                    </div>
+            <div class="mt-2 d-flex justify-content-between align-items-center">
+              <div>
+                <button class="btn btn-sm btn-outline-dark" @click="updateCount">Local Count +</button>
+                <span class="ms-2">Value: <strong hx-text="localState.count"></strong></span>
+              </div>
+            </div>
 
-                    <div>
-                        <button class="btn btn-sm btn-success" @click="addItem">Add Local Item</button>
-                        <ul>
-                           <li v-for="item in localState.items" :key="item">Item: <span v-text="item"></span></li>
-                        </ul>
-                    </div>
-                </div>
-            `
+            <div class="mt-3">
+              <button class="btn btn-sm btn-outline-success" @click="addItem">Add Local Item</button>
+              <ul class="mt-2 ps-3 text-secondary">
+                <li hx-for="item in localState.items" :key="item">Item: <span hx-text="item" class="text-dark"></span></li>
+              </ul>
+            </div>
+          </div>
+        `
       };
     });
 
     Helix.component("user-form", {
-      // ✅ Declare emits at the root level for validation
       emits: ['add-user'],
-
       setup({ reactive, emit, props }) {
         const localState = reactive({ name: "" });
 
         const submit = () => {
           if (!localState.name) return;
-
-          // ✅ Use the emit pattern. 
-          // MicroVue normalizes "addUser" to "add-user" automatically
           emit("addUser", { id: Date.now(), name: localState.name });
-
           localState.name = "";
         };
 
         return {
           localState, submit,
           template: `
-                <form @submit.prevent="submit" class="d-flex gap-2"> 
-                    <input class="form-control w-25" v-model="localState.name" placeholder="Enter name">
-                    <button class="btn btn-primary" type="submit">Add User</button>
-                </form>
-            `
+            <form @submit.prevent="submit" class="d-flex gap-2"> 
+              <input class="form-control bg-white text-dark border-secondary w-50" hx-model="localState.name" placeholder="Enter name">
+              <button class="btn btn-primary btn-sm" type="submit">Add User</button>
+            </form>
+          `
         };
       }
     });
 
-    // This lives entirely outside of any component or app instance.
-    // By attaching it to 'window', any file or third-party script can reach it.
-    let AppStore = Helix.reactive({
-
-      // --- GLOBAL STATE ---
+    // 4. Global Store Simulation
+    const AppStore = reactive({
       candidate: null,
       theme: 'light',
       systemStatus: 'Online',
-
       serverStatus: 'Online',
       cpuLoad: 45,
       batchCount: 0,
-
-      // --- GLOBAL COMPUTED ---
       get hasCandidate() {
         return this.candidate !== null;
       },
-
-      // --- GLOBAL ACTIONS ---
-      // You can put your setStore logic directly inside the state!
       updateCandidate(data) {
         this.candidate = { ...this.candidate, ...data };
         console.log("Candidate updated globally:", this.candidate);
       },
-
       logout() {
         console.log("Logging out...");
         this.candidate = null;
       },
-
       updateBatchCount() {
         this.batchCount = 0;
         console.log("Updating batchCount...");
-        console.log("Starting 1000 rapid state changes...");
-
-        // 1. Mutate the state 1000 times synchronously
         for (let i = 1; i <= 1000; i++) {
           this.batchCount = i;
         }
-
-        // 2. The DOM should NOT be updated yet
         const displayEl = document.getElementById('count-display');
-        console.log("DOM text immediately after loop:", displayEl.innerText); // Should be old value
-
-        // 3. Use the Post-Flush Hook to check the DOM after the scheduler runs
+        console.log("DOM text immediately after loop:", displayEl.innerText);
         queuePostFlushCb(() => {
-          console.log("DOM text after scheduler flush:", displayEl.innerText); // Should be 1000
+          console.log("DOM text after scheduler flush:", displayEl.innerText);
           if (displayEl.innerText === "1000") {
             console.log("✅ BATCHING TEST PASSED: DOM updated exactly once!");
           } else {
@@ -503,84 +1198,62 @@
       }
     });
 
+    // Helper functions for Section 8 buttons
+    window.loadCandidate = function () {
+      AppStore.updateCandidate({
+        full_name: "Jane Dev",
+        bioHtml: "<strong>Software Architect</strong> specializing in reactive systems.",
+        isActive: false,
+        isVerified: true,
+        isSuspended: false
+      });
+    };
+
+    window.clearCandidate = function () {
+      AppStore.logout();
+    };
 
     setTimeout(() => {
-      // No need for 'setStore()'. Just call the action or mutate directly!
-      AppStore.updateCandidate({ full_name: "John Doe" });
+      loadCandidate();
     }, 2000);
 
-
-
-    // Run this block immediately, and re-run it whenever 
-    // serverStatus OR cpuLoad changes!
-    Helix.effect(() => {
-      // The framework tracks these reads automatically
+    effect(() => {
       const status = AppStore.serverStatus;
       const load = AppStore.cpuLoad;
-
       if (status === 'Offline' || load > 90) {
         console.warn("🚨 SYSTEM ALERT: Action Required!");
-        // e.g., Trigger an HTML5 Notification API
       } else {
         console.log("System is stable.");
       }
     });
 
-    // Testing the auto-tracking
     setTimeout(() => {
       AppStore.cpuLoad = 95;
-      // Instantly triggers the 🚨 SYSTEM ALERT
-
-
       setTimeout(() => {
         AppStore.serverStatus = 'Offline';
-
         setTimeout(() => {
           AppStore.cpuLoad = 80;
           AppStore.serverStatus = 'Online';
-          // Instantly triggers the 🚨 SYSTEM ALERT
         }, 3000);
-
       }, 3000);
-
     }, 3000);
 
-
-    // 1. Define the reactive object
-    let AppToggle = Helix.reactive({
-      schedule_field: '',
-      statusUpdated: false,
-
-      // Use standard method syntax, NOT arrow functions
-      logChange(event) {
-        console.log("Schedule Type changed:", event.target.value);
-        this.statusUpdated = true;
-      }
-    });
-
-    // 4. Mount Main Application
-    Helix.mount('#content', ({ reactive, watch }) => {
-      // Single Unified State Tree
+    // 5. Mount main application
+    Helix.mount('#content', ({ reactive, watch, version }) => {
+      console.log(version);
       const state = reactive({
-        // Intro / Reactivity
         count: 0,
         name: '',
         show: true,
         list: [1, 2, 3],
         score: 70,
-
-        // Forms
         age: 0,
         done: false,
         gender: 'M',
         color: 'text-danger',
         rawHtml: '<b>Hello Native HTML Injection</b>',
-
-        // Component Props
         msg: 'Hello World',
         users: [],
-
-        // Native Computed (A + B)
         a: 2,
         b: 3,
         get sum() {
@@ -589,16 +1262,10 @@
         toggleMe() {
           this.show = !this.show;
         },
-
-        // Change this to a method so it can perform an action
         doubleScore() {
-          this.a = this.a + 1; // Or this.a++
-          this.b = this.b + 1; // Or this.b++
-          console.log("New value of A:", this.a);
-          console.log("New value of B:", this.b);
+          this.a = this.a + 1;
+          this.b = this.b + 1;
         },
-
-        // Native Computed (Grade)
         get grade() {
           return this.score;
         },
@@ -608,22 +1275,14 @@
         increment() {
           this.count++;
         },
-
-        // Async Form State
         formState: { name: "", email: "" },
         loading: false,
         successMessage: "",
         errorMessage: "",
-
-        // Global Store Simulation
         store: {},
-
-
-        // Add this native computed getter!
         get buttonText() {
           return this.loading ? 'Saving...' : 'Save';
         },
-
         isActive: true,
         get buttonClass() {
           return {
@@ -637,26 +1296,22 @@
         toggleActive() {
           this.isActive = !this.isActive;
         },
-
         numbers: [10, 20, 30],
         listMethods: {
           add() { state.numbers.push(state.numbers.length * 10 + 10); },
           removeLast() { state.numbers.pop(); },
           reverseList() { state.numbers.reverse(); }
         },
-
         account: {
           profile: {
             name: "Alice",
             role: "Developer",
             promote() {
-              // Testing if 'this' points to 'profile' correctly
               this.role = "Lead Developer";
             }
           }
         },
         batchCount: 0,
-
         toggle: {
           schedule_field: '',
           statusUpdated: false,
@@ -669,20 +1324,167 @@
             this.statusUpdated = true;
           }
         },
+
+        // --- NEW EXAMPLES STATE & COMPUTED ---
+        charText: '',
+        get charCount() {
+          return this.charText.length;
+        },
+        get charCountClass() {
+          return this.charCount > 50 ? 'text-danger font-weight-bold' : 'text-secondary';
+        },
+
+        searchQuery: '',
+        itemsToFilter: ['Apple', 'Banana', 'Blueberry', 'Cherry', 'Grape', 'Mango', 'Orange', 'Peach', 'Strawberry'],
+        get filteredItems() {
+          return this.itemsToFilter.filter(item =>
+            item.toLowerCase().includes(this.searchQuery.toLowerCase())
+          );
+        },
+
+        password: '',
+        get passwordStrength() {
+          const len = this.password.length;
+          if (len === 0) return 'None';
+          if (len < 6) return 'Weak';
+          if (len < 10) return 'Medium';
+          return 'Strong';
+        },
+        get passwordClass() {
+          const str = this.passwordStrength;
+          if (str === 'Weak') return 'text-danger';
+          if (str === 'Medium') return 'text-warning';
+          return 'text-success';
+        },
+        // --- v11.1.16 CORE FEATURES DEMO STATE ---
+        v11State: reactive({
+          batchCounter: 0,
+          batchLogs: "Ready for batch execution.",
+          groupStatus: "Active",
+          groupCount: 0,
+          inspectResult: "",
+          preloadStatus: "Not preloaded",
+          runBatch() {
+            this.batchLogs = "Running Helix.batch.high...";
+            Helix.batch.high(() => {
+              this.batchCounter++;
+              this.batchCounter++;
+              this.batchCounter++;
+              this.groupCount++;
+            });
+            this.batchLogs = "Helix.batch.high executed in 1 tick!";
+          },
+          inspectTarget() {
+            const el = document.getElementById("dom-inspect-target");
+            const info = Helix.dom.inspect(el);
+            const seen = new WeakSet();
+            const safeReplacer = (key, val) => {
+              if (typeof val === "object" && val !== null) {
+                if (typeof Node !== "undefined" && val instanceof Node) return `<${val.tagName ? val.tagName.toLowerCase() : 'Node'}${val.id ? '#' + val.id : ''}>`;
+                if (seen.has(val)) return "[Circular]";
+                seen.add(val);
+              }
+              return val;
+            };
+            this.inspectResult = JSON.stringify(info, safeReplacer, 2);
+          },
+          pauseGroup() {
+            this.groupStatus = "Paused";
+          },
+          resumeGroup() {
+            this.groupStatus = "Active";
+          },
+          preloadComp() {
+            const demoComp = Helix.defineAsyncComponent({
+              name: "ConsoleDemoComp",
+              loader: () => Promise.resolve({ template: "<div>Demo Loaded Component</div>" })
+            });
+            this.preloadStatus = "Preloading...";
+            Helix.preload(demoComp).then(() => {
+              this.preloadStatus = "Preloaded successfully!";
+            });
+          },
+          activeScopeInst: null,
+          scopeStatus: "Inactive",
+          treeResult: "",
+          profileResult: "",
+          startScope() {
+            if (this.activeScopeInst) return;
+            const scope = Helix.markRaw(Helix.effectScope());
+            this.activeScopeInst = scope;
+            this.scopeStatus = "Active (Running)";
+            scope.run(() => {
+              Helix.onScopeDispose(() => {
+                this.scopeStatus = "Disposed & Cleaned Up!";
+                this.activeScopeInst = null;
+              });
+            });
+          },
+          stopScope() {
+            if (this.activeScopeInst) {
+              this.activeScopeInst.stop();
+            } else {
+              this.scopeStatus = "Already stopped";
+            }
+          },
+          inspectComponentTree() {
+            const currentInst = Helix.getCurrentInstance ? Helix.getCurrentInstance() : null;
+            const tree = Helix.inspectTree(currentInst || { id: "app-root", name: "HelixApp", children: [] });
+            this.treeResult = JSON.stringify(tree, null, 2);
+          },
+          runProfiler() {
+            Helix.profile(() => {
+              state.count++;
+              state.count++;
+            });
+            const data = Helix.getProfileData();
+            this.profileResult = JSON.stringify(data, null, 2);
+          },
+          memoVal: 0,
+          memoCalcRuns: 0,
+          memoInst: null,
+          memoData: null,
+          runMemo() {
+            if (!this.memoData) {
+              this.memoData = Helix.reactive({ a: 10, b: 5 });
+              this.memoInst = Helix.memo(() => {
+                this.memoCalcRuns++;
+                return this.memoData.a * this.memoData.b;
+              }, () => [this.memoData.a, this.memoData.b]);
+            } else {
+              this.memoData.b += 5;
+            }
+            this.memoVal = this.memoInst.value;
+          },
+          effectsResult: "",
+          inspectEffects() {
+            const list = Helix.devtools ? Helix.devtools.getEffects() : [];
+            this.effectsResult = JSON.stringify(list, null, 2);
+          },
+          watchResult: "Not triggered",
+          watchRefA: null,
+          watchRefB: null,
+          runMultiWatch() {
+            if (!this.watchRefA) {
+              this.watchRefA = Helix.ref(1);
+              this.watchRefB = Helix.ref(10);
+              Helix.watch([this.watchRefA, this.watchRefB], ([a, b]) => {
+                this.watchResult = `Multi-Watch Tuple: [${a}, ${b}]`;
+              }, { flush: "sync" });
+            }
+            this.watchRefA.value++;
+            this.watchRefB.value += 5;
+          }
+        })
       });
 
-      // Async Form Submission Handler
       const submitForm = async () => {
         state.loading = true;
         state.successMessage = "";
         state.errorMessage = "";
-
         try {
-          // Simulating an API call
           await new Promise(resolve => setTimeout(resolve, 1000));
-
           if (!state.formState.name) throw new Error("Name is required");
-
           state.successMessage = "User created successfully!";
           state.formState.name = "";
           state.formState.email = "";
@@ -693,49 +1495,44 @@
         }
       };
 
-      // Method to pass into component
       const addUser = (userData) => {
         state.users.push(userData);
       };
 
-      // Watchers
       watch(() => state.count, (newVal, oldVal) => {
         console.log("Count changed:", oldVal, "→", newVal);
       });
 
-      // Simulate external store update after 2 seconds
       setTimeout(() => {
         state.score = 80;
-        console.log("state.score 80 Updated from Timeout");
-
         setTimeout(() => {
           state.score = 90;
-          console.log("state.score 90 Updated from Timeout");
-
-
           setTimeout(() => {
             state.score = 50;
-            console.log("state.score 50 Updated from Timeout");
           }, 2000);
-
         }, 2000);
-
       }, 2000);
 
-      // Expose state and methods to the DOM
       return {
         state,
         submitForm,
-
         addUser,
         store: AppStore,
         toggle: state.toggle,
+        v11State: state.v11State
       };
     });
 
+    // 6. Global event logger setup
+    function triggerBusEvent() {
+      Helix.$bus.emit('system:log_message', `Manual trigger event fire! Time: ${new Date().toLocaleTimeString()}`);
+    }
 
-
+    Helix.$bus.on('system:log_message', (msg) => {
+      document.getElementById('bus-log').textContent = msg;
+    });
   </script>
+
 </body>
 
 </html>

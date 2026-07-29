@@ -1,0 +1,23 @@
+{
+  "name": "helix-core",
+  "version": "11.1.17",
+  "description": "Core framework of Helix.js",
+  "main": "../../dist/helix.js",
+  "module": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./reactivity": "./src/reactivity/reactive.js",
+    "./runtime": "./src/renderer/mount.js",
+    "./compiler": "./src/compiler/compiler.js",
+    "./plugin": "./src/app/plugin.js",
+    "./scheduler": "./src/reactivity/scheduler.js",
+    "./directives": "./src/directives/index.js"
+  },
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  },
+  "type": "module"
+}

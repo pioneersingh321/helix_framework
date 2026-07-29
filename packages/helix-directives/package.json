@@ -1,0 +1,17 @@
+{
+  "name": "helix-directives",
+  "version": "2.2.0",
+  "description": "Directives plugin for Helix.js framework",
+  "main": "dist/helix-directives.js",
+  "module": "dist/helix-directives.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  },
+  "type": "module"
+}

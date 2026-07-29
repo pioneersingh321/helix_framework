@@ -1,0 +1,17 @@
+{
+  "name": "helix-tooltip",
+  "version": "1.7.0",
+  "description": "Tooltip plugin for Helix.js framework",
+  "main": "dist/helix-tooltip.js",
+  "module": "dist/helix-tooltip.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  },
+  "type": "module"
+}

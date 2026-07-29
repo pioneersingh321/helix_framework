@@ -1,0 +1,17 @@
+{
+  "name": "helix-validation-schema",
+  "version": "2.1.5",
+  "description": "Schema validation adapters (Zod, Yup, AJV) for Helix Validation",
+  "main": "dist/helix-validation-schema.js",
+  "module": "dist/helix-validation-schema.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  },
+  "type": "module"
+}

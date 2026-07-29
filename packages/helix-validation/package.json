@@ -1,0 +1,17 @@
+{
+  "name": "helix-validation",
+  "version": "2.1.5",
+  "description": "Validation plugin for Helix.js framework",
+  "main": "dist/helix-validation.js",
+  "module": "dist/helix-validation.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  },
+  "type": "module"
+}

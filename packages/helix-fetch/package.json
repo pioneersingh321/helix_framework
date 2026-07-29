@@ -1,0 +1,16 @@
+{
+  "name": "helix-fetch",
+  "version": "2.8.7",
+  "description": "Fetch plugin for Helix.js framework",
+  "main": "dist/helix-fetch.js",
+  "module": "dist/helix-fetch.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  }
+}

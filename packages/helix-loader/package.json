@@ -1,0 +1,17 @@
+{
+  "name": "helix-loader",
+  "version": "2.5.0",
+  "description": "Loader plugin for Helix.js framework",
+  "main": "dist/helix-loader.js",
+  "module": "dist/helix-loader.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  },
+  "type": "module"
+}

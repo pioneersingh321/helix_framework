@@ -3,6 +3,9 @@
 Thumbs.db
 desktop.ini
 
+# Node modules
+node_modules/
+
 # IDEs and Editors
 .vscode/
 .idea/
@@ -23,3 +26,23 @@ logs/
 .gemini/
 .agents/
 mcp.json
+
+
+# compressed files
+*.zip
+*.rar
+*.7z
+*.tar.gz
+*.tgz
+*.tar
+*.gz
+*.bz2
+*.tbz2
+*.xz
+
+
+# Package Manager files
+Helix-Scope-v2-Roadmap.md
+Helix-Module-Structure.md
+Changelog.md
+.env

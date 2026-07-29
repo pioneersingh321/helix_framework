@@ -1,6 +1,6 @@
 # 🧬 Helix.js Framework
 
-[![Version](https://img.shields.io/badge/version-11.1.8-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
+[![Version](https://img.shields.io/badge/version-11.1.16-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
 [![Bundle Size](https://img.shields.io/badge/bundle-109KB--uncompressed-teal.svg?style=flat-square)](#)
 [![Reactivity](https://img.shields.io/badge/reactivity-signal--native-blue.svg?style=flat-square)](#)
 [![Build Step](https://img.shields.io/badge/build-zero--build--step-orange.svg?style=flat-square)](#)
@@ -39,8 +39,19 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 *   ⚡ **Fine-Grained Reactivity:** A proxy-based signal system with `ref`, `reactive`, `computed`, `effect`, and `watch` modeled after Vue 3's reactive engine.
 *   🎨 **Declarative HTML Directives:** Bind data with `h-if`, `h-for`, `h-model`, `h-bind`, and `h-on` (with `:` and `@` shorthands).
 *   🧱 **Composable Scoped Components:** Define elements with `setup()`, props, custom emits, slots, and an effect-scope cleanup model.
-*   🛡️ **Memory-Safe Teardown:** Automatic listener and watcher garbage collection when components or conditional scopes are unmounted.
-*   🔌 **First-Class Plugins:** Extensible plugin system featuring semver dependency resolution, namespace isolation, and hook cleanups.
+*   📦 **Async Components & Fallbacks:** Lazy-load components with `defineAsyncComponent`, fallback loaders, retry control (`onError`), and preloading (`Helix.preload`).
+*   ⚡ **Priority Batch Transactions:** Group mutations with `Helix.batch()`, `Helix.batch.high()`, `Helix.batch.low()`, and priority effects (`"high"`, `"normal"`, `"low"`).
+*   🌐 **Unified ScopeScheduler:** Single timer tick loop driving dirty scope refreshes with microtask batch deduplication.
+*   🛡️ **Memory-Safe Teardown & Error Boundaries:** Automatic listener collection, memory leak detection, `createErrorBoundary()`, and `onErrorCaptured()`.
+*   🔌 **First-Class Plugins & Lifecycles:** Plugin SDK (`definePlugin`), schema validation, semver resolution, and full lifecycle hooks (`install`, `mounted`, `updated`, `unmount`, `destroy`).
+*   🌳 **Public DOM Utilities (`Helix.dom`):** Low-level DOM binding, inspection (`dom.inspect`), cleanup (`dom.cleanup`), and element destruction (`dom.destroy`).
+*   🎯 **Scoped Reactivity API (`effectScope`):** Create composable reactive scopes with `effectScope(detached)` and `onScopeDispose()`.
+*   ⏳ **Built-in `<suspense>` Component:** Handle template-driven async UI states with `#fallback` and `#default` slot rendering.
+*   👀 **Enhanced Watch API (`watch`, `watchEffect`):** Multi-source array watching, `once: true` auto-unwatch, and deep collection traversal.
+*   🛠️ **DevTools Introspection APIs (`Helix.devtools`):** Real-time inspection of active scopes (`getScopes`), running effects (`getEffects`), dependency graphs (`getDependencies`), and timings (`getTimings`).
+*   ⏱️ **Built-in Performance Profiler:** Measure render duration, effect executions, and mount metrics via `Helix.profile()`.
+*   🧠 **Memoized Computations (`Helix.memo`):** Cache heavy calculations and re-evaluate only when inputs or dependencies update.
+*   ⚡ **Virtual DOM–Less Keyed List Diffing (`hx-for`):** Two-pointer head/tail fast-path trimming and `DocumentFragment` bulk insertion for $O(1)$ appends/prepends.
 
 ---
 

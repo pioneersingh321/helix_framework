@@ -1,0 +1,16 @@
+{
+  "name": "helix-notify",
+  "version": "2.2.6",
+  "description": "Notify plugin for Helix.js framework wrapping SweetAlert2",
+  "main": "dist/helix-notify.js",
+  "module": "dist/helix-notify.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "helix-helpers",
+  "version": "1.1.0",
+  "description": "Helpers plugin for Helix.js framework",
+  "main": "dist/helix-helpers.js",
+  "module": "dist/helix-helpers.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  },
+  "type": "module"
+}

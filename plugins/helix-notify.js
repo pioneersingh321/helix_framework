@@ -1,80 +1,48 @@
 /**
- * Helix.js Notify Plugin v2.1
- * Aligned with Helix.js v11.1.x Plugin Architecture
- *
- * Features:
- * - SweetAlert2 wrapper with themes (clinical, glass, dark)
- * - Serialized toast queue with backlog cap and auto-drain
- * - Promise-based alerts, confirms, prompts
- * - Query builder with direct event methods (.onConfirmed/.onCancelled/.onDenied/.onDismissed)
- * - Async loading dialogs with success/error states + real cancellation (AbortSignal)
- * - Plugin metadata, cleanup lifecycle, namespaced API
- *
- * --- v2.1 changelog (bug fixes) ---
- *  1.  Toast queue now SERIALIZES (SweetAlert2 is single-instance); queueLimit is a
- *      backlog cap, not a concurrency level. Dropped/over-cap toasts resolve, never hang.
- *  2.  Query builder no longer emits unhandledrejection when only .onError is used.
- *  3.  confirm3 / confirm3Query are now registered on the namespace.
- *  4.  async / asyncQuery now pass an AbortSignal to promiseFn and honour real cancellation.
- *  5.  install() always returns a cleanup function (no-op on the missing-Swal path).
- *  6.  queueLimit is clamped to >= 1 (was a deadlock at <= 0).
- *  7.  Query builder defers dialog open by one microtask so the full handler chain attaches first.
- *  9.  prompt inputValidator allows falsy-but-valid values (0, etc); only blocks empty/null.
- * 10.  Injected <style> is removed on cleanup.
- * 11.  confirm3 (Promise form) now returns `cancelled`, matching confirm3Query.
- * 12.  Dead `resultMapper` param removed from the query builder.
- *
- * NOTE (SweetAlert2 constraint, not a plugin bug): a modal (confirm/alert/prompt/async)
- * and a toast cannot be visible at the same time — opening one closes the other. The
- * toast queue only coordinates toasts among themselves.
- *
- * CONTRACT CHANGE: promiseFn passed to async()/asyncQuery() now receives an AbortSignal
- *   as its first argument:  notify.async(t, x, (signal) => fetch(url, { signal }))
- * Old promiseFns that ignore the argument continue to work unchanged.
+ * Helix.js Notify Plugin v2.2.6 (Helix v11.1.6 Compliant)
+ * Global (Helix.$notify) + App Context destructuring (const { $notify } = appCtx)
+ * Includes 6 Premium Themes: clinical, glass, dark, neon, brutal, aurora.
  */
+const HelixNotifyPlugin = (function () {
+    "use strict";
 
-const HelixNotifyPlugin = {
-    // ==========================================
-    // PLUGIN METADATA (Helix v11.1.x)
-    // ==========================================
-    name: 'notify',
-    version: '2.1.0',
-    requires: {
-        helix: '>=11.1.5'
-    },
+    function install(api, options = {}) {
+        // ── 1. FAIL SAFELY ──
+        const SwalRef = typeof window !== 'undefined' ? window.Swal : (typeof globalThis !== 'undefined' ? globalThis.Swal : null);
 
-    install(app, options = {}) {
-
-        if (typeof Swal === 'undefined') {
-            console.error('[Helix.js][$notify] SweetAlert2 is required. Load it before this plugin.');
-            // Fix #5: always return a cleanup fn so the host's uninstall path never throws.
-            return () => {};
+        if (!SwalRef) {
+            console.error('[HelixNotify] SweetAlert2 is required. Load it BEFORE Helix.use(HelixNotifyPlugin).');
+            return;
         }
 
-        // ==========================================
-        // 1. THEMES & CONFIG
-        // ==========================================
+        // Idempotency
+        if (api.$notify) return;
+
+        // ── 2. CONFIG & THEME REGISTRY ──
         const themes = {
             clinical: {
-                confirmColor: '#007bff',
-                cancelColor: '#6c757d',
-                denyColor: '#f59e0b',
-                popupClass: 'hx-swal-clinical',
-                toastPosition: 'top-end'
+                confirmColor: '#007bff', cancelColor: '#6c757d', denyColor: '#f59e0b',
+                popupClass: 'hx-swal-clinical', toastPosition: 'top-end'
             },
             glass: {
-                confirmColor: '#4f46e5',
-                cancelColor: '#f43f5e',
-                denyColor: '#f59e0b',
-                popupClass: 'hx-swal-glass',
-                toastPosition: 'bottom-end'
+                confirmColor: '#4f46e5', cancelColor: '#f43f5e', denyColor: '#f59e0b',
+                popupClass: 'hx-swal-glass', toastPosition: 'bottom-end'
             },
             dark: {
-                confirmColor: '#10b981',
-                cancelColor: '#ef4444',
-                denyColor: '#f59e0b',
-                popupClass: 'hx-swal-dark',
-                toastPosition: 'top-end'
+                confirmColor: '#10b981', cancelColor: '#ef4444', denyColor: '#f59e0b',
+                popupClass: 'hx-swal-dark', toastPosition: 'top-end'
+            },
+            neon: {
+                confirmColor: '#ec4899', cancelColor: '#3b82f6', denyColor: '#eab308',
+                popupClass: 'hx-swal-neon', toastPosition: 'top-end'
+            },
+            brutal: {
+                confirmColor: '#000000', cancelColor: '#ef4444', denyColor: '#eab308',
+                popupClass: 'hx-swal-brutal', toastPosition: 'bottom-right'
+            },
+            aurora: {
+                confirmColor: '#8b5cf6', cancelColor: '#f43f5e', denyColor: '#10b981',
+                popupClass: 'hx-swal-aurora', toastPosition: 'top-center'
             }
         };
 
@@ -82,104 +50,128 @@ const HelixNotifyPlugin = {
             theme: 'clinical',
             toastTimer: 3000,
             queueLimit: 3,
-            ...options
+            showCloseButton: false
         };
 
-        const themeConfig = themes[defaults.theme] || themes.clinical;
-        const config = { ...themeConfig, ...defaults };
+        const baseTheme = themes[options.theme || 'clinical'] || themes.clinical;
+        const config = { ...defaults, ...baseTheme, ...options };
 
-        // Fix #6: clamp backlog cap to a sane minimum (>= 1 prevents a stalled queue).
-        const queueLimit = Math.max(1, Number(config.queueLimit) || 1);
-
-        // ==========================================
-        // 2. CSS AUTO-INJECTION
-        // ==========================================
+        // ── 3. CSS ENGINE (FULL) ──
         const styleId = 'hx-notify-styles';
-        if (!document.getElementById(styleId)) {
+        if (typeof document !== 'undefined' && !document.getElementById(styleId)) {
             const style = document.createElement('style');
             style.id = styleId;
-            style.innerHTML = `
-                .hx-swal-clinical { border-radius: 8px !important; font-family: 'Inter', sans-serif; border: 1px solid #e5e7eb !important; }
-                .hx-swal-glass { background: rgba(255, 255, 255, 0.8) !important; backdrop-filter: blur(12px) !important; border-radius: 16px !important; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important; }
-                .hx-swal-dark { background: #1f2937 !important; color: #f9fafb !important; border-radius: 12px !important; }
+            style.textContent = `
                 .swal2-popup { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; }
+
+                .hx-swal-clinical { 
+                    border-radius: 8px !important; 
+                    font-family: 'Inter', system-ui, sans-serif; 
+                    border: 1px solid #e5e7eb !important; 
+                }
+
+                .hx-swal-glass { 
+                    background: rgba(255, 255, 255, 0.65) !important; 
+                    backdrop-filter: blur(16px) saturate(180%) !important; 
+                    -webkit-backdrop-filter: blur(16px) saturate(180%) !important; 
+                    border-radius: 16px !important; 
+                    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+                    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1) !important; 
+                    color: #1f2937 !important;
+                }
+                .hx-swal-glass .swal2-title, .hx-swal-glass .swal2-html-container { color: #111827 !important; }
+
+                .hx-swal-dark { 
+                    background: #1f2937 !important; 
+                    color: #f9fafb !important; 
+                    border-radius: 12px !important; 
+                }
+                .hx-swal-dark .swal2-title, .hx-swal-dark .swal2-html-container { color: #f9fafb !important; }
+
+                .hx-swal-neon { 
+                    background: #0f172a !important; 
+                    color: #ffffff !important; 
+                    border: 1px solid #ec4899 !important; 
+                    box-shadow: 0 0 15px rgba(236, 72, 153, 0.3), inset 0 0 10px rgba(59, 130, 246, 0.1) !important; 
+                    border-radius: 12px !important; 
+                }
+                .hx-swal-neon .swal2-title, .hx-swal-neon .swal2-html-container { 
+                    color: #fdf2f8 !important; 
+                    text-shadow: 0 0 6px rgba(255, 255, 255, 0.2); 
+                }
+
+                .hx-swal-brutal { 
+                    background: #ffffff !important; 
+                    color: #000000 !important; 
+                    border: 3px solid #000000 !important; 
+                    box-shadow: 6px 6px 0px #000000 !important; 
+                    border-radius: 0px !important; 
+                    font-family: 'Courier New', ui-monospace, monospace !important; 
+                }
+                .hx-swal-brutal .swal2-title, .hx-swal-brutal .swal2-html-container { 
+                    color: #000000 !important; 
+                    font-weight: bold !important; 
+                }
+                .hx-swal-brutal .swal2-confirm, .hx-swal-brutal .swal2-cancel, .hx-swal-brutal .swal2-deny { 
+                    border: 2px solid #000 !important; 
+                    box-shadow: 3px 3px 0px #000 !important; 
+                    border-radius: 0 !important; 
+                    font-weight: bold !important;
+                }
+
+                .hx-swal-aurora { 
+                    background: linear-gradient(135deg, #1e1b4b, #312e81, #1e1b4b) !important; 
+                    color: #ffffff !important; 
+                    border: 1px solid rgba(255,255,255,0.12) !important; 
+                    box-shadow: 0 12px 40px rgba(0,0,0,0.4) !important; 
+                    border-radius: 20px !important; 
+                }
+                .hx-swal-aurora .swal2-title, .hx-swal-aurora .swal2-html-container { color: #e0e7ff !important; }
             `;
             document.head.appendChild(style);
         }
 
-        // ==========================================
-        // 3. TOAST QUEUE (serialized — Fix #1, #6)
-        // ==========================================
-        // SweetAlert2 only renders one popup at a time, so toasts MUST run one-at-a-time.
-        // queueLimit caps how many may sit *pending* behind the active one; overflow drops
-        // the oldest pending toast and resolves its promise as { dropped: true } so awaits
-        // never hang.
-        let activeToast = false;
+        // ── 4. TOAST ENGINE (WITH HOVER PAUSE) ──
+        let activeToasts = 0;
         const toastQueue = [];
 
-        const drainToast = () => {
-            if (activeToast || toastQueue.length === 0) return;
-            activeToast = true;
-            const { fn, resolve } = toastQueue.shift();
-            Promise.resolve()
-                .then(fn)
-                .then(resolve, resolve)        // resolve on success OR swal error; never reject
-                .finally(() => {
-                    activeToast = false;
-                    drainToast();
+        const runToast = (fn) => {
+            if (activeToasts < config.queueLimit) {
+                activeToasts++;
+                fn().finally(() => {
+                    activeToasts--;
+                    if (toastQueue.length) runToast(toastQueue.shift());
                 });
+            } else {
+                toastQueue.push(fn);
+            }
         };
 
-        const enqueueToast = (fn) => new Promise((resolve) => {
-            toastQueue.push({ fn, resolve });
-            // Backlog cap: keep at most `queueLimit` pending (active one is already shifted out).
-            while (toastQueue.length > queueLimit) {
-                const dropped = toastQueue.shift();
-                dropped.resolve({ dropped: true });
-            }
-            drainToast();
-        });
-
-        const Toast = Swal.mixin({
+        const Toast = SwalRef.mixin({
             toast: true,
             position: config.toastPosition,
             showConfirmButton: false,
-            showCloseButton: config.showCloseButton ?? false,
+            showCloseButton: config.showCloseButton,
             timer: config.toastTimer,
             timerProgressBar: true,
             customClass: { popup: config.popupClass },
             didOpen: (toast) => {
-                toast.addEventListener('mouseenter', Swal.stopTimer);
-                toast.addEventListener('mouseleave', Swal.resumeTimer);
+                toast.addEventListener('mouseenter', SwalRef.stopTimer);
+                toast.addEventListener('mouseleave', SwalRef.resumeTimer);
             }
         });
 
-        // ==========================================
-        // 4. QUERY BUILDER with Direct Events (Fix #2, #7, #12)
-        // ==========================================
-        function createQuery(promiseFactory) {
+        // ── 5. QUERY BUILDER (DEFERRED EXECUTION) ──
+        function createQuery(promiseFactory, resultMapper = null) {
             const handlers = {
-                onConfirmed: null,
-                onCancelled: null,
-                onDismissed: null,
-                onDenied: null,
-                onSuccess: null,
-                onError: null,
-                onFinally: null
+                onConfirmed: null, onCancelled: null, onDismissed: null,
+                onDenied: null, onSuccess: null, onError: null, onFinally: null
             };
 
-            let started = false;
-            let resolveOuter, rejectOuter;
-            const promise = new Promise((res, rej) => { resolveOuter = res; rejectOuter = rej; });
-
-            // Fix #2: swallow rejection on an internal branch so consumers that only use
-            // .onError(...) (and never await / .catch) don't trigger unhandledrejection.
-            // The consumer's own .then/.catch/await still receives the real rejection.
-            promise.catch(() => {});
-
-            const execute = async () => {
+            const executePromise = Promise.resolve().then(async () => {
                 try {
-                    const result = await promiseFactory();
+                    const rawResult = await promiseFactory();
+                    const result = resultMapper ? resultMapper(rawResult) : rawResult;
 
                     if (result.confirmed && handlers.onConfirmed) handlers.onConfirmed(result);
                     if (result.cancelled && handlers.onCancelled) handlers.onCancelled(result);
@@ -187,19 +179,17 @@ const HelixNotifyPlugin = {
                     if (result.denied && handlers.onDenied) handlers.onDenied(result);
                     if (handlers.onSuccess && !result.error) handlers.onSuccess(result);
 
-                    resolveOuter(result);
+                    return result;
                 } catch (err) {
-                    if (handlers.onError) handlers.onError(err);
-                    rejectOuter(err);
+                    if (handlers.onError) {
+                        handlers.onError(err);
+                        return { error: err };
+                    }
+                    throw err;
                 } finally {
                     if (handlers.onFinally) handlers.onFinally();
                 }
-            };
-
-            // Fix #7: defer one microtask so a synchronous handler chain
-            // (.onConfirmed(a).onCancelled(b)...) is fully attached before the dialog opens.
-            const start = () => { if (!started) { started = true; execute(); } };
-            queueMicrotask(start);
+            });
 
             return {
                 onConfirmed(fn) { handlers.onConfirmed = fn; return this; },
@@ -209,107 +199,28 @@ const HelixNotifyPlugin = {
                 onSuccess(fn) { handlers.onSuccess = fn; return this; },
                 onError(fn) { handlers.onError = fn; return this; },
                 onFinally(fn) { handlers.onFinally = fn; return this; },
-                then: promise.then.bind(promise),
-                catch: promise.catch.bind(promise),
-                finally: promise.finally.bind(promise)
+                then: executePromise.then.bind(executePromise),
+                catch: executePromise.catch.bind(executePromise),
+                finally: executePromise.finally.bind(executePromise)
             };
         }
 
-        // ==========================================
-        //  Shared async-dialog runner (Fix #4)
-        // ==========================================
-        // Wires an AbortController into the loading dialog. promiseFn receives the signal;
-        // pressing Cancel aborts it. Returns a normalized result object.
-        const runAsyncDialog = async (title, text, promiseFn, options = {}) => {
-            const {
-                successTitle = 'Success', successText = 'Operation completed.',
-                showSuccess = true, showError = true, errorTitle = 'Error',
-                allowCancel = false, ...ext
-            } = options;
-
-            const controller = new AbortController();
-            let userCancelled = false;
-
-            // Fire (do NOT await) — watch for a cancel dismissal to abort the work.
-            Swal.fire({
-                title, text,
-                allowOutsideClick: false,
-                allowEscapeKey: allowCancel,
-                showConfirmButton: false,
-                showCancelButton: allowCancel,
-                cancelButtonText: 'Cancel',
-                cancelButtonColor: config.cancelColor,
-                customClass: { popup: config.popupClass },
-                didOpen: () => { Swal.showLoading(); },
-                ...ext
-            }).then((res) => {
-                if (res.dismiss === Swal.DismissReason.cancel) {
-                    userCancelled = true;
-                    controller.abort();
-                }
-            });
-
-            try {
-                const result = await promiseFn(controller.signal);
-
-                // Op finished but the user already pressed Cancel — honour the cancel.
-                if (userCancelled) {
-                    Swal.close();
-                    return { success: false, cancelled: true };
-                }
-
-                if (showSuccess) {
-                    Swal.close();
-                    await Swal.fire({
-                        title: successTitle, text: successText, icon: 'success',
-                        confirmButtonColor: config.confirmColor,
-                        customClass: { popup: config.popupClass },
-                        timer: 2000, timerProgressBar: true
-                    });
-                } else {
-                    Swal.close();
-                }
-                return { success: true, data: result };
-            } catch (err) {
-                Swal.close();
-                if (userCancelled || err?.name === 'AbortError') {
-                    return { success: false, cancelled: true };
-                }
-                if (showError) {
-                    await Swal.fire({
-                        title: errorTitle,
-                        text: err?.message || err?.data?.message || 'Operation failed',
-                        icon: 'error',
-                        confirmButtonColor: config.confirmColor,
-                        customClass: { popup: config.popupClass }
-                    });
-                }
-                return { success: false, error: err };
-            }
-        };
-
-        // ==========================================
-        // 5. $notify API
-        // ==========================================
+        // ── 6. PUBLIC API (FULL RESTORED) ──
         const $notify = {
-            // ----- Toast (serialized) -----
             toast: {
-                success: (title, ext = {}) => enqueueToast(() => Toast.fire({ icon: 'success', title, ...ext })),
-                error: (title, ext = {}) => enqueueToast(() => Toast.fire({ icon: 'error', title, ...ext })),
-                info: (title, ext = {}) => enqueueToast(() => Toast.fire({ icon: 'info', title, ...ext })),
-                warning: (title, ext = {}) => enqueueToast(() => Toast.fire({ icon: 'warning', title, ...ext })),
-                question: (title, ext = {}) => enqueueToast(() => Toast.fire({ icon: 'question', title, ...ext })),
-                fire: (title, icon = 'info', ext = {}) => enqueueToast(() => Toast.fire({ icon, title, ...ext }))
+                success: (title, ext = {}) => new Promise(res => runToast(() => Toast.fire({ icon: 'success', title, ...ext }).then(res))),
+                error: (title, ext = {}) => new Promise(res => runToast(() => Toast.fire({ icon: 'error', title, ...ext }).then(res))),
+                info: (title, ext = {}) => new Promise(res => runToast(() => Toast.fire({ icon: 'info', title, ...ext }).then(res))),
+                warning: (title, ext = {}) => new Promise(res => runToast(() => Toast.fire({ icon: 'warning', title, ...ext }).then(res))),
+                question: (title, ext = {}) => new Promise(res => runToast(() => Toast.fire({ icon: 'question', title, ...ext }).then(res))),
+                fire: (title, icon = 'info', ext = {}) => new Promise(res => runToast(() => Toast.fire({ icon, title, ...ext }).then(res)))
             },
 
-            // ----- Alert -----
-            alert: async (title, text, icon = 'info', ext = {}) => {
-                return await Swal.fire({ title, text, icon, confirmButtonColor: config.confirmColor, customClass: { popup: config.popupClass }, ...ext });
-            },
+            alert: (title, text, icon = 'info', ext = {}) =>
+                SwalRef.fire({ title, text, icon, confirmButtonColor: config.confirmColor, customClass: { popup: config.popupClass }, ...ext }),
 
-            // ----- Confirm (Promise) -----
             confirm: async (title, text = "Action cannot be reverted.", confirmText = "Confirm", ext = {}) => {
-                const res = await Swal.fire({
+                const res = await SwalRef.fire({
                     title, text, icon: 'warning',
                     showCancelButton: true,
                     confirmButtonColor: config.confirmColor,
@@ -321,10 +232,9 @@ const HelixNotifyPlugin = {
                 return !!res.isConfirmed;
             },
 
-            // ----- Confirm Query -----
             confirmQuery: (title, text = "Action cannot be reverted.", confirmText = "Confirm", ext = {}) => {
                 return createQuery(async () => {
-                    const res = await Swal.fire({
+                    const res = await SwalRef.fire({
                         title, text, icon: 'warning',
                         showCancelButton: true,
                         confirmButtonColor: config.confirmColor,
@@ -335,17 +245,16 @@ const HelixNotifyPlugin = {
                     });
                     return {
                         confirmed: res.isConfirmed,
-                        cancelled: res.isDismissed && res.dismiss === Swal.DismissReason.cancel,
+                        cancelled: res.isDismissed && res.dismiss === SwalRef.DismissReason.cancel,
                         dismissed: res.isDismissed,
                         value: res.value
                     };
                 });
             },
 
-            // ----- Confirm3 (Promise) -----
             confirm3: async (title, text, opts = {}) => {
                 const { confirmText = 'Yes', denyText = 'No', cancelText = 'Cancel', ...ext } = opts;
-                const res = await Swal.fire({
+                const res = await SwalRef.fire({
                     title, text, icon: 'question',
                     showCancelButton: true,
                     showDenyButton: true,
@@ -358,21 +267,13 @@ const HelixNotifyPlugin = {
                     customClass: { popup: config.popupClass },
                     ...ext
                 });
-                return {
-                    confirmed: res.isConfirmed,
-                    denied: res.isDenied,
-                    // Fix #11: parity with confirm3Query.
-                    cancelled: res.isDismissed && res.dismiss === Swal.DismissReason.cancel,
-                    dismissed: res.isDismissed,
-                    value: res.value
-                };
+                return { confirmed: res.isConfirmed, denied: res.isDenied, dismissed: res.isDismissed, value: res.value };
             },
 
-            // ----- Confirm3 Query -----
             confirm3Query: (title, text, opts = {}) => {
                 const { confirmText = 'Yes', denyText = 'No', cancelText = 'Cancel', ...ext } = opts;
                 return createQuery(async () => {
-                    const res = await Swal.fire({
+                    const res = await SwalRef.fire({
                         title, text, icon: 'question',
                         showCancelButton: true,
                         showDenyButton: true,
@@ -388,14 +289,13 @@ const HelixNotifyPlugin = {
                     return {
                         confirmed: res.isConfirmed,
                         denied: res.isDenied,
-                        cancelled: res.isDismissed && res.dismiss === Swal.DismissReason.cancel,
+                        cancelled: res.isDismissed && res.dismiss === SwalRef.DismissReason.cancel,
                         dismissed: res.isDismissed,
                         value: res.value
                     };
                 });
             },
 
-            // ----- Prompt (Promise) -----
             prompt: async (title, options = {}) => {
                 const {
                     input = 'text', inputLabel = '', inputPlaceholder = '',
@@ -404,7 +304,7 @@ const HelixNotifyPlugin = {
                     confirmText = 'Submit', ...ext
                 } = options;
 
-                const { value, isConfirmed, isDismissed } = await Swal.fire({
+                const { value, isConfirmed, isDismissed } = await SwalRef.fire({
                     title, input, inputLabel, inputPlaceholder, inputValue,
                     inputOptions, inputAttributes,
                     showCancelButton: true,
@@ -412,16 +312,12 @@ const HelixNotifyPlugin = {
                     confirmButtonColor: config.confirmColor,
                     cancelButtonColor: config.cancelColor,
                     customClass: { popup: config.popupClass },
-                    // Fix #9: only empty/null are invalid — 0 and other falsy-but-valid values pass.
-                    inputValidator: allowEmpty ? undefined : (val) => {
-                        if (val === '' || val === null || val === undefined) return validationMessage;
-                    },
+                    inputValidator: allowEmpty ? undefined : (val) => { if (!val) return validationMessage; },
                     ...ext
                 });
                 return { value, confirmed: isConfirmed, dismissed: isDismissed };
             },
 
-            // ----- Prompt Query -----
             promptQuery: (title, options = {}) => {
                 const {
                     input = 'text', inputLabel = '', inputPlaceholder = '',
@@ -431,7 +327,7 @@ const HelixNotifyPlugin = {
                 } = options;
 
                 return createQuery(async () => {
-                    const res = await Swal.fire({
+                    const res = await SwalRef.fire({
                         title, input, inputLabel, inputPlaceholder, inputValue,
                         inputOptions, inputAttributes,
                         showCancelButton: true,
@@ -439,75 +335,167 @@ const HelixNotifyPlugin = {
                         confirmButtonColor: config.confirmColor,
                         cancelButtonColor: config.cancelColor,
                         customClass: { popup: config.popupClass },
-                        inputValidator: allowEmpty ? undefined : (val) => {
-                            if (val === '' || val === null || val === undefined) return validationMessage;
-                        },
+                        inputValidator: allowEmpty ? undefined : (val) => { if (!val) return validationMessage; },
                         ...ext
                     });
                     return {
                         value: res.value,
                         confirmed: res.isConfirmed,
-                        cancelled: res.isDismissed && res.dismiss === Swal.DismissReason.cancel,
+                        cancelled: res.isDismissed && res.dismiss === SwalRef.DismissReason.cancel,
                         dismissed: res.isDismissed
                     };
                 });
             },
 
-            // ----- Async (Promise) -----
-            async: (title, text, promiseFn, options = {}) =>
-                runAsyncDialog(title, text, promiseFn, options),
+            async: async (title, text, promiseFn, options = {}) => {
+                const {
+                    successTitle = 'Success', successText = 'Operation completed.',
+                    showSuccess = true, showError = true, errorTitle = 'Error',
+                    allowCancel = false, ...ext
+                } = options;
 
-            // ----- Async Query -----
-            asyncQuery: (title, text, promiseFn, options = {}) =>
-                createQuery(async () => {
-                    const r = await runAsyncDialog(title, text, promiseFn, options);
-                    if (r.success) return { success: true, data: r.data, confirmed: true };
-                    if (r.cancelled) return { success: false, cancelled: true, dismissed: true };
-                    throw r.error;
-                }),
+                SwalRef.fire({
+                    title, text, allowOutsideClick: false, allowEscapeKey: allowCancel,
+                    showConfirmButton: false, showCancelButton: allowCancel,
+                    cancelButtonText: 'Cancel', cancelButtonColor: config.cancelColor,
+                    customClass: { popup: config.popupClass },
+                    didOpen: () => { SwalRef.showLoading(); },
+                    ...ext
+                });
 
-            raw: Swal
+                try {
+                    const result = await promiseFn();
+                    if (showSuccess) {
+                        SwalRef.close();
+                        await SwalRef.fire({
+                            title: successTitle, text: successText, icon: 'success',
+                            confirmButtonColor: config.confirmColor,
+                            customClass: { popup: config.popupClass },
+                            timer: 2000, timerProgressBar: true
+                        });
+                    } else {
+                        SwalRef.close();
+                    }
+                    return { success: true, data: result };
+                } catch (err) {
+                    SwalRef.close();
+                    if (showError) {
+                        await SwalRef.fire({
+                            title: errorTitle,
+                            text: err?.message || err?.data?.message || 'Operation failed',
+                            icon: 'error',
+                            confirmButtonColor: config.confirmColor,
+                            customClass: { popup: config.popupClass }
+                        });
+                    }
+                    return { success: false, error: err };
+                }
+            },
+
+            asyncQuery: (title, text, promiseFn, options = {}) => {
+                const {
+                    successTitle = 'Success', successText = 'Operation completed.',
+                    showSuccess = true, showError = true, errorTitle = 'Error',
+                    allowCancel = false, ...ext
+                } = options;
+
+                return createQuery(async () => {
+                    SwalRef.fire({
+                        title, text, allowOutsideClick: false, allowEscapeKey: allowCancel,
+                        showConfirmButton: false, showCancelButton: allowCancel,
+                        cancelButtonText: 'Cancel', cancelButtonColor: config.cancelColor,
+                        customClass: { popup: config.popupClass },
+                        didOpen: () => { SwalRef.showLoading(); },
+                        ...ext
+                    });
+
+                    try {
+                        const result = await promiseFn();
+                        if (showSuccess) {
+                            SwalRef.close();
+                            await SwalRef.fire({
+                                title: successTitle, text: successText, icon: 'success',
+                                confirmButtonColor: config.confirmColor,
+                                customClass: { popup: config.popupClass },
+                                timer: 2000, timerProgressBar: true
+                            });
+                        } else {
+                            SwalRef.close();
+                        }
+                        return { success: true, data: result, confirmed: true };
+                    } catch (err) {
+                        SwalRef.close();
+                        if (showError) {
+                            await SwalRef.fire({
+                                title: errorTitle,
+                                text: err?.message || err?.data?.message || 'Operation failed',
+                                icon: 'error',
+                                confirmButtonColor: config.confirmColor,
+                                customClass: { popup: config.popupClass }
+                            });
+                        }
+                        throw err;
+                    }
+                });
+            },
+
+            raw: SwalRef
         };
 
-        // ==========================================
-        // 6. NAMESPACED API REGISTRATION (Helix v11.1.x) — Fix #3
-        // ==========================================
-        app.namespace('notify', {
-            $notify,
-            toast: $notify.toast,
-            alert: $notify.alert,
-            confirm: $notify.confirm,
-            confirmQuery: $notify.confirmQuery,
-            confirm3: $notify.confirm3,
-            confirm3Query: $notify.confirm3Query,
-            prompt: $notify.prompt,
-            promptQuery: $notify.promptQuery,
-            async: $notify.async,
-            asyncQuery: $notify.asyncQuery,
-            raw: Swal
-        });
+        // ── 7. ATTACH TO RECEIVED API ──
+        api.$notify = $notify;
 
-        // Backward compatibility: flat access
-        app.$notify = $notify;
-
-        // Provide for inject()
-        if (app.provide) {
-            app.provide('$notify', $notify);
+        // ── 8. NAMESPACED REGISTRATION (FULL MAPPED) ──
+        if (api.namespace) {
+            api.namespace('notify', {
+                $notify,
+                toast: $notify.toast,
+                alert: $notify.alert,
+                confirm: $notify.confirm,
+                confirmQuery: $notify.confirmQuery,
+                confirm3: $notify.confirm3,
+                confirm3Query: $notify.confirm3Query,
+                prompt: $notify.prompt,
+                promptQuery: $notify.promptQuery,
+                async: $notify.async,
+                asyncQuery: $notify.asyncQuery,
+                raw: SwalRef
+            });
         }
 
-        // ==========================================
-        // 7. CLEANUP LIFECYCLE (Helix v11.1.x) — Fix #10
-        // ==========================================
-        return () => {
-            // Resolve any pending toasts so awaiters don't hang past teardown.
-            while (toastQueue.length) {
-                const pending = toastQueue.shift();
-                pending.resolve({ dropped: true });
-            }
-            activeToast = false;
-            Swal.close();
-            const styleEl = document.getElementById(styleId);
-            if (styleEl) styleEl.remove();
+        // ── 9. PROVIDE FOR inject() ──
+        if (api.provide) {
+            api.provide('$notify', $notify);
+        }
+
+        // ── 10. GLOBAL FALLBACK (Helix.$notify) ──
+        const GlobalHelix = (typeof window !== 'undefined' && window.Helix) ||
+            (typeof globalThis !== 'undefined' && globalThis.Helix) ||
+            (typeof Helix !== 'undefined' ? Helix : null);
+
+        if (GlobalHelix) {
+            GlobalHelix.$notify = $notify;
+        }
+
+        // ── 11. CLEANUP ──
+        const cleanup = () => {
+            toastQueue.length = 0;
+            activeToasts = 0;
+            if (SwalRef) SwalRef.close();
         };
+
+        // Optional: attach to app unmount if core supports it
+        if (api.onCleanup && typeof api.onCleanup === 'function') {
+            api.onCleanup(cleanup);
+        }
+
+        return cleanup;
     }
-};
+
+    return {
+        name: 'notify',
+        version: '2.2.6',
+        requires: { helix: '>=11.1.5' },
+        install
+    };
+})();

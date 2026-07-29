@@ -1,0 +1,25 @@
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
+
+export default defineConfig(({ mode }) => {
+  const isMin = mode === 'min';
+  return {
+    envDir: '../../',
+    build: {
+      outDir: 'dist',
+      lib: {
+        entry: resolve(__dirname, 'src/index.js'),
+        name: 'HelixDirectivesPlugin',
+        formats: ['iife'],
+        fileName: () => isMin ? 'helix-directives.min.js' : 'helix-directives.js'
+      },
+      minify: isMin ? 'esbuild' : false,
+      emptyOutDir: !isMin,
+      rollupOptions: {
+        output: {
+          extend: true
+        }
+      }
+    }
+  };
+});

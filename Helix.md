@@ -2,7 +2,7 @@
 
 A lightweight, Vue-inspired reactive JavaScript framework — signal-native reactivity, declarative HTML directives, components, and a plugin ecosystem, all in a single dependency-free file that runs directly in the browser.
 
-**Version:** `11.1.8` · **Size:** single file, no build step · **License:** MIT
+**Version:** `11.1.16` · **Size:** single file, no build step · **License:** MIT
 
 ---
 
@@ -457,16 +457,192 @@ Helix.config.slowThreshold = 2;    // ms; perf tracing threshold
 
 ---
 
+## New Core APIs (v11.1.17)
+
+### Public DOM API (`Helix.dom`)
+Low-level DOM utilities for directive and plugin authors:
+```js
+Helix.dom.bind(node, ctx, instance);    // Explicitly bind a DOM node
+Helix.dom.cleanup(node);                // Run cleanups on element & subtree without removal
+Helix.dom.destroy(node);                // Clean up bindings and remove element from DOM
+Helix.dom.inspect(node);                // Inspect binding metadata, directives, and patch flags
+Helix.dom.findNode(selector, root);     // DOM selector helper
+```
+
+### Effect Groups (`Helix.effectGroup`)
+Manage multiple reactive effects as a single unit:
+```js
+const group = Helix.createEffectGroup("MyGroup");
+group.add(Helix.effect(() => { ... }));
+
+group.pause();   // Suspend execution of all effects in group
+group.resume();  // Resume execution
+group.stop();    // Stop and cleanup all effects in group
+```
+
+### Batch Transactions & Priorities (`Helix.batch`)
+Group multiple reactive state updates to flush synchronously without intermediate renders:
+```js
+Helix.batch(() => {
+    state.count++;
+    state.name = "Alice";
+});
+
+// Priority batching:
+Helix.batch.high(() => { ... }); // Priority 10
+Helix.batch.low(() => { ... });  // Priority -10
+```
+
+Effect priority options:
+```js
+Helix.effect(() => { ... }, { priority: "high" });   // "high" (10), "normal" (0), "low" (-10)
+```
+
+### Async Components & Fallbacks (`Helix.defineAsyncComponent`)
+Template-driven Promise-based component lazy-loading:
+```js
+const UserCard = Helix.defineAsyncComponent({
+    name: "UserCard",
+    loader: () => import("./UserCard.js"),
+    loadingComponent: { template: "<div>Loading...</div>" },
+    errorComponent: { template: "<div>Failed to load.</div>" },
+    delay: 200,      // Delay before showing loadingComponent
+    timeout: 3000,   // Max load time before throwing timeout
+    retries: 3,
+    onError(err, retry, fail, attempt) {
+        if (err.status === 503 && attempt < 5) retry();
+        else fail();
+    }
+});
+
+// Preload APIs
+Helix.preload([UserCard, Dashboard]);
+Helix.preloadAll();
+```
+
+### Error Boundaries (`createErrorBoundary` & `onErrorCaptured`)
+Prevent component errors from crashing the application tree:
+```js
+const Boundary = Helix.createErrorBoundary({
+    template: "<div class='error'>A child component failed to load.</div>"
+});
+```
+
+### Plugin Lifecycle Hooks
+Plugins can implement lifecycle hooks matching application lifecycles:
+```js
+const MyPlugin = Helix.definePlugin({
+    name: "my-plugin",
+    install(app, opts) {},
+    mounted(app, opts) {},
+    updated(app, opts) {},
+    unmount(app, opts) {},
+    destroy(app, opts) {}
+});
+```
+
+### Unified ScopeScheduler
+- Replaces individual timer loops with a single unified tick engine (`ScopeScheduler`).
+- Batches `scope.refresh()` calls: calling `scope.refresh()` multiple times in 1 tick executes microtask flushing exactly **1 time**.
+
+### Top-Level `effectScope()` & `onScopeDispose()`
+Create scoped effect trees for composables and reusable libraries:
+```js
+const scope = Helix.effectScope();
+scope.run(() => {
+    Helix.effect(() => { ... });
+    Helix.onScopeDispose(() => {
+        // Runs automatically when scope.stop() is executed
+    });
+});
+scope.stop(); // Stops all effects and disposes callbacks
+```
+
+### Built-in `<suspense>` Component
+Template-driven async UI state container:
+```js
+Helix.component("my-app", {
+    template: `
+        <suspense>
+            <template #fallback><div>Loading async module...</div></template>
+            <template #default><my-async-card></my-async-card></template>
+        </suspense>
+    `
+});
+```
+
+### Component Tree Inspector (`Helix.inspectTree`) & Devtools
+Introspect mounted component hierarchies in real-time:
+```js
+const tree = Helix.inspectTree(appInstance);
+// Returns JSON representation: { id, name, children: [...] }
+
+// Browser Devtools Extension Hook:
+window.__HELIX_DEVTOOLS__.on("component:mount", (inst) => { ... });
+```
+
+### Performance Profiler (`Helix.profile`)
+Measure effect runs, render time, and component mount metrics:
+```js
+const result = Helix.profile(() => {
+    state.count++;
+});
+
+const metrics = Helix.getProfileData();
+// { duration, effectRuns, mountCount, updateCount }
+```
+
+### Memoized Computations (`Helix.memo`)
+Cache heavy calculation results and re-evaluate only when inputs or dependencies change:
+```js
+const memoizedResult = Helix.memo(
+    () => state.multiplier * state.count,
+    () => [state.multiplier, state.count]
+);
+
+console.log(memoizedResult.value); // Returns cached output without re-evaluating getter
+```
+
+### Multi-Source Watch & `once` Option
+Watch multiple reactive sources simultaneously or auto-unwatch after 1 trigger:
+```js
+Helix.watch([refA, () => state.b], ([newA, newB], [oldA, oldB]) => {
+    console.log(`Changed: ${newA}, ${newB}`);
+});
+
+Helix.watch(state, (newVal) => { ... }, { once: true });
+```
+
+### DevTools Introspection APIs (`Helix.devtools`)
+Inspect active scopes, running effects, dependency graphs, and timing metrics:
+```js
+const scopes = Helix.devtools.getScopes();
+const effects = Helix.devtools.getEffects();
+const deps = Helix.devtools.getDependencies(targetObject);
+const timings = Helix.devtools.getTimings();
+```
+
+### Virtual DOM–Less Keyed List Diffing (`hx-for`)
+`hx-for` directive uses two-pointer head/tail fast-path trimming and `DocumentFragment` bulk insertion:
+- **Head/Tail Trimming**: Synchronizes matching prefix/suffix nodes in-place without moving DOM elements.
+- **DocumentFragment Batching**: Inserts newly created list items with 1 single DOM reflow.
+- Reduces 10,000-item append/prepend operations from $O(N \log N)$ to **$O(1)$**.
+
+---
+
 ## Full API reference
 
 **App creation**
 `createApp(rootComponent)` · `Helix.mount(selector, setupFn)` · `app.mount(selector)` · `app.unmount()` · `app.onAppUnmount(fn)`
 
 **Registration**
-`app.component(name, def)` · `app.directive(name, def)` · `app.removeDirective(name)` · `app.use(plugin, opts)` · `app.namespace(name, apis)` · `app.removeNamespace(name)` · `app.provide(key, val)`
+`app.component(name, def)` · `app.directive(name, def)` · `app.removeDirective(name)` · `app.use(plugin, opts)` · `app.namespace(name, apis)` · `app.removeNamespace(name)` · `app.provide(key, val)` · `Helix.definePlugin(def)` · `Helix.directives(map)`
 
-**Reactivity**
-`reactive` · `shallowReactive` · `readonly` · `shallowReadonly` · `ref` · `shallowRef` · `customRef` · `triggerRef` · `computed` · `effect` · `watch` · `watchEffect` · `simpleEffect` · `EffectScope`
+**Reactivity & Transactions**
+`reactive` · `shallowReactive` · `readonly` · `shallowReadonly` · `ref` · `shallowRef` · `customRef` · `triggerRef` · `computed` · `effect` · `watch` · `watchEffect` · `simpleEffect` · `EffectScope` · `batch` (`batch.high`, `batch.low`) · `createEffectGroup` (`effectGroup`) · `inspectDeps`
+
+**DOM & Component Utilities**
+`Helix.dom` (`bind`, `cleanup`, `destroy`, `inspect`, `findNode`) · `defineAsyncComponent` · `preload` · `preloadAll` · `createErrorBoundary` · `onErrorCaptured` · `inspectComponent` · `ScopeScheduler` · `scopeScheduler` · `onError` · `checkMemoryLeaks`
 
 **Ref utilities**
 `isRef` · `unref` · `toValue` · `toRef` · `toRefs` · `toRaw` · `markRaw` · `isShallow` · `isProxy`
