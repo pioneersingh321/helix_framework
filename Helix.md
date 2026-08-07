@@ -623,10 +623,27 @@ const timings = Helix.devtools.getTimings();
 ```
 
 ### Virtual DOM–Less Keyed List Diffing (`hx-for`)
-`hx-for` directive uses two-pointer head/tail fast-path trimming and `DocumentFragment` bulk insertion:
+`hx-for` directive uses head/tail fast-path trimming and **Longest Increasing Subsequence (LIS)** optimization:
 - **Head/Tail Trimming**: Synchronizes matching prefix/suffix nodes in-place without moving DOM elements.
+- **Longest Increasing Subsequence (`getLIS`)**: Calculates the minimum DOM operations required for middle-sequence reordering and moves ONLY nodes that have actually changed positions.
 - **DocumentFragment Batching**: Inserts newly created list items with 1 single DOM reflow.
 - Reduces 10,000-item append/prepend operations from $O(N \log N)$ to **$O(1)$**.
+
+### Dynamic DOM Rebinding (`Helix.rebind` / `app.rebind`)
+Re-compiles and re-binds reactive state to dynamically inserted DOM elements (e.g. DataTables, jQuery plugins, or AJAX HTML content):
+```js
+// Accepts selectors, jQuery objects, NodeLists, or DOM elements:
+Helix.rebind('#dataTable');
+Helix.rebind($('#dataTable'));
+
+// DataTables draw hook:
+table.on('draw.dt', function () {
+    Helix.rebind($('#dataTable'));
+});
+```
+- **Automatic Event Cleanup**: Runs existing listener cleanups (`removeEventListener`) on already-bound elements before re-compiling to prevent duplicate event triggers.
+- **Recursive Subtree Rebinding**: Recursively traverses and compiles all uncompiled child nodes (`<tr>`, `<button @click="...">`, etc.).
+- **Context Fallback**: Automatically falls back to app `rootCtx` or searches parent ancestor nodes for binding context.
 
 ---
 

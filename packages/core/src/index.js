@@ -20,6 +20,7 @@ import {
     handleError,
     onErrorGlobal,
     warn,
+    BOUND,
     logger
 } from './shared/shared.js';
 import { globalConfig } from './app/config.js';
@@ -280,20 +281,57 @@ const globalInternal = {
 };
 
 function rebindGlobal(node, options) {
-    const binding = node.__hx_binding;
-    const instance = (options && typeof options === "object" && options.instance) || (binding && binding.instance);
-    if (!instance) {
+    if (typeof node === "string") {
+        node = document.querySelector(node);
+    }
+    if (node && !node.nodeType && (typeof node.length === "number" || typeof node[Symbol.iterator] === "function")) {
+        Array.from(node).forEach(n => rebindGlobal(n, options));
+        return;
+    }
+    if (!node || node.nodeType !== 1) return;
+
+    let binding = node.__hx_binding;
+    let instance = (options && typeof options === "object" && options.instance) || (binding && binding.instance);
+    let ctx = (options && typeof options === "object" && ("ctx" in options || "context" in options))
+        ? (options.ctx || options.context)
+        : options;
+
+    if (!instance || !ctx) {
+        let curr = node.parentNode;
+        while (curr) {
+            if (curr.__hx_binding && curr.__hx_binding.instance && curr.__hx_binding.ctx) {
+                if (!instance) instance = curr.__hx_binding.instance;
+                if (!ctx) ctx = curr.__hx_binding.ctx;
+                if (!binding) binding = curr.__hx_binding;
+                break;
+            }
+            curr = curr.parentNode;
+        }
+    }
+
+    if (!instance || !ctx) {
         logger.warn("Cannot rebind node without binding metadata or explicit instance.", "binding");
         return;
     }
-    const ctx = (options && typeof options === "object" && ("ctx" in options || "context" in options))
-        ? (options.ctx || options.context)
-        : options;
-    if (binding && binding.bindNode) {
-        binding.bindNode(node, ctx, instance, [], true);
-    } else {
+
+    const activeBindNode = (binding && binding.bindNode);
+    if (!activeBindNode) {
         logger.warn("Cannot locate bindNode to rebind.", "binding");
+        return;
     }
+
+    const allElements = [node, ...Array.from(node.querySelectorAll('*'))];
+    allElements.forEach(el => {
+        if (el.__hx_binding && el.__hx_binding.cleanups) {
+            el.__hx_binding.cleanups.forEach((fn) => {
+                try { fn(); } catch (e) {}
+            });
+            el.__hx_binding.cleanups.length = 0;
+        }
+        el[BOUND] = false;
+        el.__hx_static = false;
+        activeBindNode(el, ctx, instance, [], true);
+    });
 }
 
 function directivesGlobal(definitions) {

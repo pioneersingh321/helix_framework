@@ -11,7 +11,7 @@ const HelixFetchPlugin = {
 
         if (!reactive) {
             console.error('[Helix Fetch] Core reactivity primitives missing from compilation runtime context.');
-            return () => {};
+            return () => { };
         }
 
         const config = {
@@ -104,7 +104,7 @@ const HelixFetchPlugin = {
                         return createRequest(method.toUpperCase(), url, data, { ...instCfg, ...rest, headers, params })();
                     },
                     get: build('GET'), post: build('POST'), put: build('PUT'),
-                    delete: build('DELETE'), patch: build('PATCH'),
+                    delete: build('DELETE'), patch: build('PATCH'), head: build('HEAD'), options: build('OPTIONS'),
                     upload: (url, opt) => upload(url, { ...instCfg, ...opt }),
                     defaults: instCfg,
                     addRequestInterceptor: $fetch.addRequestInterceptor,
@@ -120,6 +120,8 @@ const HelixFetchPlugin = {
             put: (url, body, opt) => createRequest('PUT', url, body, { ...config, ...opt })(),
             delete: (url, opt) => createRequest('DELETE', url, null, { ...config, ...opt })(),
             patch: (url, body, opt) => createRequest('PATCH', url, body, { ...config, ...opt })(),
+            head: (url, opt) => createRequest('HEAD', url, null, { ...config, ...opt })(),
+            options: (url, opt) => createRequest('OPTIONS', url, null, { ...config, ...opt })(),
             mutate: (url, opt) => createRequest(opt?.method || 'POST', url, null, { ...config, lazy: true, ...opt })(),
             upload: (url, opt) => upload(url, { ...config, ...opt }),
             addRequestInterceptor: (fn) => { requestInterceptors.push(fn); return () => { const i = requestInterceptors.indexOf(fn); if (i !== -1) requestInterceptors.splice(i, 1); }; },
@@ -130,6 +132,7 @@ const HelixFetchPlugin = {
         };
 
         app.$fetch = $fetch;
+
 
         if (typeof app.namespace === 'function') {
             try {
@@ -147,7 +150,9 @@ const HelixFetchPlugin = {
         }
 
         if (typeof app.provide === 'function') {
-            try { app.provide('$fetch', $fetch); } catch (e) { }
+            try {
+                app.provide('$fetch', $fetch);
+            } catch (e) { }
         }
 
         if (typeof window !== 'undefined' && window.Helix) {

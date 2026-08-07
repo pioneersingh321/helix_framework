@@ -1,6 +1,6 @@
 # 🧬 Helix.js Framework
 
-[![Version](https://img.shields.io/badge/version-11.1.17-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
+[![Version](https://img.shields.io/badge/version-11.1.18-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
 [![Bundle Size](https://img.shields.io/badge/bundle-109KB--uncompressed-teal.svg?style=flat-square)](#)
 [![Reactivity](https://img.shields.io/badge/reactivity-signal--native-blue.svg?style=flat-square)](#)
 [![Build Step](https://img.shields.io/badge/build-zero--build--step-orange.svg?style=flat-square)](#)
@@ -38,7 +38,7 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 *   🚀 **Zero Build Step:** Drop in a single `<script>` tag and start writing reactive UIs directly in your HTML.
 *   ⚡ **Fine-Grained Reactivity Engine:** A proxy-based signal system with `ref`, `reactive`, `computed`, `effect`, `watch`, `watchEffect`, `memo`, and `effectScope` modeled after Vue 3's reactive engine.
 *   🎨 **Declarative HTML Directives:** Bind data with `hx-if`, `hx-for`, `hx-model`, `hx-bind`, and `hx-on` (with `:` and `@` shorthands).
-*   🔌 **Single-Execution Plugin Engine (v11.1.17):** `Helix.use()` & `app.use()` featuring automated single-execution deduplication (`_executed` lifecycle tracking), semver validation, and teardown cleanup.
+*   🔌 **Single-Execution Plugin Engine (v11.1.18):** `Helix.use()` & `app.use()` featuring automated single-execution deduplication (`_executed` lifecycle tracking), semver validation, and teardown cleanup.
 *   🧱 **Composable Scoped Components:** Define elements with `setup()`, props, custom emits, slots, and an effect-scope cleanup model.
 *   ⏳ **Async Components & Suspense:** Lazy-load components with `defineAsyncComponent`, fallback loaders, preloading (`Helix.preload`), and built-in `<Suspense>` UI state management.
 *   🛡️ **Error Boundaries & Resilience:** Catch descendant component errors with `createErrorBoundary()` and `onErrorCaptured()`, plus global `Helix.onError()`.
@@ -445,7 +445,7 @@ Helix.$bus.off("notify-user", handler);
 
 ## 🧩 Plugins & Namespaces
 
-Extend Helix with global namespaces, custom components, and custom directives using `Helix.use()` or `app.use()`. The system features semver dependency resolution and a **Single-Execution Plugin Engine (v11.1.17)** with automated `_executed` state tracking so `install()` runs **exactly once**.
+Extend Helix with global namespaces, custom components, and custom directives using `Helix.use()` or `app.use()`. The system features semver dependency resolution and a **Single-Execution Plugin Engine (v11.1.18)** with automated `_executed` state tracking so `install()` runs **exactly once**.
 
 ```javascript
 const NetworkPlugin = {
@@ -505,6 +505,44 @@ Helix.config.delimiters = ["{{", "}}"]; // Custom text interpolators
 | `removeAttributeBindings` | `true` | Wipes custom directives (`hx-if`, `hx-model`) from nodes after compilation. |
 | `rethrowErrors` | `true` | Directs error handler cycles to re-throw runtime failures. |
 | `slowThreshold` | `2` | Threshold limit in milliseconds for logging slow operation warnings. |
+| `htmlSanitizer` | `null` | Custom sanitizer callback for `hx-html` (e.g. `(html) => DOMPurify.sanitize(html)`). |
+
+---
+
+## 🔄 Dynamic DOM Rebinding (`Helix.rebind`)
+
+When third-party libraries (such as **DataTables**, jQuery plugins, or server-side AJAX responses) dynamically insert HTML into the DOM containing Helix directives (`@click`, `hx-model`, `{{ ... }}`), use `Helix.rebind()` or `app.rebind()` to compile and bind reactive state to the new elements.
+
+```javascript
+// Rebind by CSS selector, DOM element, jQuery object, or NodeList
+Helix.rebind('#dataTable');
+// OR:
+Helix.rebind($('#dataTable'));
+```
+
+### DataTables Integration Example
+```javascript
+const app = Helix.createApp({
+    setup(ctx) {
+        let table = $('#dataTable').DataTable({ /* options */ });
+
+        // Rebind newly rendered backend/AJAX rows on DataTables redraw
+        table.on('draw.dt', function () {
+            Helix.rebind($('#dataTable'));
+        });
+
+        return { /* state and methods */ };
+    }
+});
+
+app.mount('#app');
+```
+
+#### Key Capabilities of `rebind()`:
+*   **Flexible Inputs:** Accepts CSS selectors (`'#table'`), jQuery objects (`$('#table')`), NodeLists, or raw DOM elements.
+*   **Automatic Event Cleanup:** Runs existing listener cleanups (`removeEventListener`) on already-bound elements before re-compiling, preventing duplicate event triggers.
+*   **Recursive Compilation:** Recursively traverses and compiles all newly added child elements (`<tr>`, `<button @click="...">`, etc.).
+*   **Context Resolution:** Automatically falls back to the app's `rootCtx` or climbs parent DOM nodes to inherit binding context.
 
 ---
 
@@ -811,10 +849,10 @@ If you are hosting the workspace under a local web server like MAMP, access them
 
 ---
 
-## 🚀 Releases & Downloads (v11.1.17)
+## 🚀 Releases & Downloads (v11.1.18)
 
-- 📦 **Release Archive**: [helix-v11.1.17.zip](file:///d:/mamp/htdocs/helix_framework/dist/helix-v11.1.17.zip)
-- 📄 **Development Bundle**: [dist/helix.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.js) (147 KB)
-- ⚡ **Production Minified**: [dist/helix.min.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.min.js) (65 KB)
+- 📦 **Release Archive**: [helix-v11.1.18.zip](file:///d:/mamp/htdocs/helix_framework/dist/helix-v11.1.18.zip)
+- 📄 **Development Bundle**: [dist/helix.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.js) (149 KB)
+- ⚡ **Production Minified**: [dist/helix.min.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.min.js) (66 KB)
 - 📋 **Full Changelog**: [dist/Changelog.md](file:///d:/mamp/htdocs/helix_framework/dist/Changelog.md)
-- 🏷️ **GitHub Tag & Release**: [v11.1.17](https://github.com/pioneersingh321/helix_framework/releases/tag/v11.1.17)
+- 🏷️ **GitHub Tag & Release**: [v11.1.18](https://github.com/pioneersingh321/helix_framework/releases/tag/v11.1.18)

@@ -8,7 +8,8 @@
     warnInlineExpressions: false,
     removeAttributeBindings: true,
     delimiters: ["{{", "}}"],
-    rethrowErrors: true
+    rethrowErrors: true,
+    htmlSanitizer: null
   };
   Object.seal(globalConfig);
   function queueJob(job, priority = 0) {
@@ -380,7 +381,7 @@
       cleanup(effectFn);
     }
   }
-  const VERSION = "11.1.17";
+  const VERSION = "11.1.18";
   const RAW = Symbol("__hx_raw");
   const IS_REF = Symbol("__hx_is_ref");
   const IS_REACTIVE = Symbol("__hx_is_reactive");
@@ -659,6 +660,36 @@
       logger.perf(displayName, time, area);
       perfMarks.delete(name);
     }
+  }
+  function getLIS(arr) {
+    const result = [];
+    const prev = new Array(arr.length).fill(-1);
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i] === -1)
+        continue;
+      if (result.length === 0 || arr[result[result.length - 1]] < arr[i]) {
+        prev[i] = result.length > 0 ? result[result.length - 1] : -1;
+        result.push(i);
+      } else {
+        let left = 0, right = result.length - 1;
+        while (left < right) {
+          const mid = left + right >> 1;
+          if (arr[result[mid]] < arr[i])
+            left = mid + 1;
+          else
+            right = mid;
+        }
+        prev[i] = left > 0 ? result[left - 1] : -1;
+        result[left] = i;
+      }
+    }
+    const lis = new Array(result.length);
+    let k = result[result.length - 1];
+    for (let i = result.length - 1; i >= 0; i--) {
+      lis[i] = k;
+      k = prev[k];
+    }
+    return lis;
   }
   function nextTick(fn) {
     if (fn) {
@@ -1839,6 +1870,9 @@
   function sanitizeHtml(html) {
     if (typeof html !== "string")
       return "";
+    if (typeof globalConfig.htmlSanitizer === "function") {
+      return globalConfig.htmlSanitizer(html);
+    }
     const tpl = document.createElement("template");
     tpl.innerHTML = html.trim();
     const dangerousSelectors = [
@@ -2306,45 +2340,87 @@
             const oldIndex = oldEnd + 1 + (i - (newEnd + 1));
             newNodes[i] = renderedNodes[oldIndex];
           }
-          if (newStart <= newEnd) {
-            const currentMap = /* @__PURE__ */ new Map();
-            for (let i = oldStart; i <= oldEnd; i++) {
-              const n = renderedNodes[i];
-              currentMap.set(n.__hx_key, n);
-            }
+          if (oldStart > oldEnd) {
+            const anchor = newEnd + 1 < list.length ? newNodes[newEnd + 1] : placeholder;
             const parentNode = placeholder.parentNode;
-            const fragment = document.createDocumentFragment();
             for (let i = newStart; i <= newEnd; i++) {
               const key = newKeys[i];
               const item = list[i];
-              let node = currentMap.get(key);
-              if (node) {
-                currentMap.delete(key);
-                node.__hx_scope[itemName] = item;
-                if (indexName)
-                  node.__hx_scope[indexName] = i;
+              const node = el.cloneNode(true);
+              node.__hx_key = key;
+              node.__hx_scope = reactive({ [itemName]: item });
+              if (indexName)
+                node.__hx_scope[indexName] = i;
+              const childCtx = Object.setPrototypeOf(node.__hx_scope, ctx);
+              bindNode2(node, childCtx, instance, []);
+              newNodes[i] = node;
+              if (parentNode)
+                parentNode.insertBefore(node, anchor);
+            }
+          } else if (newStart > newEnd) {
+            for (let i = oldStart; i <= oldEnd; i++) {
+              destroyNode(renderedNodes[i]);
+            }
+          } else {
+            const toBePatched = newEnd - newStart + 1;
+            const newIndexToOldIndexMap = new Array(toBePatched).fill(0);
+            const keyToNewIndexMap = /* @__PURE__ */ new Map();
+            for (let i = newStart; i <= newEnd; i++) {
+              keyToNewIndexMap.set(newKeys[i], i);
+            }
+            let patched = 0;
+            let moved = false;
+            let maxNewIndexSoFar = 0;
+            for (let i = oldStart; i <= oldEnd; i++) {
+              const prevChild = renderedNodes[i];
+              if (patched >= toBePatched) {
+                destroyNode(prevChild);
+                continue;
+              }
+              const newIndex = keyToNewIndexMap.get(prevChild.__hx_key);
+              if (newIndex === void 0) {
+                destroyNode(prevChild);
               } else {
-                node = el.cloneNode(true);
+                newIndexToOldIndexMap[newIndex - newStart] = i + 1;
+                prevChild.__hx_scope[itemName] = list[newIndex];
+                if (indexName)
+                  prevChild.__hx_scope[indexName] = newIndex;
+                newNodes[newIndex] = prevChild;
+                if (newIndex >= maxNewIndexSoFar) {
+                  maxNewIndexSoFar = newIndex;
+                } else {
+                  moved = true;
+                }
+                patched++;
+              }
+            }
+            const lisSequence = moved ? getLIS(newIndexToOldIndexMap) : [];
+            let j = lisSequence.length - 1;
+            const parentNode = placeholder.parentNode;
+            for (let i = toBePatched - 1; i >= 0; i--) {
+              const newIndex = newStart + i;
+              const anchor = newIndex + 1 < list.length ? newNodes[newIndex + 1] : placeholder;
+              if (newIndexToOldIndexMap[i] === 0) {
+                const key = newKeys[newIndex];
+                const item = list[newIndex];
+                const node = el.cloneNode(true);
                 node.__hx_key = key;
                 node.__hx_scope = reactive({ [itemName]: item });
                 if (indexName)
-                  node.__hx_scope[indexName] = i;
+                  node.__hx_scope[indexName] = newIndex;
                 const childCtx = Object.setPrototypeOf(node.__hx_scope, ctx);
                 bindNode2(node, childCtx, instance, []);
+                newNodes[newIndex] = node;
+                if (parentNode)
+                  parentNode.insertBefore(node, anchor);
+              } else if (moved) {
+                if (j < 0 || i !== lisSequence[j]) {
+                  if (parentNode)
+                    parentNode.insertBefore(newNodes[newIndex], anchor);
+                } else {
+                  j--;
+                }
               }
-              newNodes[i] = node;
-            }
-            currentMap.forEach((node) => destroyNode(node));
-            const anchor = newEnd + 1 < list.length ? newNodes[newEnd + 1] : placeholder;
-            for (let i = newStart; i <= newEnd; i++) {
-              fragment.appendChild(newNodes[i]);
-            }
-            if (parentNode) {
-              parentNode.insertBefore(fragment, anchor);
-            }
-          } else if (oldStart <= oldEnd) {
-            for (let i = oldStart; i <= oldEnd; i++) {
-              destroyNode(renderedNodes[i]);
             }
           }
           renderedNodes = newNodes;
@@ -2909,23 +2985,46 @@
       $bus: null,
       resolvePath
     };
+    let rootCtx = null;
     const app = {
       version: VERSION,
       config: appConfig,
       $bus: createBus(),
       rebind(node, options) {
+        if (typeof node === "string") {
+          node = document.querySelector(node);
+        }
+        if (node && !node.nodeType && (typeof node.length === "number" || typeof node[Symbol.iterator] === "function")) {
+          Array.from(node).forEach((n) => this.rebind(n, options));
+          return;
+        }
+        if (!node || node.nodeType !== 1)
+          return;
         const binding = node.__hx_binding;
-        const instance = options && typeof options === "object" && options.instance || binding && binding.instance;
-        if (!instance) {
+        const instance = options && typeof options === "object" && options.instance || binding && binding.instance || rootInstance;
+        let ctx = options && typeof options === "object" && ("ctx" in options || "context" in options) ? options.ctx || options.context : options || binding && binding.ctx || rootCtx;
+        if (!ctx)
+          ctx = rootCtx;
+        if (!instance || !ctx) {
           logger.warn("Cannot rebind node without binding metadata or explicit instance.", "binding");
           return;
         }
-        const ctx = options && typeof options === "object" && ("ctx" in options || "context" in options) ? options.ctx || options.context : options;
-        if (binding && binding.bindNode) {
-          binding.bindNode(node, ctx, instance, [], true);
-        } else {
-          bindNode(node, ctx, instance, [], true);
-        }
+        const activeBindNode = binding && binding.bindNode || bindNode;
+        const allElements = [node, ...Array.from(node.querySelectorAll("*"))];
+        allElements.forEach((el) => {
+          if (el.__hx_binding && el.__hx_binding.cleanups) {
+            el.__hx_binding.cleanups.forEach((fn) => {
+              try {
+                fn();
+              } catch (e) {
+              }
+            });
+            el.__hx_binding.cleanups.length = 0;
+          }
+          el[BOUND] = false;
+          el.__hx_static = false;
+          activeBindNode(el, ctx, instance, [], true);
+        });
       },
       component(name, definition) {
         if (typeof name !== "string") {
@@ -3271,6 +3370,7 @@
           setCurrentInstance(null);
           return null;
         }
+        rootCtx = ctx;
         setCurrentInstance(null);
         trace("Initial Mount Binding", () => bindNode(rootElement, ctx, instance));
         instance.hooks.beforeMount.forEach((fn) => fn());
@@ -4377,18 +4477,57 @@
     globalPlugins
   };
   function rebindGlobal(node, options) {
-    const binding = node.__hx_binding;
-    const instance = options && typeof options === "object" && options.instance || binding && binding.instance;
-    if (!instance) {
+    if (typeof node === "string") {
+      node = document.querySelector(node);
+    }
+    if (node && !node.nodeType && (typeof node.length === "number" || typeof node[Symbol.iterator] === "function")) {
+      Array.from(node).forEach((n) => rebindGlobal(n, options));
+      return;
+    }
+    if (!node || node.nodeType !== 1)
+      return;
+    let binding = node.__hx_binding;
+    let instance = options && typeof options === "object" && options.instance || binding && binding.instance;
+    let ctx = options && typeof options === "object" && ("ctx" in options || "context" in options) ? options.ctx || options.context : options;
+    if (!instance || !ctx) {
+      let curr = node.parentNode;
+      while (curr) {
+        if (curr.__hx_binding && curr.__hx_binding.instance && curr.__hx_binding.ctx) {
+          if (!instance)
+            instance = curr.__hx_binding.instance;
+          if (!ctx)
+            ctx = curr.__hx_binding.ctx;
+          if (!binding)
+            binding = curr.__hx_binding;
+          break;
+        }
+        curr = curr.parentNode;
+      }
+    }
+    if (!instance || !ctx) {
       logger.warn("Cannot rebind node without binding metadata or explicit instance.", "binding");
       return;
     }
-    const ctx = options && typeof options === "object" && ("ctx" in options || "context" in options) ? options.ctx || options.context : options;
-    if (binding && binding.bindNode) {
-      binding.bindNode(node, ctx, instance, [], true);
-    } else {
+    const activeBindNode = binding && binding.bindNode;
+    if (!activeBindNode) {
       logger.warn("Cannot locate bindNode to rebind.", "binding");
+      return;
     }
+    const allElements = [node, ...Array.from(node.querySelectorAll("*"))];
+    allElements.forEach((el) => {
+      if (el.__hx_binding && el.__hx_binding.cleanups) {
+        el.__hx_binding.cleanups.forEach((fn) => {
+          try {
+            fn();
+          } catch (e) {
+          }
+        });
+        el.__hx_binding.cleanups.length = 0;
+      }
+      el[BOUND] = false;
+      el.__hx_static = false;
+      activeBindNode(el, ctx, instance, [], true);
+    });
   }
   function directivesGlobal(definitions) {
     if (typeof definitions === "object" && definitions !== null) {

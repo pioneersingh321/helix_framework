@@ -1,5 +1,10 @@
+import { globalConfig } from '../app/config.js';
+
 export function sanitizeHtml(html) {
     if (typeof html !== "string") return "";
+    if (typeof globalConfig.htmlSanitizer === "function") {
+        return globalConfig.htmlSanitizer(html);
+    }
     const tpl = document.createElement("template");
     tpl.innerHTML = html.trim();
     const dangerousSelectors = [

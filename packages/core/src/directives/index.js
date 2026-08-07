@@ -393,47 +393,86 @@ export function createBuiltinDirectives(appConfig) {
                     newNodes[i] = renderedNodes[oldIndex];
                 }
 
-                if (newStart <= newEnd) {
-                    const currentMap = new Map();
-                    for (let i = oldStart; i <= oldEnd; i++) {
-                        const n = renderedNodes[i];
-                        currentMap.set(n.__hx_key, n);
-                    }
-
+                if (oldStart > oldEnd) {
+                    const anchor = newEnd + 1 < list.length ? newNodes[newEnd + 1] : placeholder;
                     const parentNode = placeholder.parentNode;
-                    const fragment = document.createDocumentFragment();
-
                     for (let i = newStart; i <= newEnd; i++) {
                         const key = newKeys[i];
                         const item = list[i];
-                        let node = currentMap.get(key);
-                        if (node) {
-                            currentMap.delete(key);
-                            node.__hx_scope[itemName] = item;
-                            if (indexName) node.__hx_scope[indexName] = i;
-                        } else {
-                            node = el.cloneNode(true);
-                            node.__hx_key = key;
-                            node.__hx_scope = reactive({ [itemName]: item });
-                            if (indexName) node.__hx_scope[indexName] = i;
-                            const childCtx = Object.setPrototypeOf(node.__hx_scope, ctx);
-                            bindNode2(node, childCtx, instance, []);
-                        }
+                        const node = el.cloneNode(true);
+                        node.__hx_key = key;
+                        node.__hx_scope = reactive({ [itemName]: item });
+                        if (indexName) node.__hx_scope[indexName] = i;
+                        const childCtx = Object.setPrototypeOf(node.__hx_scope, ctx);
+                        bindNode2(node, childCtx, instance, []);
                         newNodes[i] = node;
+                        if (parentNode) parentNode.insertBefore(node, anchor);
                     }
-
-                    currentMap.forEach((node) => destroyNode(node));
-
-                    const anchor = newEnd + 1 < list.length ? newNodes[newEnd + 1] : placeholder;
-                    for (let i = newStart; i <= newEnd; i++) {
-                        fragment.appendChild(newNodes[i]);
-                    }
-                    if (parentNode) {
-                        parentNode.insertBefore(fragment, anchor);
-                    }
-                } else if (oldStart <= oldEnd) {
+                } else if (newStart > newEnd) {
                     for (let i = oldStart; i <= oldEnd; i++) {
                         destroyNode(renderedNodes[i]);
+                    }
+                } else {
+                    const toBePatched = newEnd - newStart + 1;
+                    const newIndexToOldIndexMap = new Array(toBePatched).fill(0);
+                    const keyToNewIndexMap = new Map();
+                    for (let i = newStart; i <= newEnd; i++) {
+                        keyToNewIndexMap.set(newKeys[i], i);
+                    }
+
+                    let patched = 0;
+                    let moved = false;
+                    let maxNewIndexSoFar = 0;
+
+                    for (let i = oldStart; i <= oldEnd; i++) {
+                        const prevChild = renderedNodes[i];
+                        if (patched >= toBePatched) {
+                            destroyNode(prevChild);
+                            continue;
+                        }
+                        const newIndex = keyToNewIndexMap.get(prevChild.__hx_key);
+                        if (newIndex === undefined) {
+                            destroyNode(prevChild);
+                        } else {
+                            newIndexToOldIndexMap[newIndex - newStart] = i + 1;
+                            prevChild.__hx_scope[itemName] = list[newIndex];
+                            if (indexName) prevChild.__hx_scope[indexName] = newIndex;
+                            newNodes[newIndex] = prevChild;
+                            if (newIndex >= maxNewIndexSoFar) {
+                                maxNewIndexSoFar = newIndex;
+                            } else {
+                                moved = true;
+                            }
+                            patched++;
+                        }
+                    }
+
+                    const lisSequence = moved ? getLIS(newIndexToOldIndexMap) : [];
+                    let j = lisSequence.length - 1;
+                    const parentNode = placeholder.parentNode;
+
+                    for (let i = toBePatched - 1; i >= 0; i--) {
+                        const newIndex = newStart + i;
+                        const anchor = newIndex + 1 < list.length ? newNodes[newIndex + 1] : placeholder;
+
+                        if (newIndexToOldIndexMap[i] === 0) {
+                            const key = newKeys[newIndex];
+                            const item = list[newIndex];
+                            const node = el.cloneNode(true);
+                            node.__hx_key = key;
+                            node.__hx_scope = reactive({ [itemName]: item });
+                            if (indexName) node.__hx_scope[indexName] = newIndex;
+                            const childCtx = Object.setPrototypeOf(node.__hx_scope, ctx);
+                            bindNode2(node, childCtx, instance, []);
+                            newNodes[newIndex] = node;
+                            if (parentNode) parentNode.insertBefore(node, anchor);
+                        } else if (moved) {
+                            if (j < 0 || i !== lisSequence[j]) {
+                                if (parentNode) parentNode.insertBefore(newNodes[newIndex], anchor);
+                            } else {
+                                j--;
+                            }
+                        }
                     }
                 }
 

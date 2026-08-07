@@ -93,25 +93,47 @@ export function createApp(rootComponent = {}) {
         resolvePath
     };
 
+    let rootCtx = null;
+
     const app = {
         version: VERSION,
         config: appConfig,
         $bus: createBus(),
         rebind(node, options) {
+            if (typeof node === "string") {
+                node = document.querySelector(node);
+            }
+            if (node && !node.nodeType && (typeof node.length === "number" || typeof node[Symbol.iterator] === "function")) {
+                Array.from(node).forEach(n => this.rebind(n, options));
+                return;
+            }
+            if (!node || node.nodeType !== 1) return;
+
             const binding = node.__hx_binding;
-            const instance = (options && typeof options === "object" && options.instance) || (binding && binding.instance);
-            if (!instance) {
+            const instance = (options && typeof options === "object" && options.instance) || (binding && binding.instance) || rootInstance;
+            let ctx = (options && typeof options === "object" && ("ctx" in options || "context" in options))
+                ? (options.ctx || options.context)
+                : (options || (binding && binding.ctx) || rootCtx);
+            if (!ctx) ctx = rootCtx;
+
+            if (!instance || !ctx) {
                 logger.warn("Cannot rebind node without binding metadata or explicit instance.", "binding");
                 return;
             }
-            const ctx = (options && typeof options === "object" && ("ctx" in options || "context" in options))
-                ? (options.ctx || options.context)
-                : options;
-            if (binding && binding.bindNode) {
-                binding.bindNode(node, ctx, instance, [], true);
-            } else {
-                bindNode(node, ctx, instance, [], true);
-            }
+
+            const activeBindNode = (binding && binding.bindNode) || bindNode;
+            const allElements = [node, ...Array.from(node.querySelectorAll('*'))];
+            allElements.forEach(el => {
+                if (el.__hx_binding && el.__hx_binding.cleanups) {
+                    el.__hx_binding.cleanups.forEach((fn) => {
+                        try { fn(); } catch (e) {}
+                    });
+                    el.__hx_binding.cleanups.length = 0;
+                }
+                el[BOUND] = false;
+                el.__hx_static = false;
+                activeBindNode(el, ctx, instance, [], true);
+            });
         },
         component(name, definition) {
             if (typeof name !== "string") {
@@ -453,6 +475,7 @@ export function createApp(rootComponent = {}) {
                 setCurrentInstance(null);
                 return null;
             }
+            rootCtx = ctx;
             setCurrentInstance(null);
             trace("Initial Mount Binding", () => bindNode(rootElement, ctx, instance));
             instance.hooks.beforeMount.forEach((fn) => fn());

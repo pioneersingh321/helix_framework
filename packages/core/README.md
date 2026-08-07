@@ -1,6 +1,6 @@
 # @helix/core (`helix-core`)
 
-The core reactive framework engine for **Helix.js** (v11.1.17).
+The core reactive framework engine for **Helix.js** (v11.1.18).
 
 `helix-core` provides fine-grained reactivity, setup-based component architecture, template directive binding, dependency injection, async component suspense, error boundaries, memory profiling, and a single-execution plugin registry.
 
@@ -14,7 +14,7 @@ The core reactive framework engine for **Helix.js** (v11.1.17).
 - **Effects & Watchers**: `effect()`, `simpleEffect()`, `batch()`, `watch()`, and `watchEffect()`.
 - **Effect Scopes**: `effectScope()`, `getCurrentScope()`, `onScopeDispose()`, `createEffectGroup()`, and `ScopeScheduler` for clean memory management.
 
-### 🔌 2. Single-Execution Plugin System (v11.1.17 Compliant)
+### 🔌 2. Single-Execution Plugin System (v11.1.18 Compliant)
 - **Global & App Plugins**: `Helix.use()` and `app.use()` with automated deduplication (`_executed` state tracking).
 - **Dependency Validation**: `validatePluginDependencies()` with semver range resolution.
 - **Plugin Lifecycle**: `definePlugin()`, `triggerPluginLifecycle()`, and `registry` inspection.
@@ -92,6 +92,7 @@ Helix.config.rethrowErrors = true;           // Rethrows errors to global window
 | `delimiters` | `string[]` | `["{{", "}}"]` | Custom interpolation syntax delimiters. |
 | `slowThreshold` | `number` | `2` | Execution threshold (ms) for reporting slow renders or effects. |
 | `rethrowErrors` | `boolean` | `true` | Controls whether uncaught template errors bubble up to global window error events. |
+| `htmlSanitizer` | `function` | `null` | Pluggable custom sanitizer callback for `hx-html` (e.g. `(html) => DOMPurify.sanitize(html)`). |
 
 ---
 
@@ -177,6 +178,27 @@ profile(() => {
 const metrics = getProfileData();
 console.log(`Execution Duration: ${metrics.duration}ms`);
 ```
+
+---
+
+## Dynamic DOM Rebinding (`Helix.rebind`)
+
+Re-compiles and re-binds reactive state to dynamically inserted DOM elements (e.g., DataTables, jQuery plugins, or AJAX HTML content):
+
+```javascript
+// Rebind by CSS selector, DOM element, jQuery object, or NodeList
+Helix.rebind('#dataTable');
+Helix.rebind($('#dataTable'));
+
+// DataTables draw callback integration:
+table.on('draw.dt', function () {
+    Helix.rebind($('#dataTable'));
+});
+```
+
+- **Automatic Listener Cleanup**: Cleans up existing event listeners (`removeEventListener`) on already-bound elements before re-compiling to eliminate duplicate event triggers.
+- **Recursive Subtree Traversal**: Recursively traverses and compiles all newly added child elements (`<tr>`, `<button @click="...">`, etc.).
+- **Flexible Selector Support**: Works seamlessly with string selectors, jQuery objects, NodeLists, or DOM elements.
 
 ---
 

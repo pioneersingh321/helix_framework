@@ -6,7 +6,8 @@ export const globalConfig = {
     warnInlineExpressions: false,
     removeAttributeBindings: true,
     delimiters: ["{{", "}}"],
-    rethrowErrors: true
+    rethrowErrors: true,
+    htmlSanitizer: null
 };
 
 Object.seal(globalConfig);

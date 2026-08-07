@@ -1,4 +1,4 @@
-export const VERSION = typeof __CORE_VERSION__ !== 'undefined' ? __CORE_VERSION__ : "11.1.17";
+export const VERSION = typeof __CORE_VERSION__ !== 'undefined' ? __CORE_VERSION__ : "11.1.18";
 
 export const RAW = Symbol("__hx_raw");
 export const IS_REF = Symbol("__hx_is_ref");

@@ -4,7 +4,7 @@ import { resolve } from 'path';
 export default defineConfig(({ mode }) => {
   const isMin = mode === 'min';
   const env = loadEnv(mode, resolve(__dirname, '../../'), '');
-  const version = env.VITE_CORE_VERSION || '11.1.17';
+  const version = env.VITE_CORE_VERSION || '11.1.18';
 
   return {
     envDir: '../../',

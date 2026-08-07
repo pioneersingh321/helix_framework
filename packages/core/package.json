@@ -1,6 +1,6 @@
 {
   "name": "helix-core",
-  "version": "11.1.17",
+  "version": "11.1.18",
   "description": "Core framework of Helix.js",
   "main": "../../dist/helix.js",
   "module": "./src/index.js",

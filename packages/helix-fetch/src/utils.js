@@ -10,19 +10,43 @@ export const resolveHeaders = (method, cfg, req, override) => ({
 
 export const buildSearchParams = (obj) => {
     const sp = new URLSearchParams();
-    const append = (key, val) => {
+
+    const appendRecursive = (val, prefix = '') => {
         if (val === null || val === undefined) return;
-        if (Array.isArray(val)) { val.forEach(v => append(`${key}[]`, v)); return; }
-        if (val instanceof Date) { sp.append(key, val.toISOString()); return; }
-        if (typeof val === 'object') {
-            let s = '';
-            try { s = JSON.stringify(val); } catch { s = ''; }
-            if (s) sp.append(key, s);
+
+        if (val instanceof Date) {
+            sp.append(prefix, val.toISOString());
             return;
         }
-        sp.append(key, val);
+
+        if (Array.isArray(val)) {
+            val.forEach((item, index) => {
+                if (typeof item === 'object' && item !== null && !(item instanceof Date) && !isFile(item)) {
+                    appendRecursive(item, `${prefix}[${index}]`);
+                } else {
+                    appendRecursive(item, `${prefix}[]`);
+                }
+            });
+            return;
+        }
+
+        if (typeof val === 'object' && !isFile(val)) {
+            Object.keys(val).forEach(key => {
+                const fullKey = prefix ? `${prefix}[${key}]` : key;
+                appendRecursive(val[key], fullKey);
+            });
+            return;
+        }
+
+        sp.append(prefix, val);
     };
-    Object.entries(obj).forEach(([k, v]) => append(k, v));
+
+    if (obj && typeof obj === 'object') {
+        Object.keys(obj).forEach(key => {
+            appendRecursive(obj[key], key);
+        });
+    }
+
     return sp;
 };
 

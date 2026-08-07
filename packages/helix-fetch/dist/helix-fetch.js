@@ -1,4 +1,4 @@
-this.HelixFetchPlugin = function() {
+(function(exports) {
   "use strict";
   const normalizeHeaders = (h = {}) => Object.fromEntries(Object.entries(h).map(([k, v]) => [k.toLowerCase(), v]));
   const resolveHeaders = (method, cfg, req, override) => ({
@@ -9,31 +9,37 @@ this.HelixFetchPlugin = function() {
   });
   const buildSearchParams = (obj) => {
     const sp = new URLSearchParams();
-    const append = (key, val) => {
+    const appendRecursive = (val, prefix = "") => {
       if (val === null || val === void 0)
         return;
-      if (Array.isArray(val)) {
-        val.forEach((v) => append(`${key}[]`, v));
-        return;
-      }
       if (val instanceof Date) {
-        sp.append(key, val.toISOString());
+        sp.append(prefix, val.toISOString());
         return;
       }
-      if (typeof val === "object") {
-        let s = "";
-        try {
-          s = JSON.stringify(val);
-        } catch {
-          s = "";
-        }
-        if (s)
-          sp.append(key, s);
+      if (Array.isArray(val)) {
+        val.forEach((item, index) => {
+          if (typeof item === "object" && item !== null && !(item instanceof Date) && !isFile(item)) {
+            appendRecursive(item, `${prefix}[${index}]`);
+          } else {
+            appendRecursive(item, `${prefix}[]`);
+          }
+        });
         return;
       }
-      sp.append(key, val);
+      if (typeof val === "object" && !isFile(val)) {
+        Object.keys(val).forEach((key) => {
+          const fullKey = prefix ? `${prefix}[${key}]` : key;
+          appendRecursive(val[key], fullKey);
+        });
+        return;
+      }
+      sp.append(prefix, val);
     };
-    Object.entries(obj).forEach(([k, v]) => append(k, v));
+    if (obj && typeof obj === "object") {
+      Object.keys(obj).forEach((key) => {
+        appendRecursive(obj[key], key);
+      });
+    }
     return sp;
   };
   const isFile = (val) => typeof File !== "undefined" && val instanceof File || typeof Blob !== "undefined" && val instanceof Blob || typeof FileList !== "undefined" && val instanceof FileList;
@@ -1245,7 +1251,7 @@ this.HelixFetchPlugin = function() {
   }
   const HelixFetchPlugin = {
     name: "fetch",
-    version: "2.8.7",
+    version: "2.8.8",
     install(app, options = {}) {
       const { reactive } = typeof Helix !== "undefined" ? Helix : app;
       if (!reactive) {
@@ -1346,6 +1352,8 @@ this.HelixFetchPlugin = function() {
             put: build("PUT"),
             delete: build("DELETE"),
             patch: build("PATCH"),
+            head: build("HEAD"),
+            options: build("OPTIONS"),
             upload: (url, opt) => upload(url, { ...instCfg, ...opt }),
             defaults: instCfg,
             addRequestInterceptor: $fetch.addRequestInterceptor,
@@ -1361,6 +1369,8 @@ this.HelixFetchPlugin = function() {
         put: (url, body, opt) => createRequest("PUT", url, body, { ...config, ...opt })(),
         delete: (url, opt) => createRequest("DELETE", url, null, { ...config, ...opt })(),
         patch: (url, body, opt) => createRequest("PATCH", url, body, { ...config, ...opt })(),
+        head: (url, opt) => createRequest("HEAD", url, null, { ...config, ...opt })(),
+        options: (url, opt) => createRequest("OPTIONS", url, null, { ...config, ...opt })(),
         mutate: (url, opt) => createRequest((opt == null ? void 0 : opt.method) || "POST", url, null, { ...config, lazy: true, ...opt })(),
         upload: (url, opt) => upload(url, { ...config, ...opt }),
         addRequestInterceptor: (fn) => {
@@ -1449,5 +1459,6 @@ this.HelixFetchPlugin = function() {
   };
   const root = typeof window !== "undefined" ? window : globalThis;
   root.HelixFetchPlugin = HelixFetchPlugin;
-  return HelixFetchPlugin;
-}();
+  exports.default = HelixFetchPlugin;
+  Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: "Module" } });
+})(this.HelixFetchPlugin = this.HelixFetchPlugin || {});
