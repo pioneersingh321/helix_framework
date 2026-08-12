@@ -292,21 +292,30 @@ export function createBuiltinDirectives(appConfig) {
                 el.remove();
             }
             const template = el;
-            let node = null;
+            let nodes = [];
             const e = effect(() => {
                 const isTrue = resolveExpression(val, ctx, { asBoolean: true, fallback: false, contextName: "v-if" });
-                if (isTrue && !node) {
-                    node = template.cloneNode(true);
-                    bindNode2(node, ctx, instance, []);
-                    if (placeholder.parentNode) placeholder.parentNode.insertBefore(node, placeholder);
-                } else if (!isTrue && node) {
-                    destroyNode(node);
-                    node = null;
+                if (isTrue && nodes.length === 0) {
+                    if (template.tagName === 'TEMPLATE' && template.content) {
+                        const clone = template.content.cloneNode(true);
+                        nodes = Array.from(clone.childNodes);
+                        nodes.forEach((n) => bindNode2(n, ctx, instance, []));
+                        if (placeholder.parentNode) placeholder.parentNode.insertBefore(clone, placeholder);
+                    } else {
+                        const node = template.cloneNode(true);
+                        bindNode2(node, ctx, instance, []);
+                        if (placeholder.parentNode) placeholder.parentNode.insertBefore(node, placeholder);
+                        nodes = [node];
+                    }
+                } else if (!isTrue && nodes.length > 0) {
+                    nodes.forEach((n) => destroyNode(n));
+                    nodes = [];
                 }
             }, { name: `if: ${val}`, area: "directive" });
             trackCleanup(() => {
                 cleanup(e);
-                if (node) { destroyNode(node); node = null; }
+                nodes.forEach((n) => destroyNode(n));
+                nodes = [];
                 if (placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
             });
         }
@@ -318,7 +327,12 @@ export function createBuiltinDirectives(appConfig) {
             const itemName = match[1] || match[3];
             const indexName = match[2];
             const listPath = match[4];
-            const keyPath = el.getAttribute(`${appConfig.prefix}key`) || el.getAttribute(":key");
+            const templateTarget = (el.tagName === 'TEMPLATE' && el.content)
+                ? (el.content.firstElementChild || el)
+                : el;
+            const keyPath = el.getAttribute(`${appConfig.prefix}key`) || el.getAttribute(":key") ||
+                (el.tagName === 'TEMPLATE' && el.content && el.content.firstElementChild ?
+                    (el.content.firstElementChild.getAttribute(`${appConfig.prefix}key`) || el.content.firstElementChild.getAttribute(":key")) : null);
             el.removeAttribute(`${appConfig.prefix}key`);
             el.removeAttribute(":key");
             const placeholder = document.createComment(` ${appConfig.prefix}for: ${val} `);
@@ -399,7 +413,7 @@ export function createBuiltinDirectives(appConfig) {
                     for (let i = newStart; i <= newEnd; i++) {
                         const key = newKeys[i];
                         const item = list[i];
-                        const node = el.cloneNode(true);
+                        const node = templateTarget.cloneNode(true);
                         node.__hx_key = key;
                         node.__hx_scope = reactive({ [itemName]: item });
                         if (indexName) node.__hx_scope[indexName] = i;
@@ -458,7 +472,7 @@ export function createBuiltinDirectives(appConfig) {
                         if (newIndexToOldIndexMap[i] === 0) {
                             const key = newKeys[newIndex];
                             const item = list[newIndex];
-                            const node = el.cloneNode(true);
+                            const node = templateTarget.cloneNode(true);
                             node.__hx_key = key;
                             node.__hx_scope = reactive({ [itemName]: item });
                             if (indexName) node.__hx_scope[indexName] = newIndex;

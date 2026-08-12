@@ -1,6 +1,6 @@
 # @helix/core (`helix-core`)
 
-The core reactive framework engine for **Helix.js** (v11.1.18).
+The core reactive framework engine for **Helix.js** (v11.1.19).
 
 `helix-core` provides fine-grained reactivity, setup-based component architecture, template directive binding, dependency injection, async component suspense, error boundaries, memory profiling, and a single-execution plugin registry.
 
@@ -14,7 +14,7 @@ The core reactive framework engine for **Helix.js** (v11.1.18).
 - **Effects & Watchers**: `effect()`, `simpleEffect()`, `batch()`, `watch()`, and `watchEffect()`.
 - **Effect Scopes**: `effectScope()`, `getCurrentScope()`, `onScopeDispose()`, `createEffectGroup()`, and `ScopeScheduler` for clean memory management.
 
-### 🔌 2. Single-Execution Plugin System (v11.1.18 Compliant)
+### 🔌 2. Single-Execution Plugin System (v11.1.19 Compliant)
 - **Global & App Plugins**: `Helix.use()` and `app.use()` with automated deduplication (`_executed` state tracking).
 - **Dependency Validation**: `validatePluginDependencies()` with semver range resolution.
 - **Plugin Lifecycle**: `definePlugin()`, `triggerPluginLifecycle()`, and `registry` inspection.

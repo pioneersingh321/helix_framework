@@ -1,5 +1,19 @@
 # Helix.js Changelog
 
+## v11.1.19
+
+### Bug Fixes & Refactorings
+
+- 🐛 **Component Error Boundary Propagation**: Fixed `handleError()` in `src/shared/shared.js` to traverse the component ancestor chain (`instance` -> `instance.parent`) and execute registered `onErrorCaptured()` hooks and `createErrorBoundary()` fallbacks, suppressing error re-throw when a hook returns `false`.
+- 🔌 **Dynamic Plugin Dependency Version Validation**: Updated `validatePluginDependencies()` in `src/app/plugin.js` to import and default to `VERSION` (`11.1.19`) dynamically instead of using a hardcoded version string.
+- 🧹 **Repository & Package Cleanup**: Safely removed dead duplicate files (`src/dom.js`, `src/events.js`, `src/registry.js`, `src/utils.js`, `src/compiler.js`, `src/lifecycle.js`) from `packages/core/src/`.
+
+## v11.1.18
+
+### Added & Improved
+
+- 🔌 **Single-Execution Plugin Engine**: Enhanced `Helix.use()` & `app.use()` with `_executed` lifecycle tracking and semver validation.
+
 ## v11.1.17
 
 ### Added & Improved

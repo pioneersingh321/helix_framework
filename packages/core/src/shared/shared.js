@@ -1,4 +1,4 @@
-export const VERSION = typeof __CORE_VERSION__ !== 'undefined' ? __CORE_VERSION__ : "11.1.18";
+export const VERSION = typeof __CORE_VERSION__ !== 'undefined' ? __CORE_VERSION__ : "11.1.19";
 
 export const RAW = Symbol("__hx_raw");
 export const IS_REF = Symbol("__hx_is_ref");
@@ -217,7 +217,27 @@ export const handleError = (err, context, instance = null) => {
     else if (instance && instance.root) warn(`Crash in component:`, "component", instance.root);
 
     let handled = false;
-    if (globalErrorHandlers.size > 0) {
+
+    let cur = instance;
+    while (cur) {
+        const hooks = cur.errorCapturedHooks;
+        if (hooks && hooks.length > 0) {
+            for (let i = 0; i < hooks.length; i++) {
+                try {
+                    const result = hooks[i](err, instance, context);
+                    if (result === false) {
+                        handled = true;
+                    }
+                } catch (hErr) {
+                    console.error("Error inside onErrorCaptured handler:", hErr);
+                }
+            }
+        }
+        if (handled) break;
+        cur = cur.parent;
+    }
+
+    if (!handled && globalErrorHandlers.size > 0) {
         globalErrorHandlers.forEach((handler) => {
             try {
                 const result = handler(err, instance, context);

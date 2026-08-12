@@ -1,4 +1,5 @@
 import {
+    VERSION,
     globalPlugins,
     globalDirectives,
     globalComponents,
@@ -23,7 +24,7 @@ export function definePlugin(definition) {
     throw new TypeError("Plugin definition must be a function or an object with an install method.");
 }
 
-export function validatePluginDependencies(plugin, helixVersion = "11.1.16") {
+export function validatePluginDependencies(plugin, helixVersion = VERSION) {
     if (!plugin || typeof plugin !== "object" || !plugin.requires) return true;
     const req = plugin.requires;
     let valid = true;
