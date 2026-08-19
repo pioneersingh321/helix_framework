@@ -106,4 +106,11 @@ export function renderSlots(slotOutlets, templateEl, parentCtx, instance, bindNo
             Array.from(slotEl.childNodes).forEach((child) => bindNode(child, parentCtx, instance));
         }
     });
+
+    const nestedTemplates = templateEl.querySelectorAll("template");
+    nestedTemplates.forEach((tpl) => {
+        if (tpl.content) {
+            renderSlots(slotOutlets, tpl.content, parentCtx, instance, bindNode);
+        }
+    });
 }

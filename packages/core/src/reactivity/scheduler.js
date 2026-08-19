@@ -50,14 +50,17 @@ export function queuePostFlushCb(cb) {
 
 export function queueIdleJob(job) {
     idleQueue.push(job);
-    if (idleCallbackId === null && typeof requestIdleCallback !== "undefined") {
-        const cbId = requestIdleCallback(() => {
+    if (idleCallbackId === null) {
+        const scheduleIdle = typeof requestIdleCallback !== "undefined"
+            ? (fn) => requestIdleCallback(fn, { timeout: 2000 })
+            : (fn) => setTimeout(fn, 0);
+        const cbId = scheduleIdle(() => {
             setIdleCallbackId(null);
             while (idleQueue.length) {
                 const idleJob = idleQueue.shift();
                 try { idleJob(); } catch (e) { handleError(e, "idle job"); }
             }
-        }, { timeout: 2000 });
+        });
         setIdleCallbackId(cbId);
     }
 }

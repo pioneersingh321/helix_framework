@@ -43,12 +43,35 @@ export function batch(fn, options = {}) {
 batch.high = (fn) => batch(fn, { priority: 10 });
 batch.low = (fn) => batch(fn, { priority: -10 });
 
+const trackStack = [];
+
 export function pauseTracking() {
+    trackStack.push(shouldTrack);
     setShouldTrack(false);
 }
 
-export function resumeTracking() {
+export function enableTracking() {
+    trackStack.push(shouldTrack);
     setShouldTrack(true);
+}
+
+export function resetTracking() {
+    const last = trackStack.pop();
+    setShouldTrack(last === undefined ? true : last);
+}
+
+export function resumeTracking() {
+    trackStack.length = 0;
+    setShouldTrack(true);
+}
+
+export function untrack(fn) {
+    pauseTracking();
+    try {
+        return fn();
+    } finally {
+        resetTracking();
+    }
 }
 
 export function track(target, key) {

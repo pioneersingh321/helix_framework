@@ -3,10 +3,12 @@ import {
 } from '../shared/shared.js';
 import { effect, cleanup } from './effect.js';
 import { isRef } from './ref.js';
+import { isReactive } from './reactive.js';
 import { queueJob, queuePostFlushCb } from './scheduler.js';
 
 export function watch(source, cb, options = {}) {
-    const { deep = false, immediate = false, flush = "pre", once = false } = options;
+    const isReactiveSource = isReactive(source);
+    const { deep = isReactiveSource, immediate = false, flush = "pre", once = false } = options;
     const isArraySource = Array.isArray(source);
     let getter;
 
@@ -14,14 +16,14 @@ export function watch(source, cb, options = {}) {
         getter = () => source.map((s) => {
             if (isRef(s)) return s.value;
             if (typeof s === "function") return s();
-            return deep ? traverse(s) : s;
+            return (deep || isReactive(s)) ? traverse(s) : s;
         });
     } else if (isRef(source)) {
         getter = () => (deep ? traverse(source.value) : source.value);
     } else if (typeof source === "function") {
         getter = deep ? () => traverse(source()) : source;
     } else {
-        getter = deep ? () => traverse(source) : () => source;
+        getter = (deep || isReactiveSource) ? () => traverse(source) : () => source;
     }
 
     let oldVal;

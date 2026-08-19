@@ -3,6 +3,7 @@ import {
     globalPlugins,
     globalComponents,
     globalDirectives,
+    globalApps,
     targetMap,
     reactiveMap,
     readonlyMap,
@@ -35,6 +36,8 @@ import {
     toRaw,
     isRaw,
     isProxy,
+    isReactive,
+    isReadonly,
     isShallow
 } from './reactivity/reactive.js';
 import {
@@ -49,7 +52,16 @@ import {
     customRef
 } from './reactivity/ref.js';
 import { computed } from './reactivity/computed.js';
-import { effect, simpleEffect, batch } from './reactivity/effect.js';
+import {
+    effect,
+    simpleEffect,
+    batch,
+    pauseTracking,
+    resumeTracking,
+    enableTracking,
+    resetTracking,
+    untrack
+} from './reactivity/effect.js';
 import { watch, watchEffect } from './reactivity/watch.js';
 import {
     getCurrentInstance,
@@ -84,6 +96,7 @@ import { Suspense } from './renderer/suspense.js';
 import { initDevtools, inspectTree, devtoolsAPI } from './devtools/devtools.js';
 import { profile, getProfileData } from './shared/profiler.js';
 import { memo } from './reactivity/memo.js';
+import { initHtmxIntegration, enableHtmxIntegration } from './app/htmx.js';
 
 const globalNamespaces = Object.create(null);
 const globalProvides = Object.create(null);
@@ -106,10 +119,19 @@ function useGlobal(plugin, options = {}) {
     }
 
     let cleanup = null;
-    if (typeof plugin.install === "function") {
-        cleanup = plugin.install(globalAPI, options);
-    } else if (typeof plugin === "function") {
-        cleanup = plugin(globalAPI, options);
+    const installMethod = typeof plugin.install === "function" ? plugin.install : (typeof plugin.setup === "function" ? plugin.setup : (typeof plugin === "function" ? plugin : null));
+    let installPromise = null;
+    if (installMethod) {
+        try {
+            const result = installMethod(globalAPI, options);
+            if (result && typeof result.then === "function") {
+                installPromise = result;
+            } else if (typeof result === "function") {
+                cleanup = result;
+            }
+        } catch (err) {
+            handleError(err, `global plugin install: ${plugin.name || "anonymous"}`);
+        }
     }
 
     if (typeof plugin.mounted === "function") {
@@ -121,6 +143,7 @@ function useGlobal(plugin, options = {}) {
         options,
         name: plugin.name || null,
         version: plugin.version || null,
+        promise: installPromise,
         cleanup: typeof cleanup === "function" ? cleanup : null,
         installedAt: Date.now(),
         _executed: true
@@ -310,6 +333,18 @@ function rebindGlobal(node, options) {
     }
 
     if (!instance || !ctx) {
+        // Fallback: check if node is inside an active app in globalApps
+        for (const appEntry of globalApps.values()) {
+            const rootEl = appEntry.rootElement || (appEntry.instance && appEntry.instance.root);
+            if (rootEl && (rootEl === node || rootEl.contains(node))) {
+                instance = appEntry.instance;
+                ctx = (instance && instance.root && instance.root.__hx_binding && instance.root.__hx_binding.ctx) || options;
+                break;
+            }
+        }
+    }
+
+    if (!instance || !ctx) {
         logger.warn("Cannot rebind node without binding metadata or explicit instance.", "binding");
         return;
     }
@@ -321,12 +356,18 @@ function rebindGlobal(node, options) {
     }
 
     const allElements = [node, ...Array.from(node.querySelectorAll('*'))];
-    allElements.forEach(el => {
+    allElements.forEach((el) => {
         if (el.__hx_binding && el.__hx_binding.cleanups) {
             el.__hx_binding.cleanups.forEach((fn) => {
                 try { fn(); } catch (e) {}
             });
             el.__hx_binding.cleanups.length = 0;
+        }
+        if (Array.isArray(el.__hx_cleanup)) {
+            el.__hx_cleanup.forEach((fn) => {
+                try { fn(); } catch (e) {}
+            });
+            el.__hx_cleanup = null;
         }
         el[BOUND] = false;
         el.__hx_static = false;
@@ -377,6 +418,8 @@ const globalAPI = {
     markRaw,
     isShallow,
     isProxy,
+    isReactive,
+    isReadonly,
     customRef,
     computed,
     effect,
@@ -432,15 +475,24 @@ const globalAPI = {
     profile,
     getProfileData,
     memo,
+    pauseTracking,
+    resumeTracking,
+    enableTracking,
+    resetTracking,
+    untrack,
+    enableHtmx: () => enableHtmxIntegration(globalAPI),
+    initHtmx: () => initHtmxIntegration(globalAPI),
     devtools: devtoolsAPI,
     _internal: globalInternal,
     $bus: globalBus,
+    $apps: globalApps,
     registry: globalRegistry
 };
 
 if (typeof window !== 'undefined') {
     window.Helix = globalAPI;
     initDevtools();
+    initHtmxIntegration(globalAPI);
 }
 
 export {
@@ -476,6 +528,8 @@ export {
     markRaw,
     isShallow,
     isProxy,
+    isReactive,
+    isReadonly,
     customRef,
     computed,
     memo,
@@ -534,6 +588,14 @@ export {
     ScopeScheduler,
     globalScopeScheduler as scopeScheduler,
     triggerPluginLifecycle,
+    pauseTracking,
+    resumeTracking,
+    enableTracking,
+    resetTracking,
+    untrack,
+    enableHtmxIntegration as enableHtmx,
+    initHtmxIntegration as initHtmx,
+    globalApps as $apps,
     globalRegistry as registry,
     globalBus as $bus,
     globalInternal as _internal,

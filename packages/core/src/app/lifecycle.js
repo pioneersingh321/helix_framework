@@ -1,7 +1,9 @@
 import {
     currentInstance,
+    handleError,
     warn
 } from '../shared/shared.js';
+import { queuePostFlushCb } from '../reactivity/scheduler.js';
 
 export function getCurrentInstance() {
     return currentInstance;
@@ -35,6 +37,25 @@ export function onBeforeUnmount(fn) {
 
 export function onUpdated(fn) {
     if (currentInstance) currentInstance.hooks.updated.push(fn);
+}
+
+export function queueComponentUpdated(instance) {
+    if (!instance || !instance.hooks || !instance.hooks.updated || instance.hooks.updated.length === 0) return;
+    if (!instance._isUpdatedQueued) {
+        instance._isUpdatedQueued = true;
+        queuePostFlushCb(() => {
+            instance._isUpdatedQueued = false;
+            if (instance && instance.hooks && instance.hooks.updated) {
+                instance.hooks.updated.forEach((fn) => {
+                    try {
+                        fn();
+                    } catch (e) {
+                        handleError(e, "component onUpdated", instance);
+                    }
+                });
+            }
+        });
+    }
 }
 
 export function provide(key, value) {

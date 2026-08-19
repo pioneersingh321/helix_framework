@@ -24,6 +24,9 @@ import {
 import {
     destroyNode
 } from '../renderer/node.js';
+import {
+    queueComponentUpdated
+} from '../app/lifecycle.js';
 
 export function dispatchDirectiveHook(directive, hookName, el, binding, extra = {}) {
     if (!directive || typeof directive !== "object") return;
@@ -39,107 +42,176 @@ export function dispatchDirectiveHook(directive, hookName, el, binding, extra = 
 
 export function createBuiltinDirectives(appConfig) {
     const dirs = {};
+
     dirs.ref = {
         mounted(el, { value, ctx }) {
             const parts = getPathParts(value);
             const last = parts.pop();
             const parent = parts.reduce((acc, part) => acc?.[part], ctx);
             if (parent) parent[last] = el;
+            if (ctx && typeof ctx === "object") {
+                if (!ctx.$refs) ctx.$refs = {};
+                ctx.$refs[value] = el;
+            }
         }
     };
+
     dirs.text = {
         mounted(el, binding) {
             this.updated(el, binding);
         },
-        updated(el, { value: val, ctx, trackCleanup }) {
+        updated(el, { value: val, ctx, instance, trackCleanup }) {
             el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.TEXT;
+            let initialRan = false;
             const updateFn = () => {
                 const res = resolveExpression(val, ctx, { fallback: "", contextName: "hx-text" });
                 const newText = typeof res === "object" && res !== null ? JSON.stringify(res) : res ?? "";
-                if (el.textContent !== newText) el.textContent = newText;
+                if (el.textContent !== newText) {
+                    el.textContent = newText;
+                    if (initialRan && instance) queueComponentUpdated(instance);
+                }
             };
             const e = effect(updateFn, { name: `text: ${val}`, area: "directive" });
+            initialRan = true;
             trackCleanup(() => cleanup(e));
         }
     };
+
     dirs.html = {
         mounted(el, binding) {
             this.updated(el, binding);
         },
-        updated(el, { value: val, ctx, trackCleanup }) {
+        updated(el, { value: val, ctx, instance, trackCleanup }) {
+            let initialRan = false;
             const updateFn = () => {
                 const res = resolveExpression(val, ctx, { fallback: "", contextName: "hx-html" });
                 const newHtml = sanitizeHtml(res || "");
-                if (el.innerHTML !== newHtml) el.innerHTML = newHtml;
+                if (el.innerHTML !== newHtml) {
+                    el.innerHTML = newHtml;
+                    if (initialRan && instance) queueComponentUpdated(instance);
+                }
             };
             const e = effect(updateFn, { name: `html: ${val}`, area: "directive" });
+            initialRan = true;
             trackCleanup(() => cleanup(e));
         }
     };
+
     dirs.model = {
         mounted(el, binding) {
             this.updated(el, binding);
         },
-        updated(el, { value: val, ctx, trackCleanup }) {
+        updated(el, { value: val, modifiers = [], ctx, instance, trackCleanup }) {
             const isCheck = el.type === "checkbox";
             const isRadio = el.type === "radio";
             const isSelect = el.tagName === "SELECT";
             const isSelectMultiple = isSelect && el.multiple;
-            const evtType = isCheck || isRadio || isSelect ? "change" : "input";
-            const handler = (e2) => {
+            const isLazy = modifiers.includes("lazy");
+            const isTrim = modifiers.includes("trim");
+            const isNumber = modifiers.includes("number") || el.type === "number";
+
+            let debounceTime = null;
+            const debounceMod = modifiers.find(m => m === "debounce" || m.startsWith("debounce"));
+            if (debounceMod) {
+                const idx = modifiers.indexOf(debounceMod);
+                const nextMod = modifiers[idx + 1];
+                let ms = 250;
+                if (nextMod && /^\d+(ms)?$/.test(nextMod)) {
+                    ms = parseInt(nextMod, 10);
+                } else if (debounceMod.includes("-") || debounceMod.includes(".")) {
+                    const parts = debounceMod.split(/[-.]/);
+                    if (parts[1] && /^\d+(ms)?$/.test(parts[1])) {
+                        ms = parseInt(parts[1], 10);
+                    }
+                }
+                debounceTime = ms;
+            }
+
+            const evtType = isCheck || isRadio || isSelect ? "change" : (isLazy ? "change" : "input");
+            let debounceTimer = null;
+
+            const updateModel = (e2) => {
                 const parts = getPathParts(val);
                 const last = parts.pop();
                 const parent = parts.reduce((acc, part) => acc?.[part], ctx);
                 if (parent) {
-                    if (isCheck) parent[last] = e2.target.checked;
-                    else if (isRadio) parent[last] = e2.target.value;
-                    else if (isSelectMultiple) {
+                    if (isCheck) {
+                        parent[last] = e2.target.checked;
+                    } else if (isRadio) {
+                        parent[last] = e2.target.value;
+                    } else if (isSelectMultiple) {
                         const selected = Array.from(e2.target.selectedOptions).map(opt => opt.value);
                         parent[last] = selected;
-                    }
-                    else {
-                        const rawValue = e2.target.value;
-                        if (el.type === "number") {
+                    } else {
+                        let rawValue = e2.target.value;
+                        if (isTrim && typeof rawValue === "string") {
+                            rawValue = rawValue.trim();
+                        }
+                        if (isNumber) {
                             const num = rawValue === "" ? "" : Number(rawValue);
                             parent[last] = Number.isNaN(num) ? rawValue : num;
-                        } else parent[last] = rawValue;
+                        } else {
+                            parent[last] = rawValue;
+                        }
                     }
                 }
             };
+
+            const handler = (e2) => {
+                if (debounceTime !== null && evtType === "input") {
+                    if (debounceTimer) clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(() => {
+                        updateModel(e2);
+                    }, debounceTime);
+                } else {
+                    updateModel(e2);
+                }
+            };
+
             el.addEventListener(evtType, handler);
+
+            let initialRan = false;
             const updateFn = () => {
                 const current = resolvePath(val, ctx);
+                let changed = false;
                 if (isRadio) {
                     const shouldCheck = current === el.value;
-                    if (el.checked !== shouldCheck) el.checked = shouldCheck;
+                    if (el.checked !== shouldCheck) { el.checked = shouldCheck; changed = true; }
                 } else if (isCheck) {
                     const shouldCheck = !!current;
-                    if (el.checked !== shouldCheck) el.checked = shouldCheck;
+                    if (el.checked !== shouldCheck) { el.checked = shouldCheck; changed = true; }
                 } else if (isSelectMultiple) {
                     const selectedValues = Array.isArray(current) ? current : [];
                     Array.from(el.options).forEach(opt => {
-                        opt.selected = selectedValues.includes(opt.value);
+                        const sel = selectedValues.includes(opt.value);
+                        if (opt.selected !== sel) { opt.selected = sel; changed = true; }
                     });
                 } else {
                     const newValue = current ?? "";
-                    if (el.value !== newValue) el.value = newValue;
+                    if (el.value !== newValue) { el.value = newValue; changed = true; }
                 }
+                if (changed && initialRan && instance) queueComponentUpdated(instance);
             };
+
             const e = effect(updateFn, { name: `model: ${val}`, area: "directive" });
+            initialRan = true;
             trackCleanup(() => {
+                if (debounceTimer) clearTimeout(debounceTimer);
                 el.removeEventListener(evtType, handler);
                 cleanup(e);
             });
         }
     };
+
     dirs.bind = {
         mounted(el, binding) {
             this.updated(el, binding);
         },
-        updated(el, { value: val, arg, ctx, trackCleanup }) {
+        updated(el, { value: val, arg, ctx, instance, trackCleanup }) {
             if (!arg) return;
             const trimmed = val.trim();
             const isObjectLiteral = trimmed.startsWith("{") && trimmed.endsWith("}") && trimmed.includes(":");
+            let initialRan = false;
             const updateFn = () => {
                 let result;
                 if (isObjectLiteral && (arg === "class" || arg === "style")) {
@@ -181,14 +253,39 @@ export function createBuiltinDirectives(appConfig) {
                     const newValue = result ?? "";
                     if (el.getAttribute(arg) !== newValue) el.setAttribute(arg, newValue);
                 }
+                if (initialRan && instance) queueComponentUpdated(instance);
             };
             const e = effect(updateFn, { name: `bind: ${arg}`, area: "directive" });
+            initialRan = true;
             trackCleanup(() => cleanup(e));
         }
     };
+
     dirs.on = {
-        mounted(el, { value: val, arg, modifiers, ctx, trackCleanup }) {
+        mounted(el, { value: val, arg, modifiers = [], ctx, trackCleanup }) {
             const evtType = arg || "click";
+            const isWindow = modifiers.includes("window");
+            const isDocument = modifiers.includes("document");
+            const isOutside = modifiers.includes("outside");
+            const isPrevent = modifiers.includes("prevent");
+            const isStop = modifiers.includes("stop");
+            const isSelf = modifiers.includes("self");
+            const isOnce = modifiers.includes("once");
+            const isPassive = modifiers.includes("passive");
+            const isCapture = modifiers.includes("capture");
+
+            const keyModifiers = {
+                enter: ["Enter"],
+                escape: ["Escape", "Esc"],
+                esc: ["Escape", "Esc"],
+                tab: ["Tab"],
+                space: [" ", "Spacebar"],
+                up: ["ArrowUp", "Up"],
+                down: ["ArrowDown", "Down"],
+                left: ["ArrowLeft", "Left"],
+                right: ["ArrowRight", "Right"],
+                delete: ["Delete", "Backspace"]
+            };
 
             const parseArgs = (str) => {
                 const args = [];
@@ -214,20 +311,32 @@ export function createBuiltinDirectives(appConfig) {
                 return args;
             };
 
-            const handler = (e) => {
-                if (modifiers.includes("prevent")) e.preventDefault();
-                if (modifiers.includes("stop")) e.stopPropagation();
+            const executeHandler = (e) => {
+                if (isPrevent) e.preventDefault();
+                if (isStop) e.stopPropagation();
+                if (isSelf && e.target !== el) return;
+
+                if (modifiers.includes("ctrl") && !e.ctrlKey) return;
+                if (modifiers.includes("alt") && !e.altKey) return;
+                if (modifiers.includes("shift") && !e.shiftKey) return;
+                if (modifiers.includes("meta") && !e.metaKey) return;
+
+                for (const keyMod in keyModifiers) {
+                    if (modifiers.includes(keyMod)) {
+                        if (!e.key || !keyModifiers[keyMod].includes(e.key)) {
+                            return;
+                        }
+                    }
+                }
 
                 let targetFn;
                 let args = [e];
-
                 const trimmed = val.trim();
                 const parenIdx = trimmed.indexOf('(');
 
                 if (parenIdx > -1 && trimmed.endsWith(')')) {
                     const fnPath = trimmed.slice(0, parenIdx).trim();
                     const argsStr = trimmed.slice(parenIdx + 1, trimmed.length - 1).trim();
-
                     targetFn = resolveRaw(fnPath, ctx);
 
                     if (argsStr) {
@@ -266,70 +375,131 @@ export function createBuiltinDirectives(appConfig) {
                 }
             };
 
-            el.addEventListener(evtType, handler);
-            trackCleanup(() => el.removeEventListener(evtType, handler));
+            if (isOutside) {
+                const outsideHandler = (e) => {
+                    if (!el.contains(e.target) && el !== e.target) {
+                        executeHandler(e);
+                    }
+                };
+                if (typeof document !== 'undefined') {
+                    document.addEventListener("click", outsideHandler);
+                    trackCleanup(() => document.removeEventListener("click", outsideHandler));
+                }
+                return;
+            }
+
+            const listenerTarget = isWindow && typeof window !== "undefined"
+                ? window
+                : (isDocument && typeof document !== "undefined" ? document : el);
+
+            const listenerOpts = {
+                once: isOnce,
+                passive: isPassive,
+                capture: isCapture
+            };
+
+            listenerTarget.addEventListener(evtType, executeHandler, listenerOpts);
+            trackCleanup(() => listenerTarget.removeEventListener(evtType, executeHandler, listenerOpts));
         }
     };
+
     dirs.show = {
         mounted(el, binding) {
             this.updated(el, binding);
         },
-        updated(el, { value: val, ctx, trackCleanup }) {
+        updated(el, { value: val, ctx, instance, trackCleanup }) {
+            let initialRan = false;
             const updateFn = () => {
                 const shouldShow = resolveExpression(val, ctx, { asBoolean: true, fallback: false, contextName: "v-show" });
                 const newDisplay = shouldShow ? "" : "none";
-                if (el.style.display !== newDisplay) el.style.display = newDisplay;
+                if (el.style.display !== newDisplay) {
+                    el.style.display = newDisplay;
+                    if (initialRan && instance) queueComponentUpdated(instance);
+                }
             };
             const e = effect(updateFn, { name: `show: ${val}`, area: "directive" });
+            initialRan = true;
             trackCleanup(() => cleanup(e));
         }
     };
+
     dirs.if = {
-        mounted(el, { value: val, ctx, instance, trackCleanup, bindNode: bindNode2 }) {
-            const placeholder = document.createComment(` ${appConfig.prefix}if: ${val} `);
-            if (el.parentNode) {
-                el.parentNode.insertBefore(placeholder, el);
-                el.remove();
+        mounted(el, { value: val, branches, ctx, instance, trackCleanup, bindNode: bindNode2 }) {
+            const branchList = (branches && branches.length > 0) ? branches : [{ el, exp: val, type: 'if' }];
+            const placeholder = document.createComment(` ${appConfig.prefix}if-chain `);
+            const anchorEl = branchList[0].el || el;
+            if (anchorEl.parentNode) {
+                anchorEl.parentNode.insertBefore(placeholder, anchorEl);
             }
-            const template = el;
-            let nodes = [];
+            branchList.forEach((b) => {
+                if (b.el && b.el.parentNode) {
+                    b.el.remove();
+                }
+            });
+
+            let currentBranchIndex = -1;
+            let activeNodes = [];
+            let initialRan = false;
+
             const e = effect(() => {
-                const isTrue = resolveExpression(val, ctx, { asBoolean: true, fallback: false, contextName: "v-if" });
-                if (isTrue && nodes.length === 0) {
-                    if (template.tagName === 'TEMPLATE' && template.content) {
-                        const clone = template.content.cloneNode(true);
-                        nodes = Array.from(clone.childNodes);
-                        nodes.forEach((n) => bindNode2(n, ctx, instance, []));
-                        if (placeholder.parentNode) placeholder.parentNode.insertBefore(clone, placeholder);
-                    } else {
-                        const node = template.cloneNode(true);
-                        bindNode2(node, ctx, instance, []);
-                        if (placeholder.parentNode) placeholder.parentNode.insertBefore(node, placeholder);
-                        nodes = [node];
+                let matchedIndex = -1;
+                for (let i = 0; i < branchList.length; i++) {
+                    const b = branchList[i];
+                    if (b.type === 'else') {
+                        matchedIndex = i;
+                        break;
                     }
-                } else if (!isTrue && nodes.length > 0) {
-                    nodes.forEach((n) => destroyNode(n));
-                    nodes = [];
+                    const isTrue = resolveExpression(b.exp, ctx, { asBoolean: true, fallback: false, contextName: `${appConfig.prefix}${b.type}` });
+                    if (isTrue) {
+                        matchedIndex = i;
+                        break;
+                    }
+                }
+
+                if (matchedIndex !== currentBranchIndex) {
+                    if (activeNodes.length > 0) {
+                        activeNodes.forEach((n) => destroyNode(n));
+                        activeNodes = [];
+                    }
+                    currentBranchIndex = matchedIndex;
+                    if (matchedIndex >= 0) {
+                        const template = branchList[matchedIndex].el;
+                        if (template.tagName === 'TEMPLATE' && template.content) {
+                            const clone = template.content.cloneNode(true);
+                            activeNodes = Array.from(clone.childNodes);
+                            activeNodes.forEach((n) => bindNode2(n, ctx, instance, []));
+                            if (placeholder.parentNode) placeholder.parentNode.insertBefore(clone, placeholder);
+                        } else {
+                            const node = template.cloneNode(true);
+                            bindNode2(node, ctx, instance, []);
+                            if (placeholder.parentNode) placeholder.parentNode.insertBefore(node, placeholder);
+                            activeNodes = [node];
+                        }
+                    }
+                    if (initialRan && instance) queueComponentUpdated(instance);
                 }
             }, { name: `if: ${val}`, area: "directive" });
+            initialRan = true;
+
             trackCleanup(() => {
                 cleanup(e);
-                nodes.forEach((n) => destroyNode(n));
-                nodes = [];
+                activeNodes.forEach((n) => destroyNode(n));
+                activeNodes = [];
                 if (placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
             });
         }
     };
+
     dirs.for = {
         mounted(el, { value: val, ctx, instance, trackCleanup, bindNode: bindNode2 }) {
-            const match = val.match(/^(?:(?:\(([^,]+),\s*([^)]+)\)|([^\s]+))\s+in\s+(.+))$/);
-            if (!match) return warn(`[for] Invalid syntax: ${val}`, "compiler");
-            const itemName = match[1] || match[3];
-            const indexName = match[2];
-            const listPath = match[4];
-            const templateTarget = (el.tagName === 'TEMPLATE' && el.content)
-                ? (el.content.firstElementChild || el)
-                : el;
+            const forMatch = val.match(/^\s*(?:\(([^)]+)\)|([^\s]+))\s+in\s+(.+)$/);
+            if (!forMatch) return warn(`[for] Invalid syntax: ${val}`, "compiler");
+            const args = forMatch[1] ? forMatch[1].split(',').map((s) => s.trim()).filter(Boolean) : [forMatch[2].trim()];
+            const itemName = args[0];
+            const keyName = args[1] || null;
+            const indexName = args[2] || null;
+            const listPath = forMatch[3].trim();
+
             const keyPath = el.getAttribute(`${appConfig.prefix}key`) || el.getAttribute(":key") ||
                 (el.tagName === 'TEMPLATE' && el.content && el.content.firstElementChild ?
                     (el.content.firstElementChild.getAttribute(`${appConfig.prefix}key`) || el.content.firstElementChild.getAttribute(":key")) : null);
@@ -338,20 +508,105 @@ export function createBuiltinDirectives(appConfig) {
             const placeholder = document.createComment(` ${appConfig.prefix}for: ${val} `);
             el.parentNode.insertBefore(placeholder, el);
             el.remove();
-            let renderedNodes = [];
+            let renderedItems = [];
+
+            const getAnchor = (items, idx) => {
+                for (let k = idx; k < items.length; k++) {
+                    if (items[k] && items[k].nodes) {
+                        for (let n = 0; n < items[k].nodes.length; n++) {
+                            if (items[k].nodes[n].parentNode) {
+                                return items[k].nodes[n];
+                            }
+                        }
+                    }
+                }
+                return placeholder;
+            };
+
+            let isKeyedIteration = false;
+            let iterationKeys = [];
+
+            const createItemRecord = (item, index, key) => {
+                const itemScope = reactive({ [itemName]: item });
+                if (keyName) {
+                    itemScope[keyName] = isKeyedIteration && iterationKeys[index] !== undefined ? iterationKeys[index] : index;
+                }
+                if (indexName) {
+                    itemScope[indexName] = index;
+                }
+                const childCtx = Object.setPrototypeOf(itemScope, ctx);
+
+                let nodes;
+                if (el.tagName === 'TEMPLATE' && el.content) {
+                    const clone = el.content.cloneNode(true);
+                    nodes = Array.from(clone.childNodes);
+                    nodes.forEach((n) => bindNode2(n, childCtx, instance, []));
+                } else {
+                    const node = el.cloneNode(true);
+                    bindNode2(node, childCtx, instance, []);
+                    nodes = [node];
+                }
+                return { key, scope: itemScope, nodes };
+            };
+
+            const updateItemScope = (itemRecord, item, index) => {
+                itemRecord.scope[itemName] = item;
+                if (keyName) {
+                    itemRecord.scope[keyName] = isKeyedIteration && iterationKeys[index] !== undefined ? iterationKeys[index] : index;
+                }
+                if (indexName) {
+                    itemRecord.scope[indexName] = index;
+                }
+            };
 
             const updateFn = () => {
                 let list = [];
-                const directList = resolvePath(listPath, ctx);
-                if (Array.isArray(directList)) list = directList;
-                else if (appConfig.allowInlineExpressions) {
-                    try {
-                        list = new Function("$ctx", `with($ctx) { return ${listPath} }`)(ctx) || [];
-                    } catch (err) {
-                        handleError(err, `${appConfig.prefix}for expression: ${listPath}`);
+                isKeyedIteration = false;
+                iterationKeys = [];
+
+                const processRawCollection = (raw) => {
+                    if (Array.isArray(raw)) {
+                        list = raw;
+                    } else if (typeof raw === "number") {
+                        list = Array.from({ length: raw }, (_, i) => i + 1);
+                    } else if (raw instanceof Map || (raw && typeof raw.entries === "function" && typeof raw.get === "function")) {
+                        isKeyedIteration = true;
+                        const entries = Array.from(raw.entries());
+                        if (keyName) {
+                            iterationKeys = entries.map(([k]) => k);
+                            list = entries.map(([, v]) => v);
+                        } else {
+                            iterationKeys = entries.map(([k]) => k);
+                            list = entries;
+                        }
+                    } else if (raw instanceof Set || (raw && typeof raw.values === "function" && typeof raw.add === "function")) {
+                        list = Array.from(raw.values());
+                    } else if (raw && typeof raw === "object") {
+                        isKeyedIteration = true;
+                        iterationKeys = Object.keys(raw);
+                        list = iterationKeys.map((k) => raw[k]);
                     }
+                };
+
+                if (!isNaN(Number(listPath)) && listPath !== "") {
+                    const count = parseInt(listPath, 10);
+                    list = Array.from({ length: count }, (_, i) => i + 1);
                 } else {
-                    warn(`Inline expressions disabled. Use a computed property for complex lists: ${listPath}`, "compiler");
+                    const directList = resolvePath(listPath, ctx);
+                    if (directList !== undefined && directList !== null) {
+                        processRawCollection(directList);
+                    } else if (appConfig.allowInlineExpressions) {
+                        try {
+                            const evaluated = new Function("$ctx", `with($ctx) { return ${listPath} }`)(ctx);
+                            if (evaluated !== undefined && evaluated !== null) {
+                                processRawCollection(evaluated);
+                            }
+                        } catch (err) {
+                            handleError(err, `${appConfig.prefix}for expression: ${listPath}`);
+                        }
+                    } else {
+                        warn(`Inline expressions disabled. Use a computed property for complex lists: ${listPath}`, "compiler");
+                    }
                 }
 
                 const usedKeys = new Set();
@@ -379,52 +634,45 @@ export function createBuiltinDirectives(appConfig) {
 
                 let oldStart = 0;
                 let newStart = 0;
-                let oldEnd = renderedNodes.length - 1;
+                let oldEnd = renderedItems.length - 1;
                 let newEnd = list.length - 1;
 
-                while (oldStart <= oldEnd && newStart <= newEnd && renderedNodes[oldStart].__hx_key === newKeys[newStart]) {
-                    const node = renderedNodes[oldStart];
-                    node.__hx_scope[itemName] = list[newStart];
-                    if (indexName) node.__hx_scope[indexName] = newStart;
+                while (oldStart <= oldEnd && newStart <= newEnd && renderedItems[oldStart].key === newKeys[newStart]) {
+                    updateItemScope(renderedItems[oldStart], list[newStart], newStart);
                     oldStart++;
                     newStart++;
                 }
 
-                while (oldStart <= oldEnd && newStart <= newEnd && renderedNodes[oldEnd].__hx_key === newKeys[newEnd]) {
-                    const node = renderedNodes[oldEnd];
-                    node.__hx_scope[itemName] = list[newEnd];
-                    if (indexName) node.__hx_scope[indexName] = newEnd;
+                while (oldStart <= oldEnd && newStart <= newEnd && renderedItems[oldEnd].key === newKeys[newEnd]) {
+                    updateItemScope(renderedItems[oldEnd], list[newEnd], newEnd);
                     oldEnd--;
                     newEnd--;
                 }
 
-                const newNodes = new Array(list.length);
+                const newItems = new Array(list.length);
                 for (let i = 0; i < newStart; i++) {
-                    newNodes[i] = renderedNodes[i];
+                    newItems[i] = renderedItems[i];
                 }
                 for (let i = newEnd + 1; i < list.length; i++) {
                     const oldIndex = oldEnd + 1 + (i - (newEnd + 1));
-                    newNodes[i] = renderedNodes[oldIndex];
+                    newItems[i] = renderedItems[oldIndex];
                 }
 
                 if (oldStart > oldEnd) {
-                    const anchor = newEnd + 1 < list.length ? newNodes[newEnd + 1] : placeholder;
+                    const anchor = getAnchor(newItems, newEnd + 1);
                     const parentNode = placeholder.parentNode;
                     for (let i = newStart; i <= newEnd; i++) {
-                        const key = newKeys[i];
-                        const item = list[i];
-                        const node = templateTarget.cloneNode(true);
-                        node.__hx_key = key;
-                        node.__hx_scope = reactive({ [itemName]: item });
-                        if (indexName) node.__hx_scope[indexName] = i;
-                        const childCtx = Object.setPrototypeOf(node.__hx_scope, ctx);
-                        bindNode2(node, childCtx, instance, []);
-                        newNodes[i] = node;
-                        if (parentNode) parentNode.insertBefore(node, anchor);
+                        const itemRecord = createItemRecord(list[i], i, newKeys[i]);
+                        newItems[i] = itemRecord;
+                        if (parentNode) {
+                            for (let k = 0; k < itemRecord.nodes.length; k++) {
+                                parentNode.insertBefore(itemRecord.nodes[k], anchor);
+                            }
+                        }
                     }
                 } else if (newStart > newEnd) {
                     for (let i = oldStart; i <= oldEnd; i++) {
-                        destroyNode(renderedNodes[i]);
+                        renderedItems[i].nodes.forEach((n) => destroyNode(n));
                     }
                 } else {
                     const toBePatched = newEnd - newStart + 1;
@@ -439,19 +687,18 @@ export function createBuiltinDirectives(appConfig) {
                     let maxNewIndexSoFar = 0;
 
                     for (let i = oldStart; i <= oldEnd; i++) {
-                        const prevChild = renderedNodes[i];
+                        const prevItem = renderedItems[i];
                         if (patched >= toBePatched) {
-                            destroyNode(prevChild);
+                            prevItem.nodes.forEach((n) => destroyNode(n));
                             continue;
                         }
-                        const newIndex = keyToNewIndexMap.get(prevChild.__hx_key);
+                        const newIndex = keyToNewIndexMap.get(prevItem.key);
                         if (newIndex === undefined) {
-                            destroyNode(prevChild);
+                            prevItem.nodes.forEach((n) => destroyNode(n));
                         } else {
                             newIndexToOldIndexMap[newIndex - newStart] = i + 1;
-                            prevChild.__hx_scope[itemName] = list[newIndex];
-                            if (indexName) prevChild.__hx_scope[indexName] = newIndex;
-                            newNodes[newIndex] = prevChild;
+                            updateItemScope(prevItem, list[newIndex], newIndex);
+                            newItems[newIndex] = prevItem;
                             if (newIndex >= maxNewIndexSoFar) {
                                 maxNewIndexSoFar = newIndex;
                             } else {
@@ -467,22 +714,24 @@ export function createBuiltinDirectives(appConfig) {
 
                     for (let i = toBePatched - 1; i >= 0; i--) {
                         const newIndex = newStart + i;
-                        const anchor = newIndex + 1 < list.length ? newNodes[newIndex + 1] : placeholder;
+                        const anchor = getAnchor(newItems, newIndex + 1);
 
                         if (newIndexToOldIndexMap[i] === 0) {
-                            const key = newKeys[newIndex];
-                            const item = list[newIndex];
-                            const node = templateTarget.cloneNode(true);
-                            node.__hx_key = key;
-                            node.__hx_scope = reactive({ [itemName]: item });
-                            if (indexName) node.__hx_scope[indexName] = newIndex;
-                            const childCtx = Object.setPrototypeOf(node.__hx_scope, ctx);
-                            bindNode2(node, childCtx, instance, []);
-                            newNodes[newIndex] = node;
-                            if (parentNode) parentNode.insertBefore(node, anchor);
+                            const itemRecord = createItemRecord(list[newIndex], newIndex, newKeys[newIndex]);
+                            newItems[newIndex] = itemRecord;
+                            if (parentNode) {
+                                for (let k = 0; k < itemRecord.nodes.length; k++) {
+                                    parentNode.insertBefore(itemRecord.nodes[k], anchor);
+                                }
+                            }
                         } else if (moved) {
                             if (j < 0 || i !== lisSequence[j]) {
-                                if (parentNode) parentNode.insertBefore(newNodes[newIndex], anchor);
+                                if (parentNode) {
+                                    const itemRecord = newItems[newIndex];
+                                    for (let k = 0; k < itemRecord.nodes.length; k++) {
+                                        parentNode.insertBefore(itemRecord.nodes[k], anchor);
+                                    }
+                                }
                             } else {
                                 j--;
                             }
@@ -490,13 +739,18 @@ export function createBuiltinDirectives(appConfig) {
                     }
                 }
 
-                renderedNodes = newNodes;
+                renderedItems = newItems;
+                if (initialRan && instance) queueComponentUpdated(instance);
             };
+            let initialRan = false;
             const e = effect(updateFn, { name: `for: ${listPath}`, area: "directive" });
+            initialRan = true;
             const teardown = () => {
                 cleanup(e);
-                renderedNodes.forEach((n) => destroyNode(n));
-                renderedNodes = [];
+                renderedItems.forEach((item) => {
+                    item.nodes.forEach((n) => destroyNode(n));
+                });
+                renderedItems = [];
             };
             trackCleanup(teardown);
             placeholder.__hx_cleanup = placeholder.__hx_cleanup || [];
@@ -516,4 +770,3 @@ export function createBuiltinDirectives(appConfig) {
 
     return dirs;
 }
-

@@ -1,15 +1,114 @@
 (function(exports) {
   "use strict";
+  class AppRegistry {
+    constructor() {
+      this._bySelector = /* @__PURE__ */ new Map();
+      this._byElement = /* @__PURE__ */ new Map();
+      this._byId = /* @__PURE__ */ new Map();
+      this._entries = /* @__PURE__ */ new Set();
+    }
+    register(selector, element, instance, app) {
+      const entry = {
+        selector: typeof selector === "string" ? selector : null,
+        element,
+        rootElement: element,
+        instance,
+        app,
+        id: instance ? instance.id : null,
+        mountedAt: Date.now()
+      };
+      this._entries.add(entry);
+      if (typeof selector === "string") {
+        this._bySelector.set(selector, entry);
+      }
+      if (element) {
+        this._byElement.set(element, entry);
+      }
+      if (instance && instance.id) {
+        this._byId.set(instance.id, entry);
+      }
+      return entry;
+    }
+    unregister(selector, element, instance) {
+      let targetEntry = null;
+      if (instance && this._byId.has(instance.id)) {
+        targetEntry = this._byId.get(instance.id);
+      } else if (element && this._byElement.has(element)) {
+        targetEntry = this._byElement.get(element);
+      } else if (typeof selector === "string" && this._bySelector.has(selector)) {
+        targetEntry = this._bySelector.get(selector);
+      }
+      if (targetEntry) {
+        this._entries.delete(targetEntry);
+        if (targetEntry.selector)
+          this._bySelector.delete(targetEntry.selector);
+        if (targetEntry.element)
+          this._byElement.delete(targetEntry.element);
+        if (targetEntry.id)
+          this._byId.delete(targetEntry.id);
+      }
+    }
+    get(key) {
+      if (typeof key === "string") {
+        return this._bySelector.get(key) || null;
+      }
+      if (typeof key === "number") {
+        return this._byId.get(key) || null;
+      }
+      if (key && key.nodeType === 1) {
+        return this._byElement.get(key) || null;
+      }
+      return null;
+    }
+    has(key) {
+      return this.get(key) !== null;
+    }
+    list() {
+      return Array.from(this._entries);
+    }
+    all() {
+      return Array.from(this._entries);
+    }
+    values() {
+      return this._entries.values();
+    }
+    keys() {
+      return this._bySelector.keys();
+    }
+    entries() {
+      return Array.from(this._entries).map((e) => [e.selector || e.id, e]);
+    }
+    forEach(callback, thisArg) {
+      this._entries.forEach((entry) => {
+        callback.call(thisArg, entry, entry.selector || entry.id, this);
+      });
+    }
+    get size() {
+      return this._entries.size;
+    }
+    clear() {
+      this._bySelector.clear();
+      this._byElement.clear();
+      this._byId.clear();
+      this._entries.clear();
+    }
+    [Symbol.iterator]() {
+      return this._entries[Symbol.iterator]();
+    }
+  }
+  const globalApps = new AppRegistry();
   const globalConfig = {
     debug: false,
     slowThreshold: 2,
-    prefix: "hx-",
+    prefix: "h-",
     allowInlineExpressions: false,
     warnInlineExpressions: false,
     removeAttributeBindings: true,
     delimiters: ["{{", "}}"],
     rethrowErrors: true,
-    htmlSanitizer: null
+    htmlSanitizer: null,
+    htmxIntegration: false,
+    autoInjectCloak: true
   };
   Object.seal(globalConfig);
   function queueJob(job, priority = 0) {
@@ -43,8 +142,9 @@
   }
   function queueIdleJob(job) {
     idleQueue.push(job);
-    if (idleCallbackId === null && typeof requestIdleCallback !== "undefined") {
-      const cbId = requestIdleCallback(() => {
+    if (idleCallbackId === null) {
+      const scheduleIdle = typeof requestIdleCallback !== "undefined" ? (fn) => requestIdleCallback(fn, { timeout: 2e3 }) : (fn) => setTimeout(fn, 0);
+      const cbId = scheduleIdle(() => {
         setIdleCallbackId(null);
         while (idleQueue.length) {
           const idleJob = idleQueue.shift();
@@ -54,7 +154,7 @@
             handleError(e, "idle job");
           }
         }
-      }, { timeout: 2e3 });
+      });
       setIdleCallbackId(cbId);
     }
   }
@@ -192,11 +292,30 @@
   }
   batch.high = (fn) => batch(fn, { priority: 10 });
   batch.low = (fn) => batch(fn, { priority: -10 });
+  const trackStack = [];
   function pauseTracking() {
+    trackStack.push(shouldTrack);
     setShouldTrack(false);
   }
-  function resumeTracking() {
+  function enableTracking() {
+    trackStack.push(shouldTrack);
     setShouldTrack(true);
+  }
+  function resetTracking() {
+    const last = trackStack.pop();
+    setShouldTrack(last === void 0 ? true : last);
+  }
+  function resumeTracking() {
+    trackStack.length = 0;
+    setShouldTrack(true);
+  }
+  function untrack(fn) {
+    pauseTracking();
+    try {
+      return fn();
+    } finally {
+      resetTracking();
+    }
   }
   function track(target, key) {
     if (!activeEffect || !shouldTrack)
@@ -939,16 +1058,663 @@
     };
     return bus;
   }
+  const arrayInstrumentations = {};
+  ["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill", "copyWithin"].forEach((method) => {
+    arrayInstrumentations[method] = function(...args) {
+      pauseTracking();
+      const res = Array.prototype[method].apply(this[RAW], args);
+      resumeTracking();
+      const depsMap = targetMap.get(this[RAW]);
+      if (depsMap && depsMap.has("length")) {
+        trigger(this[RAW], "length");
+      }
+      trigger(this[RAW], "*");
+      return res;
+    };
+  });
+  const mapInstrumentations = {
+    get(key) {
+      const target = this[RAW];
+      const rawKey = toRaw(key);
+      track(target, rawKey);
+      const res = target.get(rawKey);
+      if (this[IS_READONLY]) {
+        return typeof res === "object" && res !== null && !isRaw(res) ? readonly(res) : res;
+      }
+      if (this[IS_SHALLOW]) {
+        return res;
+      }
+      return typeof res === "object" && res !== null && !isRaw(res) ? reactive(res) : res;
+    },
+    has(key) {
+      const target = this[RAW];
+      const rawKey = toRaw(key);
+      track(target, rawKey);
+      return target.has(rawKey);
+    },
+    set(key, value) {
+      if (this[IS_READONLY]) {
+        warn(`[Helix] Set operation on readonly Map failed.`, "reactive");
+        return this;
+      }
+      const target = this[RAW];
+      const rawKey = toRaw(key);
+      const rawValue = toRaw(value);
+      const hadKey = target.has(rawKey);
+      const oldValue = target.get(rawKey);
+      target.set(rawKey, rawValue);
+      if (!hadKey) {
+        trigger(target, rawKey);
+        trigger(target, "size");
+        trigger(target, "*");
+      } else if (oldValue !== rawValue) {
+        trigger(target, rawKey);
+        trigger(target, "*");
+      }
+      return this;
+    },
+    delete(key) {
+      if (this[IS_READONLY]) {
+        warn(`[Helix] Delete operation on readonly Map failed.`, "reactive");
+        return false;
+      }
+      const target = this[RAW];
+      const rawKey = toRaw(key);
+      const hadKey = target.has(rawKey);
+      const res = target.delete(rawKey);
+      if (hadKey) {
+        trigger(target, rawKey);
+        trigger(target, "size");
+        trigger(target, "*");
+      }
+      return res;
+    },
+    clear() {
+      if (this[IS_READONLY]) {
+        warn(`[Helix] Clear operation on readonly Map failed.`, "reactive");
+        return;
+      }
+      const target = this[RAW];
+      const hadEntries = target.size > 0;
+      const oldKeys = Array.from(target.keys());
+      target.clear();
+      if (hadEntries) {
+        trigger(target, "size");
+        trigger(target, "*");
+        oldKeys.forEach((k) => trigger(target, k));
+      }
+    },
+    forEach(callback, thisArg) {
+      const target = this[RAW];
+      const isReadonly2 = this[IS_READONLY];
+      const isShallow2 = this[IS_SHALLOW];
+      track(target, "*");
+      target.forEach((val, key) => {
+        const wrappedVal = isReadonly2 ? typeof val === "object" && val !== null && !isRaw(val) ? readonly(val) : val : isShallow2 ? val : typeof val === "object" && val !== null && !isRaw(val) ? reactive(val) : val;
+        callback.call(thisArg, wrappedVal, key, this);
+      });
+    },
+    keys() {
+      const target = this[RAW];
+      track(target, "*");
+      return target.keys();
+    },
+    values() {
+      const target = this[RAW];
+      const isReadonly2 = this[IS_READONLY];
+      const isShallow2 = this[IS_SHALLOW];
+      track(target, "*");
+      const iterator = target.values();
+      return {
+        next() {
+          const { value, done } = iterator.next();
+          if (done)
+            return { value: void 0, done: true };
+          const wrapped = isReadonly2 ? typeof value === "object" && value !== null && !isRaw(value) ? readonly(value) : value : isShallow2 ? value : typeof value === "object" && value !== null && !isRaw(value) ? reactive(value) : value;
+          return { value: wrapped, done: false };
+        },
+        [Symbol.iterator]() {
+          return this;
+        }
+      };
+    },
+    entries() {
+      const target = this[RAW];
+      const isReadonly2 = this[IS_READONLY];
+      const isShallow2 = this[IS_SHALLOW];
+      track(target, "*");
+      const iterator = target.entries();
+      return {
+        next() {
+          const { value, done } = iterator.next();
+          if (done)
+            return { value: void 0, done: true };
+          const [k, v] = value;
+          const wrappedV = isReadonly2 ? typeof v === "object" && v !== null && !isRaw(v) ? readonly(v) : v : isShallow2 ? v : typeof v === "object" && v !== null && !isRaw(v) ? reactive(v) : v;
+          return { value: [k, wrappedV], done: false };
+        },
+        [Symbol.iterator]() {
+          return this;
+        }
+      };
+    },
+    [Symbol.iterator]() {
+      return mapInstrumentations.entries.call(this);
+    }
+  };
+  const setInstrumentations = {
+    has(value) {
+      const target = this[RAW];
+      const rawVal = toRaw(value);
+      track(target, rawVal);
+      return target.has(rawVal);
+    },
+    add(value) {
+      if (this[IS_READONLY]) {
+        warn(`[Helix] Add operation on readonly Set failed.`, "reactive");
+        return this;
+      }
+      const target = this[RAW];
+      const rawVal = toRaw(value);
+      const hadVal = target.has(rawVal);
+      if (!hadVal) {
+        target.add(rawVal);
+        trigger(target, rawVal);
+        trigger(target, "size");
+        trigger(target, "*");
+      }
+      return this;
+    },
+    delete(value) {
+      if (this[IS_READONLY]) {
+        warn(`[Helix] Delete operation on readonly Set failed.`, "reactive");
+        return false;
+      }
+      const target = this[RAW];
+      const rawVal = toRaw(value);
+      const hadVal = target.has(rawVal);
+      const res = target.delete(rawVal);
+      if (hadVal) {
+        trigger(target, rawVal);
+        trigger(target, "size");
+        trigger(target, "*");
+      }
+      return res;
+    },
+    clear() {
+      if (this[IS_READONLY]) {
+        warn(`[Helix] Clear operation on readonly Set failed.`, "reactive");
+        return;
+      }
+      const target = this[RAW];
+      const hadEntries = target.size > 0;
+      const oldValues = Array.from(target.values());
+      target.clear();
+      if (hadEntries) {
+        trigger(target, "size");
+        trigger(target, "*");
+        oldValues.forEach((v) => trigger(target, v));
+      }
+    },
+    forEach(callback, thisArg) {
+      const target = this[RAW];
+      const isReadonly2 = this[IS_READONLY];
+      const isShallow2 = this[IS_SHALLOW];
+      track(target, "*");
+      target.forEach((val) => {
+        const wrapped = isReadonly2 ? typeof val === "object" && val !== null && !isRaw(val) ? readonly(val) : val : isShallow2 ? val : typeof val === "object" && val !== null && !isRaw(val) ? reactive(val) : val;
+        callback.call(thisArg, wrapped, wrapped, this);
+      });
+    },
+    values() {
+      const target = this[RAW];
+      const isReadonly2 = this[IS_READONLY];
+      const isShallow2 = this[IS_SHALLOW];
+      track(target, "*");
+      const iterator = target.values();
+      return {
+        next() {
+          const { value, done } = iterator.next();
+          if (done)
+            return { value: void 0, done: true };
+          const wrapped = isReadonly2 ? typeof value === "object" && value !== null && !isRaw(value) ? readonly(value) : value : isShallow2 ? value : typeof value === "object" && value !== null && !isRaw(value) ? reactive(value) : value;
+          return { value: wrapped, done: false };
+        },
+        [Symbol.iterator]() {
+          return this;
+        }
+      };
+    },
+    keys() {
+      return setInstrumentations.values.call(this);
+    },
+    entries() {
+      const target = this[RAW];
+      const isReadonly2 = this[IS_READONLY];
+      const isShallow2 = this[IS_SHALLOW];
+      track(target, "*");
+      const iterator = target.entries();
+      return {
+        next() {
+          const { value, done } = iterator.next();
+          if (done)
+            return { value: void 0, done: true };
+          const [k, v] = value;
+          const wrapped = isReadonly2 ? typeof v === "object" && v !== null && !isRaw(v) ? readonly(v) : v : isShallow2 ? v : typeof v === "object" && v !== null && !isRaw(v) ? reactive(v) : v;
+          return { value: [wrapped, wrapped], done: false };
+        },
+        [Symbol.iterator]() {
+          return this;
+        }
+      };
+    },
+    [Symbol.iterator]() {
+      return setInstrumentations.values.call(this);
+    }
+  };
+  const dateMutators = [
+    "setTime",
+    "setFullYear",
+    "setMonth",
+    "setDate",
+    "setHours",
+    "setMinutes",
+    "setSeconds",
+    "setMilliseconds",
+    "setUTCFullYear",
+    "setUTCMonth",
+    "setUTCDate",
+    "setUTCHours",
+    "setUTCMinutes",
+    "setUTCSeconds",
+    "setUTCMilliseconds"
+  ];
+  const dateGetters = [
+    "getTime",
+    "getFullYear",
+    "getMonth",
+    "getDate",
+    "getDay",
+    "getHours",
+    "getMinutes",
+    "getSeconds",
+    "getMilliseconds",
+    "getTimezoneOffset",
+    "getUTCFullYear",
+    "getUTCMonth",
+    "getUTCDate",
+    "getUTCDay",
+    "getUTCHours",
+    "getUTCMinutes",
+    "getUTCSeconds",
+    "getUTCMilliseconds",
+    "toISOString",
+    "toUTCString",
+    "toDateString",
+    "toTimeString",
+    "toLocaleDateString",
+    "toLocaleTimeString",
+    "toLocaleString",
+    "toString",
+    "valueOf",
+    "toJSON"
+  ];
+  const dateInstrumentations = {};
+  dateMutators.forEach((method) => {
+    dateInstrumentations[method] = function(...args) {
+      if (this[IS_READONLY]) {
+        warn(`[Helix] Mutation operation on readonly Date failed: ${method}`, "reactive");
+        return this[RAW].getTime();
+      }
+      const target = this[RAW];
+      const res = target[method].apply(target, args);
+      trigger(target, "*");
+      trigger(target, "getTime");
+      trigger(target, "value");
+      return res;
+    };
+  });
+  dateGetters.forEach((method) => {
+    dateInstrumentations[method] = function(...args) {
+      const target = this[RAW];
+      track(target, "*");
+      track(target, "getTime");
+      return target[method].apply(target, args);
+    };
+  });
+  const hasDOM = typeof Node !== "undefined";
+  function isRaw(value) {
+    if (!value || typeof value !== "object")
+      return false;
+    if (value[SKIP])
+      return true;
+    const ctorName = value.constructor ? value.constructor.name : "";
+    if (ctorName === "EffectScope" || ctorName === "WeakSet" || ctorName === "WeakMap" || ctorName === "RegExp" || ctorName === "Promise" || value instanceof WeakSet || value instanceof WeakMap || value instanceof RegExp || value instanceof Promise || value instanceof EffectScope) {
+      return true;
+    }
+    if (!hasDOM)
+      return false;
+    return value instanceof Node || value instanceof Event || value instanceof NodeList || value instanceof HTMLCollection || value instanceof DOMTokenList || value instanceof Window || value instanceof Document || value instanceof CSSStyleDeclaration;
+  }
+  const boundMethodCache = /* @__PURE__ */ new WeakMap();
+  function getBoundMethod(fn, receiver) {
+    let methodMap = boundMethodCache.get(receiver);
+    if (!methodMap) {
+      methodMap = /* @__PURE__ */ new WeakMap();
+      boundMethodCache.set(receiver, methodMap);
+    }
+    let bound = methodMap.get(fn);
+    if (!bound) {
+      bound = fn.bind(receiver);
+      methodMap.set(fn, bound);
+    }
+    return bound;
+  }
+  function reactive(target) {
+    if (typeof target !== "object" || target === null)
+      return target;
+    if (isRaw(target))
+      return target;
+    if (target[IS_READONLY])
+      return target;
+    if (target[IS_REACTIVE])
+      return target;
+    if (target[SKIP])
+      return target;
+    if (reactiveMap.has(target))
+      return reactiveMap.get(target);
+    const isMapTarget = target instanceof Map;
+    const isSetTarget = target instanceof Set;
+    const isDateTarget = target instanceof Date;
+    const proxy = new Proxy(target, {
+      get(obj, key, receiver) {
+        if (key === RAW)
+          return obj;
+        if (key === IS_REACTIVE)
+          return true;
+        if (key === IS_READONLY)
+          return false;
+        if (Array.isArray(obj) && arrayInstrumentations.hasOwnProperty(key)) {
+          return Reflect.get(arrayInstrumentations, key, receiver);
+        }
+        if (isMapTarget) {
+          if (key === "size") {
+            track(obj, "size");
+            track(obj, "*");
+            return obj.size;
+          }
+          if (mapInstrumentations.hasOwnProperty(key)) {
+            return Reflect.get(mapInstrumentations, key, receiver);
+          }
+        }
+        if (isSetTarget) {
+          if (key === "size") {
+            track(obj, "size");
+            track(obj, "*");
+            return obj.size;
+          }
+          if (setInstrumentations.hasOwnProperty(key)) {
+            return Reflect.get(setInstrumentations, key, receiver);
+          }
+        }
+        if (isDateTarget && dateInstrumentations.hasOwnProperty(key)) {
+          return Reflect.get(dateInstrumentations, key, receiver);
+        }
+        const res = Reflect.get(obj, key, receiver);
+        if (typeof res === "function") {
+          const isBuiltin = obj instanceof WeakSet || obj instanceof WeakMap || obj instanceof RegExp || obj.constructor && obj.constructor.name === "EffectScope";
+          const bindTarget = isBuiltin ? obj : receiver;
+          return getBoundMethod(res, bindTarget);
+        }
+        track(obj, key);
+        if (Array.isArray(obj))
+          track(obj, "*");
+        return typeof res === "object" && res !== null && !isRaw(res) ? reactive(res) : res;
+      },
+      set(obj, key, value, receiver) {
+        const oldValue = obj[key];
+        const res = Reflect.set(obj, key, value, receiver);
+        if (oldValue !== value || Array.isArray(obj) && key === "length") {
+          trigger(obj, key);
+          if (Array.isArray(obj))
+            trigger(obj, "*");
+        }
+        return res;
+      }
+    });
+    reactiveMap.set(target, proxy);
+    return proxy;
+  }
+  function shallowReactive(target) {
+    if (typeof target !== "object" || target === null)
+      return target;
+    if (isRaw(target))
+      return target;
+    if (target[IS_READONLY])
+      return target;
+    if (target[IS_REACTIVE])
+      return target;
+    if (target[SKIP])
+      return target;
+    const isMapTarget = target instanceof Map;
+    const isSetTarget = target instanceof Set;
+    const isDateTarget = target instanceof Date;
+    return new Proxy(target, {
+      get(obj, key, receiver) {
+        if (key === RAW)
+          return obj;
+        if (key === IS_REACTIVE)
+          return true;
+        if (key === IS_READONLY)
+          return false;
+        if (key === IS_SHALLOW)
+          return true;
+        if (Array.isArray(obj) && arrayInstrumentations.hasOwnProperty(key)) {
+          return Reflect.get(arrayInstrumentations, key, receiver);
+        }
+        if (isMapTarget) {
+          if (key === "size") {
+            track(obj, "size");
+            track(obj, "*");
+            return obj.size;
+          }
+          if (mapInstrumentations.hasOwnProperty(key)) {
+            return Reflect.get(mapInstrumentations, key, receiver);
+          }
+        }
+        if (isSetTarget) {
+          if (key === "size") {
+            track(obj, "size");
+            track(obj, "*");
+            return obj.size;
+          }
+          if (setInstrumentations.hasOwnProperty(key)) {
+            return Reflect.get(setInstrumentations, key, receiver);
+          }
+        }
+        if (isDateTarget && dateInstrumentations.hasOwnProperty(key)) {
+          return Reflect.get(dateInstrumentations, key, receiver);
+        }
+        track(obj, key);
+        if (Array.isArray(obj))
+          track(obj, "*");
+        return Reflect.get(obj, key, receiver);
+      },
+      set(obj, key, value, receiver) {
+        const oldValue = obj[key];
+        const res = Reflect.set(obj, key, value, receiver);
+        if (oldValue !== value || Array.isArray(obj) && key === "length") {
+          trigger(obj, key);
+          if (Array.isArray(obj))
+            trigger(obj, "*");
+        }
+        return res;
+      }
+    });
+  }
+  function readonly(target) {
+    if (typeof target !== "object" || target === null)
+      return target;
+    if (isRaw(target))
+      return target;
+    if (target[IS_READONLY])
+      return target;
+    if (target[IS_REACTIVE])
+      target = target[RAW];
+    if (readonlyMap.has(target))
+      return readonlyMap.get(target);
+    const isMapTarget = target instanceof Map;
+    const isSetTarget = target instanceof Set;
+    const isDateTarget = target instanceof Date;
+    const proxy = new Proxy(target, {
+      get(obj, key, receiver) {
+        if (key === RAW)
+          return obj;
+        if (key === IS_REACTIVE)
+          return false;
+        if (key === IS_READONLY)
+          return true;
+        if (isMapTarget) {
+          if (key === "size") {
+            track(obj, "size");
+            track(obj, "*");
+            return obj.size;
+          }
+          if (mapInstrumentations.hasOwnProperty(key)) {
+            return Reflect.get(mapInstrumentations, key, receiver);
+          }
+        }
+        if (isSetTarget) {
+          if (key === "size") {
+            track(obj, "size");
+            track(obj, "*");
+            return obj.size;
+          }
+          if (setInstrumentations.hasOwnProperty(key)) {
+            return Reflect.get(setInstrumentations, key, receiver);
+          }
+        }
+        if (isDateTarget && dateInstrumentations.hasOwnProperty(key)) {
+          return Reflect.get(dateInstrumentations, key, receiver);
+        }
+        const res = Reflect.get(obj, key, receiver);
+        if (typeof res === "function") {
+          const bindTarget = obj instanceof WeakSet || obj instanceof WeakMap || obj instanceof RegExp ? obj : receiver;
+          return getBoundMethod(res, bindTarget);
+        }
+        return typeof res === "object" && res !== null && !isRaw(res) ? readonly(res) : res;
+      },
+      set() {
+        warn(`[Helix] Set operation on readonly target failed.`, "reactive");
+        return true;
+      },
+      deleteProperty() {
+        warn(`[Helix] Delete operation on readonly target failed.`, "reactive");
+        return true;
+      }
+    });
+    readonlyMap.set(target, proxy);
+    return proxy;
+  }
+  function shallowReadonly(target) {
+    if (typeof target !== "object" || target === null)
+      return target;
+    if (isRaw(target))
+      return target;
+    if (target[IS_READONLY])
+      return target;
+    const isMapTarget = target instanceof Map;
+    const isSetTarget = target instanceof Set;
+    const isDateTarget = target instanceof Date;
+    return new Proxy(target, {
+      get(obj, key, receiver) {
+        if (key === RAW)
+          return obj;
+        if (key === IS_REACTIVE)
+          return false;
+        if (key === IS_READONLY)
+          return true;
+        if (key === IS_SHALLOW)
+          return true;
+        if (isMapTarget) {
+          if (key === "size") {
+            track(obj, "size");
+            track(obj, "*");
+            return obj.size;
+          }
+          if (mapInstrumentations.hasOwnProperty(key)) {
+            return Reflect.get(mapInstrumentations, key, receiver);
+          }
+        }
+        if (isSetTarget) {
+          if (key === "size") {
+            track(obj, "size");
+            track(obj, "*");
+            return obj.size;
+          }
+          if (setInstrumentations.hasOwnProperty(key)) {
+            return Reflect.get(setInstrumentations, key, receiver);
+          }
+        }
+        if (isDateTarget && dateInstrumentations.hasOwnProperty(key)) {
+          return Reflect.get(dateInstrumentations, key, receiver);
+        }
+        const res = Reflect.get(obj, key, receiver);
+        if (typeof res === "function") {
+          const bindTarget = obj instanceof WeakSet || obj instanceof WeakMap || obj instanceof RegExp ? obj : receiver;
+          return getBoundMethod(res, bindTarget);
+        }
+        return res;
+      },
+      set() {
+        warn(`[Helix] Set operation on shallowReadonly target failed.`, "reactive");
+        return true;
+      },
+      deleteProperty() {
+        warn(`[Helix] Delete operation on shallowReadonly target failed.`, "reactive");
+        return true;
+      }
+    });
+  }
+  function markRaw(value) {
+    if (typeof value === "object" && value !== null) {
+      Object.defineProperty(value, SKIP, { value: true, configurable: true, enumerable: false, writable: false });
+    }
+    return value;
+  }
+  function toRaw(observed) {
+    return observed && observed[RAW] ? observed[RAW] : observed;
+  }
+  function isProxy(value) {
+    return !!(value && (value[IS_REACTIVE] || value[IS_READONLY]));
+  }
+  function isReactive(value) {
+    if (isReadonly(value)) {
+      return isReactive(value[RAW]);
+    }
+    return !!(value && value[IS_REACTIVE]);
+  }
+  function isReadonly(value) {
+    return !!(value && value[IS_READONLY]);
+  }
+  function isShallow(value) {
+    return !!(value && value[IS_SHALLOW] === true);
+  }
+  function toReactive(val) {
+    return typeof val === "object" && val !== null ? reactive(val) : val;
+  }
   function ref(value) {
+    let _val = toReactive(value);
     const refObj = {};
     Object.defineProperty(refObj, "value", {
       get() {
         track(refObj, "value");
-        return value;
+        return _val;
       },
       set(newVal) {
         if (value !== newVal) {
           value = newVal;
+          _val = toReactive(newVal);
           trigger(refObj, "value");
         }
       }
@@ -958,36 +1724,21 @@
     return refObj;
   }
   function customRef(factory) {
-    let value;
-    let _track;
-    let _trigger;
     const refObj = {};
+    const { get, set } = factory(
+      () => track(refObj, "value"),
+      () => trigger(refObj, "value")
+    );
     Object.defineProperty(refObj, "value", {
       get() {
-        _track();
-        return value;
+        return get();
       },
       set(newVal) {
-        if (value !== newVal) {
-          value = newVal;
-          _trigger();
-        }
+        set(newVal);
       }
     });
     refObj[IS_REF] = true;
     refObj[RAW] = refObj;
-    const { track: trackFn, trigger: triggerFn } = factory(
-      () => {
-        if (_track)
-          _track();
-      },
-      () => {
-        if (_trigger)
-          _trigger();
-      }
-    );
-    _track = trackFn;
-    _trigger = triggerFn;
     return refObj;
   }
   function shallowRef(value) {
@@ -1291,224 +2042,16 @@
         Array.from(slotEl.childNodes).forEach((child) => bindNode(child, parentCtx, instance));
       }
     });
-  }
-  const arrayInstrumentations = {};
-  ["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill", "copyWithin"].forEach((method) => {
-    arrayInstrumentations[method] = function(...args) {
-      pauseTracking();
-      const res = Array.prototype[method].apply(this[RAW], args);
-      resumeTracking();
-      const depsMap = targetMap.get(this[RAW]);
-      if (depsMap && depsMap.has("length")) {
-        trigger(this[RAW], "length");
-      }
-      trigger(this[RAW], "*");
-      return res;
-    };
-  });
-  const hasDOM = typeof Node !== "undefined";
-  function isRaw(value) {
-    if (!value || typeof value !== "object")
-      return false;
-    if (value[SKIP])
-      return true;
-    const ctorName = value.constructor ? value.constructor.name : "";
-    if (ctorName === "EffectScope" || ctorName === "Set" || ctorName === "Map" || ctorName === "WeakSet" || ctorName === "WeakMap" || ctorName === "Date" || ctorName === "RegExp" || ctorName === "Promise" || value instanceof Set || value instanceof Map || value instanceof WeakSet || value instanceof WeakMap || value instanceof Date || value instanceof RegExp || value instanceof Promise || value instanceof EffectScope) {
-      return true;
-    }
-    if (!hasDOM)
-      return false;
-    return value instanceof Node || value instanceof Event || value instanceof NodeList || value instanceof HTMLCollection || value instanceof DOMTokenList || value instanceof Window || value instanceof Document || value instanceof CSSStyleDeclaration;
-  }
-  const boundMethodCache = /* @__PURE__ */ new WeakMap();
-  function getBoundMethod(fn, receiver) {
-    let methodMap = boundMethodCache.get(receiver);
-    if (!methodMap) {
-      methodMap = /* @__PURE__ */ new WeakMap();
-      boundMethodCache.set(receiver, methodMap);
-    }
-    let bound = methodMap.get(fn);
-    if (!bound) {
-      bound = fn.bind(receiver);
-      methodMap.set(fn, bound);
-    }
-    return bound;
-  }
-  function reactive(target) {
-    if (typeof target !== "object" || target === null)
-      return target;
-    if (isRaw(target))
-      return target;
-    if (target[IS_READONLY])
-      return target;
-    if (target[IS_REACTIVE])
-      return target;
-    if (target[SKIP])
-      return target;
-    if (reactiveMap.has(target))
-      return reactiveMap.get(target);
-    const proxy = new Proxy(target, {
-      get(obj, key, receiver) {
-        if (key === RAW)
-          return obj;
-        if (key === IS_REACTIVE)
-          return true;
-        if (key === IS_READONLY)
-          return false;
-        if (Array.isArray(obj) && arrayInstrumentations.hasOwnProperty(key)) {
-          return Reflect.get(arrayInstrumentations, key, receiver);
-        }
-        const res = Reflect.get(obj, key, receiver);
-        if (typeof res === "function") {
-          const isBuiltin = obj instanceof Set || obj instanceof Map || obj instanceof WeakSet || obj instanceof WeakMap || obj instanceof Date || obj instanceof RegExp || obj.constructor && obj.constructor.name === "EffectScope";
-          const bindTarget = isBuiltin ? obj : receiver;
-          return getBoundMethod(res, bindTarget);
-        }
-        track(obj, key);
-        if (Array.isArray(obj))
-          track(obj, "*");
-        return typeof res === "object" && res !== null && !isRaw(res) ? reactive(res) : res;
-      },
-      set(obj, key, value, receiver) {
-        const oldValue = obj[key];
-        const res = Reflect.set(obj, key, value, receiver);
-        if (oldValue !== value || Array.isArray(obj) && key === "length") {
-          trigger(obj, key);
-          if (Array.isArray(obj))
-            trigger(obj, "*");
-        }
-        return res;
+    const nestedTemplates = templateEl.querySelectorAll("template");
+    nestedTemplates.forEach((tpl) => {
+      if (tpl.content) {
+        renderSlots(slotOutlets, tpl.content, parentCtx, instance, bindNode);
       }
     });
-    reactiveMap.set(target, proxy);
-    return proxy;
-  }
-  function shallowReactive(target) {
-    if (typeof target !== "object" || target === null)
-      return target;
-    if (isRaw(target))
-      return target;
-    if (target[IS_READONLY])
-      return target;
-    if (target[IS_REACTIVE])
-      return target;
-    if (target[SKIP])
-      return target;
-    return new Proxy(target, {
-      get(obj, key, receiver) {
-        if (key === RAW)
-          return obj;
-        if (key === IS_REACTIVE)
-          return true;
-        if (key === IS_READONLY)
-          return false;
-        if (Array.isArray(obj) && arrayInstrumentations.hasOwnProperty(key)) {
-          return Reflect.get(arrayInstrumentations, key, receiver);
-        }
-        track(obj, key);
-        if (Array.isArray(obj))
-          track(obj, "*");
-        return Reflect.get(obj, key, receiver);
-      },
-      set(obj, key, value, receiver) {
-        const oldValue = obj[key];
-        const res = Reflect.set(obj, key, value, receiver);
-        if (oldValue !== value || Array.isArray(obj) && key === "length") {
-          trigger(obj, key);
-          if (Array.isArray(obj))
-            trigger(obj, "*");
-        }
-        return res;
-      }
-    });
-  }
-  function readonly(target) {
-    if (typeof target !== "object" || target === null)
-      return target;
-    if (isRaw(target))
-      return target;
-    if (target[IS_READONLY])
-      return target;
-    if (target[IS_REACTIVE])
-      target = target[RAW];
-    if (readonlyMap.has(target))
-      return readonlyMap.get(target);
-    const proxy = new Proxy(target, {
-      get(obj, key, receiver) {
-        if (key === RAW)
-          return obj;
-        if (key === IS_REACTIVE)
-          return false;
-        if (key === IS_READONLY)
-          return true;
-        const res = Reflect.get(obj, key, receiver);
-        if (typeof res === "function") {
-          const bindTarget = obj instanceof Set || obj instanceof Map || obj instanceof WeakSet || obj instanceof WeakMap || obj instanceof Date || obj instanceof RegExp ? obj : receiver;
-          return getBoundMethod(res, bindTarget);
-        }
-        return typeof res === "object" && res !== null && !isRaw(res) ? readonly(res) : res;
-      },
-      set() {
-        warn(`[Helix] Set operation on readonly target failed.`, "reactive");
-        return true;
-      },
-      deleteProperty() {
-        warn(`[Helix] Delete operation on readonly target failed.`, "reactive");
-        return true;
-      }
-    });
-    readonlyMap.set(target, proxy);
-    return proxy;
-  }
-  function shallowReadonly(target) {
-    if (typeof target !== "object" || target === null)
-      return target;
-    if (isRaw(target))
-      return target;
-    if (target[IS_READONLY])
-      return target;
-    return new Proxy(target, {
-      get(obj, key, receiver) {
-        if (key === RAW)
-          return obj;
-        if (key === IS_REACTIVE)
-          return false;
-        if (key === IS_READONLY)
-          return true;
-        const res = Reflect.get(obj, key, receiver);
-        if (typeof res === "function") {
-          const bindTarget = obj instanceof Set || obj instanceof Map || obj instanceof WeakSet || obj instanceof WeakMap || obj instanceof Date || obj instanceof RegExp ? obj : receiver;
-          return getBoundMethod(res, bindTarget);
-        }
-        return res;
-      },
-      set() {
-        warn(`[Helix] Set operation on shallowReadonly target failed.`, "reactive");
-        return true;
-      },
-      deleteProperty() {
-        warn(`[Helix] Delete operation on shallowReadonly target failed.`, "reactive");
-        return true;
-      }
-    });
-  }
-  function markRaw(value) {
-    if (typeof value === "object" && value !== null) {
-      Object.defineProperty(value, SKIP, { value: true, configurable: true, enumerable: false, writable: false });
-    }
-    return value;
-  }
-  function toRaw(observed) {
-    return observed && observed[RAW] ? observed[RAW] : observed;
-  }
-  function isProxy(value) {
-    return !!(value && (value[IS_REACTIVE] || value[IS_READONLY]));
-  }
-  function isShallow(value) {
-    return !!(value && value[IS_SHALLOW] === true);
   }
   function watch(source, cb, options = {}) {
-    const { deep = false, immediate = false, flush = "pre", once = false } = options;
+    const isReactiveSource = isReactive(source);
+    const { deep = isReactiveSource, immediate = false, flush = "pre", once = false } = options;
     const isArraySource = Array.isArray(source);
     let getter;
     if (isArraySource) {
@@ -1517,14 +2060,14 @@
           return s.value;
         if (typeof s === "function")
           return s();
-        return deep ? traverse(s) : s;
+        return deep || isReactive(s) ? traverse(s) : s;
       });
     } else if (isRef(source)) {
       getter = () => deep ? traverse(source.value) : source.value;
     } else if (typeof source === "function") {
       getter = deep ? () => traverse(source()) : source;
     } else {
-      getter = deep ? () => traverse(source) : () => source;
+      getter = deep || isReactiveSource ? () => traverse(source) : () => source;
     }
     let oldVal;
     let isStopped = false;
@@ -1750,6 +2293,25 @@
     if (currentInstance)
       currentInstance.hooks.updated.push(fn);
   }
+  function queueComponentUpdated(instance) {
+    if (!instance || !instance.hooks || !instance.hooks.updated || instance.hooks.updated.length === 0)
+      return;
+    if (!instance._isUpdatedQueued) {
+      instance._isUpdatedQueued = true;
+      queuePostFlushCb(() => {
+        instance._isUpdatedQueued = false;
+        if (instance && instance.hooks && instance.hooks.updated) {
+          instance.hooks.updated.forEach((fn) => {
+            try {
+              fn();
+            } catch (e) {
+              handleError(e, "component onUpdated", instance);
+            }
+          });
+        }
+      });
+    }
+  }
   function provide(key, value) {
     if (!currentInstance)
       return;
@@ -1868,32 +2430,49 @@
     });
     marker.remove();
     const cleanupFns = [];
+    let initialRan = false;
     textNodes.forEach(({ node: textNode, expr }) => {
       const updateFn = () => {
         const res = resolveExpression(expr, ctx, { fallback: "", contextName: "text-interpolation" });
         const newText = typeof res === "object" && res !== null ? JSON.stringify(res) : res ?? "";
         if (textNode.textContent !== newText) {
           textNode.textContent = newText;
+          if (initialRan && instance) {
+            queueComponentUpdated(instance);
+          }
         }
       };
       const e = effect(updateFn, { name: `interpolation: ${expr}`, area: "compiler" });
       cleanupFns.push(() => cleanup(e));
     });
+    initialRan = true;
     if (!parent.__hx_cleanup) {
       parent.__hx_cleanup = [];
     }
     cleanupFns.forEach((fn) => parent.__hx_cleanup.push(fn));
-    cleanupFns.forEach((fn) => instance.cleanups.push(fn));
+    if (instance && instance.cleanups) {
+      cleanupFns.forEach((fn) => instance.cleanups.push(fn));
+    }
     return true;
   }
   function sanitizeHtml(html) {
     if (typeof html !== "string")
       return "";
+    let sanitized = html;
     if (typeof globalConfig.htmlSanitizer === "function") {
-      return globalConfig.htmlSanitizer(html);
+      try {
+        sanitized = globalConfig.htmlSanitizer(html);
+        if (typeof sanitized !== "string")
+          sanitized = "";
+      } catch (e) {
+        sanitized = "";
+      }
+    }
+    if (typeof document === "undefined") {
+      return sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "").replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "").replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "").replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, "").replace(/\s+on\w+\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]+)/gi, "").replace(/(?:href|src|xlink:href)\s*=\s*['"]?\s*javascript:[^'">\s]*/gi, "");
     }
     const tpl = document.createElement("template");
-    tpl.innerHTML = html.trim();
+    tpl.innerHTML = sanitized.trim();
     const dangerousSelectors = [
       "script",
       "iframe",
@@ -1986,21 +2565,31 @@
         const parent = parts.reduce((acc, part) => acc == null ? void 0 : acc[part], ctx);
         if (parent)
           parent[last] = el;
+        if (ctx && typeof ctx === "object") {
+          if (!ctx.$refs)
+            ctx.$refs = {};
+          ctx.$refs[value] = el;
+        }
       }
     };
     dirs.text = {
       mounted(el, binding) {
         this.updated(el, binding);
       },
-      updated(el, { value: val, ctx, trackCleanup }) {
+      updated(el, { value: val, ctx, instance, trackCleanup }) {
         el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.TEXT;
+        let initialRan = false;
         const updateFn = () => {
           const res = resolveExpression(val, ctx, { fallback: "", contextName: "hx-text" });
           const newText = typeof res === "object" && res !== null ? JSON.stringify(res) : res ?? "";
-          if (el.textContent !== newText)
+          if (el.textContent !== newText) {
             el.textContent = newText;
+            if (initialRan && instance)
+              queueComponentUpdated(instance);
+          }
         };
         const e = effect(updateFn, { name: `text: ${val}`, area: "directive" });
+        initialRan = true;
         trackCleanup(() => cleanup(e));
       }
     };
@@ -2008,14 +2597,19 @@
       mounted(el, binding) {
         this.updated(el, binding);
       },
-      updated(el, { value: val, ctx, trackCleanup }) {
+      updated(el, { value: val, ctx, instance, trackCleanup }) {
+        let initialRan = false;
         const updateFn = () => {
           const res = resolveExpression(val, ctx, { fallback: "", contextName: "hx-html" });
           const newHtml = sanitizeHtml(res || "");
-          if (el.innerHTML !== newHtml)
+          if (el.innerHTML !== newHtml) {
             el.innerHTML = newHtml;
+            if (initialRan && instance)
+              queueComponentUpdated(instance);
+          }
         };
         const e = effect(updateFn, { name: `html: ${val}`, area: "directive" });
+        initialRan = true;
         trackCleanup(() => cleanup(e));
       }
     };
@@ -2023,58 +2617,110 @@
       mounted(el, binding) {
         this.updated(el, binding);
       },
-      updated(el, { value: val, ctx, trackCleanup }) {
+      updated(el, { value: val, modifiers = [], ctx, instance, trackCleanup }) {
         const isCheck = el.type === "checkbox";
         const isRadio = el.type === "radio";
         const isSelect = el.tagName === "SELECT";
         const isSelectMultiple = isSelect && el.multiple;
-        const evtType = isCheck || isRadio || isSelect ? "change" : "input";
-        const handler = (e2) => {
+        const isLazy = modifiers.includes("lazy");
+        const isTrim = modifiers.includes("trim");
+        const isNumber = modifiers.includes("number") || el.type === "number";
+        let debounceTime = null;
+        const debounceMod = modifiers.find((m) => m === "debounce" || m.startsWith("debounce"));
+        if (debounceMod) {
+          const idx = modifiers.indexOf(debounceMod);
+          const nextMod = modifiers[idx + 1];
+          let ms = 250;
+          if (nextMod && /^\d+(ms)?$/.test(nextMod)) {
+            ms = parseInt(nextMod, 10);
+          } else if (debounceMod.includes("-") || debounceMod.includes(".")) {
+            const parts = debounceMod.split(/[-.]/);
+            if (parts[1] && /^\d+(ms)?$/.test(parts[1])) {
+              ms = parseInt(parts[1], 10);
+            }
+          }
+          debounceTime = ms;
+        }
+        const evtType = isCheck || isRadio || isSelect ? "change" : isLazy ? "change" : "input";
+        let debounceTimer = null;
+        const updateModel = (e2) => {
           const parts = getPathParts(val);
           const last = parts.pop();
           const parent = parts.reduce((acc, part) => acc == null ? void 0 : acc[part], ctx);
           if (parent) {
-            if (isCheck)
+            if (isCheck) {
               parent[last] = e2.target.checked;
-            else if (isRadio)
+            } else if (isRadio) {
               parent[last] = e2.target.value;
-            else if (isSelectMultiple) {
+            } else if (isSelectMultiple) {
               const selected = Array.from(e2.target.selectedOptions).map((opt) => opt.value);
               parent[last] = selected;
             } else {
-              const rawValue = e2.target.value;
-              if (el.type === "number") {
+              let rawValue = e2.target.value;
+              if (isTrim && typeof rawValue === "string") {
+                rawValue = rawValue.trim();
+              }
+              if (isNumber) {
                 const num = rawValue === "" ? "" : Number(rawValue);
                 parent[last] = Number.isNaN(num) ? rawValue : num;
-              } else
+              } else {
                 parent[last] = rawValue;
+              }
             }
           }
         };
+        const handler = (e2) => {
+          if (debounceTime !== null && evtType === "input") {
+            if (debounceTimer)
+              clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+              updateModel(e2);
+            }, debounceTime);
+          } else {
+            updateModel(e2);
+          }
+        };
         el.addEventListener(evtType, handler);
+        let initialRan = false;
         const updateFn = () => {
           const current = resolvePath(val, ctx);
+          let changed = false;
           if (isRadio) {
             const shouldCheck = current === el.value;
-            if (el.checked !== shouldCheck)
+            if (el.checked !== shouldCheck) {
               el.checked = shouldCheck;
+              changed = true;
+            }
           } else if (isCheck) {
             const shouldCheck = !!current;
-            if (el.checked !== shouldCheck)
+            if (el.checked !== shouldCheck) {
               el.checked = shouldCheck;
+              changed = true;
+            }
           } else if (isSelectMultiple) {
             const selectedValues = Array.isArray(current) ? current : [];
             Array.from(el.options).forEach((opt) => {
-              opt.selected = selectedValues.includes(opt.value);
+              const sel = selectedValues.includes(opt.value);
+              if (opt.selected !== sel) {
+                opt.selected = sel;
+                changed = true;
+              }
             });
           } else {
             const newValue = current ?? "";
-            if (el.value !== newValue)
+            if (el.value !== newValue) {
               el.value = newValue;
+              changed = true;
+            }
           }
+          if (changed && initialRan && instance)
+            queueComponentUpdated(instance);
         };
         const e = effect(updateFn, { name: `model: ${val}`, area: "directive" });
+        initialRan = true;
         trackCleanup(() => {
+          if (debounceTimer)
+            clearTimeout(debounceTimer);
           el.removeEventListener(evtType, handler);
           cleanup(e);
         });
@@ -2084,11 +2730,12 @@
       mounted(el, binding) {
         this.updated(el, binding);
       },
-      updated(el, { value: val, arg, ctx, trackCleanup }) {
+      updated(el, { value: val, arg, ctx, instance, trackCleanup }) {
         if (!arg)
           return;
         const trimmed = val.trim();
         const isObjectLiteral = trimmed.startsWith("{") && trimmed.endsWith("}") && trimmed.includes(":");
+        let initialRan = false;
         const updateFn = () => {
           let result;
           if (isObjectLiteral && (arg === "class" || arg === "style")) {
@@ -2137,14 +2784,38 @@
             if (el.getAttribute(arg) !== newValue)
               el.setAttribute(arg, newValue);
           }
+          if (initialRan && instance)
+            queueComponentUpdated(instance);
         };
         const e = effect(updateFn, { name: `bind: ${arg}`, area: "directive" });
+        initialRan = true;
         trackCleanup(() => cleanup(e));
       }
     };
     dirs.on = {
-      mounted(el, { value: val, arg, modifiers, ctx, trackCleanup }) {
+      mounted(el, { value: val, arg, modifiers = [], ctx, trackCleanup }) {
         const evtType = arg || "click";
+        const isWindow = modifiers.includes("window");
+        const isDocument = modifiers.includes("document");
+        const isOutside = modifiers.includes("outside");
+        const isPrevent = modifiers.includes("prevent");
+        const isStop = modifiers.includes("stop");
+        const isSelf = modifiers.includes("self");
+        const isOnce = modifiers.includes("once");
+        const isPassive = modifiers.includes("passive");
+        const isCapture = modifiers.includes("capture");
+        const keyModifiers = {
+          enter: ["Enter"],
+          escape: ["Escape", "Esc"],
+          esc: ["Escape", "Esc"],
+          tab: ["Tab"],
+          space: [" ", "Spacebar"],
+          up: ["ArrowUp", "Up"],
+          down: ["ArrowDown", "Down"],
+          left: ["ArrowLeft", "Left"],
+          right: ["ArrowRight", "Right"],
+          delete: ["Delete", "Backspace"]
+        };
         const parseArgs = (str) => {
           const args = [];
           if (!str)
@@ -2176,11 +2847,28 @@
             args.push(current.trim());
           return args;
         };
-        const handler = (e) => {
-          if (modifiers.includes("prevent"))
+        const executeHandler = (e) => {
+          if (isPrevent)
             e.preventDefault();
-          if (modifiers.includes("stop"))
+          if (isStop)
             e.stopPropagation();
+          if (isSelf && e.target !== el)
+            return;
+          if (modifiers.includes("ctrl") && !e.ctrlKey)
+            return;
+          if (modifiers.includes("alt") && !e.altKey)
+            return;
+          if (modifiers.includes("shift") && !e.shiftKey)
+            return;
+          if (modifiers.includes("meta") && !e.metaKey)
+            return;
+          for (const keyMod in keyModifiers) {
+            if (modifiers.includes(keyMod)) {
+              if (!e.key || !keyModifiers[keyMod].includes(e.key)) {
+                return;
+              }
+            }
+          }
           let targetFn;
           let args = [e];
           const trimmed = val.trim();
@@ -2228,59 +2916,109 @@
             warn(`Handler not found: ${val}`, "event");
           }
         };
-        el.addEventListener(evtType, handler);
-        trackCleanup(() => el.removeEventListener(evtType, handler));
+        if (isOutside) {
+          const outsideHandler = (e) => {
+            if (!el.contains(e.target) && el !== e.target) {
+              executeHandler(e);
+            }
+          };
+          if (typeof document !== "undefined") {
+            document.addEventListener("click", outsideHandler);
+            trackCleanup(() => document.removeEventListener("click", outsideHandler));
+          }
+          return;
+        }
+        const listenerTarget = isWindow && typeof window !== "undefined" ? window : isDocument && typeof document !== "undefined" ? document : el;
+        const listenerOpts = {
+          once: isOnce,
+          passive: isPassive,
+          capture: isCapture
+        };
+        listenerTarget.addEventListener(evtType, executeHandler, listenerOpts);
+        trackCleanup(() => listenerTarget.removeEventListener(evtType, executeHandler, listenerOpts));
       }
     };
     dirs.show = {
       mounted(el, binding) {
         this.updated(el, binding);
       },
-      updated(el, { value: val, ctx, trackCleanup }) {
+      updated(el, { value: val, ctx, instance, trackCleanup }) {
+        let initialRan = false;
         const updateFn = () => {
           const shouldShow = resolveExpression(val, ctx, { asBoolean: true, fallback: false, contextName: "v-show" });
           const newDisplay = shouldShow ? "" : "none";
-          if (el.style.display !== newDisplay)
+          if (el.style.display !== newDisplay) {
             el.style.display = newDisplay;
+            if (initialRan && instance)
+              queueComponentUpdated(instance);
+          }
         };
         const e = effect(updateFn, { name: `show: ${val}`, area: "directive" });
+        initialRan = true;
         trackCleanup(() => cleanup(e));
       }
     };
     dirs.if = {
-      mounted(el, { value: val, ctx, instance, trackCleanup, bindNode: bindNode2 }) {
-        const placeholder = document.createComment(` ${appConfig.prefix}if: ${val} `);
-        if (el.parentNode) {
-          el.parentNode.insertBefore(placeholder, el);
-          el.remove();
+      mounted(el, { value: val, branches, ctx, instance, trackCleanup, bindNode: bindNode2 }) {
+        const branchList = branches && branches.length > 0 ? branches : [{ el, exp: val, type: "if" }];
+        const placeholder = document.createComment(` ${appConfig.prefix}if-chain `);
+        const anchorEl = branchList[0].el || el;
+        if (anchorEl.parentNode) {
+          anchorEl.parentNode.insertBefore(placeholder, anchorEl);
         }
-        const template = el;
-        let nodes = [];
+        branchList.forEach((b) => {
+          if (b.el && b.el.parentNode) {
+            b.el.remove();
+          }
+        });
+        let currentBranchIndex = -1;
+        let activeNodes = [];
+        let initialRan = false;
         const e = effect(() => {
-          const isTrue = resolveExpression(val, ctx, { asBoolean: true, fallback: false, contextName: "v-if" });
-          if (isTrue && nodes.length === 0) {
-            if (template.tagName === "TEMPLATE" && template.content) {
-              const clone = template.content.cloneNode(true);
-              nodes = Array.from(clone.childNodes);
-              nodes.forEach((n) => bindNode2(n, ctx, instance, []));
-              if (placeholder.parentNode)
-                placeholder.parentNode.insertBefore(clone, placeholder);
-            } else {
-              const node = template.cloneNode(true);
-              bindNode2(node, ctx, instance, []);
-              if (placeholder.parentNode)
-                placeholder.parentNode.insertBefore(node, placeholder);
-              nodes = [node];
+          let matchedIndex = -1;
+          for (let i = 0; i < branchList.length; i++) {
+            const b = branchList[i];
+            if (b.type === "else") {
+              matchedIndex = i;
+              break;
             }
-          } else if (!isTrue && nodes.length > 0) {
-            nodes.forEach((n) => destroyNode(n));
-            nodes = [];
+            const isTrue = resolveExpression(b.exp, ctx, { asBoolean: true, fallback: false, contextName: `${appConfig.prefix}${b.type}` });
+            if (isTrue) {
+              matchedIndex = i;
+              break;
+            }
+          }
+          if (matchedIndex !== currentBranchIndex) {
+            if (activeNodes.length > 0) {
+              activeNodes.forEach((n) => destroyNode(n));
+              activeNodes = [];
+            }
+            currentBranchIndex = matchedIndex;
+            if (matchedIndex >= 0) {
+              const template = branchList[matchedIndex].el;
+              if (template.tagName === "TEMPLATE" && template.content) {
+                const clone = template.content.cloneNode(true);
+                activeNodes = Array.from(clone.childNodes);
+                activeNodes.forEach((n) => bindNode2(n, ctx, instance, []));
+                if (placeholder.parentNode)
+                  placeholder.parentNode.insertBefore(clone, placeholder);
+              } else {
+                const node = template.cloneNode(true);
+                bindNode2(node, ctx, instance, []);
+                if (placeholder.parentNode)
+                  placeholder.parentNode.insertBefore(node, placeholder);
+                activeNodes = [node];
+              }
+            }
+            if (initialRan && instance)
+              queueComponentUpdated(instance);
           }
         }, { name: `if: ${val}`, area: "directive" });
+        initialRan = true;
         trackCleanup(() => {
           cleanup(e);
-          nodes.forEach((n) => destroyNode(n));
-          nodes = [];
+          activeNodes.forEach((n) => destroyNode(n));
+          activeNodes = [];
           if (placeholder.parentNode)
             placeholder.parentNode.removeChild(placeholder);
         });
@@ -2288,33 +3026,111 @@
     };
     dirs.for = {
       mounted(el, { value: val, ctx, instance, trackCleanup, bindNode: bindNode2 }) {
-        const match = val.match(/^(?:(?:\(([^,]+),\s*([^)]+)\)|([^\s]+))\s+in\s+(.+))$/);
-        if (!match)
+        const forMatch = val.match(/^\s*(?:\(([^)]+)\)|([^\s]+))\s+in\s+(.+)$/);
+        if (!forMatch)
           return warn(`[for] Invalid syntax: ${val}`, "compiler");
-        const itemName = match[1] || match[3];
-        const indexName = match[2];
-        const listPath = match[4];
-        const templateTarget = el.tagName === "TEMPLATE" && el.content ? el.content.firstElementChild || el : el;
+        const args = forMatch[1] ? forMatch[1].split(",").map((s) => s.trim()).filter(Boolean) : [forMatch[2].trim()];
+        const itemName = args[0];
+        const keyName = args[1] || null;
+        const indexName = args[2] || null;
+        const listPath = forMatch[3].trim();
         const keyPath = el.getAttribute(`${appConfig.prefix}key`) || el.getAttribute(":key") || (el.tagName === "TEMPLATE" && el.content && el.content.firstElementChild ? el.content.firstElementChild.getAttribute(`${appConfig.prefix}key`) || el.content.firstElementChild.getAttribute(":key") : null);
         el.removeAttribute(`${appConfig.prefix}key`);
         el.removeAttribute(":key");
         const placeholder = document.createComment(` ${appConfig.prefix}for: ${val} `);
         el.parentNode.insertBefore(placeholder, el);
         el.remove();
-        let renderedNodes = [];
+        let renderedItems = [];
+        const getAnchor = (items, idx) => {
+          for (let k = idx; k < items.length; k++) {
+            if (items[k] && items[k].nodes) {
+              for (let n = 0; n < items[k].nodes.length; n++) {
+                if (items[k].nodes[n].parentNode) {
+                  return items[k].nodes[n];
+                }
+              }
+            }
+          }
+          return placeholder;
+        };
+        let isKeyedIteration = false;
+        let iterationKeys = [];
+        const createItemRecord = (item, index, key) => {
+          const itemScope = reactive({ [itemName]: item });
+          if (keyName) {
+            itemScope[keyName] = isKeyedIteration && iterationKeys[index] !== void 0 ? iterationKeys[index] : index;
+          }
+          if (indexName) {
+            itemScope[indexName] = index;
+          }
+          const childCtx = Object.setPrototypeOf(itemScope, ctx);
+          let nodes;
+          if (el.tagName === "TEMPLATE" && el.content) {
+            const clone = el.content.cloneNode(true);
+            nodes = Array.from(clone.childNodes);
+            nodes.forEach((n) => bindNode2(n, childCtx, instance, []));
+          } else {
+            const node = el.cloneNode(true);
+            bindNode2(node, childCtx, instance, []);
+            nodes = [node];
+          }
+          return { key, scope: itemScope, nodes };
+        };
+        const updateItemScope = (itemRecord, item, index) => {
+          itemRecord.scope[itemName] = item;
+          if (keyName) {
+            itemRecord.scope[keyName] = isKeyedIteration && iterationKeys[index] !== void 0 ? iterationKeys[index] : index;
+          }
+          if (indexName) {
+            itemRecord.scope[indexName] = index;
+          }
+        };
         const updateFn = () => {
           let list = [];
-          const directList = resolvePath(listPath, ctx);
-          if (Array.isArray(directList))
-            list = directList;
-          else if (appConfig.allowInlineExpressions) {
-            try {
-              list = new Function("$ctx", `with($ctx) { return ${listPath} }`)(ctx) || [];
-            } catch (err) {
-              handleError(err, `${appConfig.prefix}for expression: ${listPath}`);
+          isKeyedIteration = false;
+          iterationKeys = [];
+          const processRawCollection = (raw) => {
+            if (Array.isArray(raw)) {
+              list = raw;
+            } else if (typeof raw === "number") {
+              list = Array.from({ length: raw }, (_, i) => i + 1);
+            } else if (raw instanceof Map || raw && typeof raw.entries === "function" && typeof raw.get === "function") {
+              isKeyedIteration = true;
+              const entries = Array.from(raw.entries());
+              if (keyName) {
+                iterationKeys = entries.map(([k]) => k);
+                list = entries.map(([, v]) => v);
+              } else {
+                iterationKeys = entries.map(([k]) => k);
+                list = entries;
+              }
+            } else if (raw instanceof Set || raw && typeof raw.values === "function" && typeof raw.add === "function") {
+              list = Array.from(raw.values());
+            } else if (raw && typeof raw === "object") {
+              isKeyedIteration = true;
+              iterationKeys = Object.keys(raw);
+              list = iterationKeys.map((k) => raw[k]);
             }
+          };
+          if (!isNaN(Number(listPath)) && listPath !== "") {
+            const count = parseInt(listPath, 10);
+            list = Array.from({ length: count }, (_, i) => i + 1);
           } else {
-            warn(`Inline expressions disabled. Use a computed property for complex lists: ${listPath}`, "compiler");
+            const directList = resolvePath(listPath, ctx);
+            if (directList !== void 0 && directList !== null) {
+              processRawCollection(directList);
+            } else if (appConfig.allowInlineExpressions) {
+              try {
+                const evaluated = new Function("$ctx", `with($ctx) { return ${listPath} }`)(ctx);
+                if (evaluated !== void 0 && evaluated !== null) {
+                  processRawCollection(evaluated);
+                }
+              } catch (err) {
+                handleError(err, `${appConfig.prefix}for expression: ${listPath}`);
+              }
+            } else {
+              warn(`Inline expressions disabled. Use a computed property for complex lists: ${listPath}`, "compiler");
+            }
           }
           const usedKeys = /* @__PURE__ */ new Set();
           const newKeys = list.map((item, index) => {
@@ -2341,52 +3157,41 @@
           });
           let oldStart = 0;
           let newStart = 0;
-          let oldEnd = renderedNodes.length - 1;
+          let oldEnd = renderedItems.length - 1;
           let newEnd = list.length - 1;
-          while (oldStart <= oldEnd && newStart <= newEnd && renderedNodes[oldStart].__hx_key === newKeys[newStart]) {
-            const node = renderedNodes[oldStart];
-            node.__hx_scope[itemName] = list[newStart];
-            if (indexName)
-              node.__hx_scope[indexName] = newStart;
+          while (oldStart <= oldEnd && newStart <= newEnd && renderedItems[oldStart].key === newKeys[newStart]) {
+            updateItemScope(renderedItems[oldStart], list[newStart], newStart);
             oldStart++;
             newStart++;
           }
-          while (oldStart <= oldEnd && newStart <= newEnd && renderedNodes[oldEnd].__hx_key === newKeys[newEnd]) {
-            const node = renderedNodes[oldEnd];
-            node.__hx_scope[itemName] = list[newEnd];
-            if (indexName)
-              node.__hx_scope[indexName] = newEnd;
+          while (oldStart <= oldEnd && newStart <= newEnd && renderedItems[oldEnd].key === newKeys[newEnd]) {
+            updateItemScope(renderedItems[oldEnd], list[newEnd], newEnd);
             oldEnd--;
             newEnd--;
           }
-          const newNodes = new Array(list.length);
+          const newItems = new Array(list.length);
           for (let i = 0; i < newStart; i++) {
-            newNodes[i] = renderedNodes[i];
+            newItems[i] = renderedItems[i];
           }
           for (let i = newEnd + 1; i < list.length; i++) {
             const oldIndex = oldEnd + 1 + (i - (newEnd + 1));
-            newNodes[i] = renderedNodes[oldIndex];
+            newItems[i] = renderedItems[oldIndex];
           }
           if (oldStart > oldEnd) {
-            const anchor = newEnd + 1 < list.length ? newNodes[newEnd + 1] : placeholder;
+            const anchor = getAnchor(newItems, newEnd + 1);
             const parentNode = placeholder.parentNode;
             for (let i = newStart; i <= newEnd; i++) {
-              const key = newKeys[i];
-              const item = list[i];
-              const node = templateTarget.cloneNode(true);
-              node.__hx_key = key;
-              node.__hx_scope = reactive({ [itemName]: item });
-              if (indexName)
-                node.__hx_scope[indexName] = i;
-              const childCtx = Object.setPrototypeOf(node.__hx_scope, ctx);
-              bindNode2(node, childCtx, instance, []);
-              newNodes[i] = node;
-              if (parentNode)
-                parentNode.insertBefore(node, anchor);
+              const itemRecord = createItemRecord(list[i], i, newKeys[i]);
+              newItems[i] = itemRecord;
+              if (parentNode) {
+                for (let k = 0; k < itemRecord.nodes.length; k++) {
+                  parentNode.insertBefore(itemRecord.nodes[k], anchor);
+                }
+              }
             }
           } else if (newStart > newEnd) {
             for (let i = oldStart; i <= oldEnd; i++) {
-              destroyNode(renderedNodes[i]);
+              renderedItems[i].nodes.forEach((n) => destroyNode(n));
             }
           } else {
             const toBePatched = newEnd - newStart + 1;
@@ -2399,20 +3204,18 @@
             let moved = false;
             let maxNewIndexSoFar = 0;
             for (let i = oldStart; i <= oldEnd; i++) {
-              const prevChild = renderedNodes[i];
+              const prevItem = renderedItems[i];
               if (patched >= toBePatched) {
-                destroyNode(prevChild);
+                prevItem.nodes.forEach((n) => destroyNode(n));
                 continue;
               }
-              const newIndex = keyToNewIndexMap.get(prevChild.__hx_key);
+              const newIndex = keyToNewIndexMap.get(prevItem.key);
               if (newIndex === void 0) {
-                destroyNode(prevChild);
+                prevItem.nodes.forEach((n) => destroyNode(n));
               } else {
                 newIndexToOldIndexMap[newIndex - newStart] = i + 1;
-                prevChild.__hx_scope[itemName] = list[newIndex];
-                if (indexName)
-                  prevChild.__hx_scope[indexName] = newIndex;
-                newNodes[newIndex] = prevChild;
+                updateItemScope(prevItem, list[newIndex], newIndex);
+                newItems[newIndex] = prevItem;
                 if (newIndex >= maxNewIndexSoFar) {
                   maxNewIndexSoFar = newIndex;
                 } else {
@@ -2426,37 +3229,42 @@
             const parentNode = placeholder.parentNode;
             for (let i = toBePatched - 1; i >= 0; i--) {
               const newIndex = newStart + i;
-              const anchor = newIndex + 1 < list.length ? newNodes[newIndex + 1] : placeholder;
+              const anchor = getAnchor(newItems, newIndex + 1);
               if (newIndexToOldIndexMap[i] === 0) {
-                const key = newKeys[newIndex];
-                const item = list[newIndex];
-                const node = templateTarget.cloneNode(true);
-                node.__hx_key = key;
-                node.__hx_scope = reactive({ [itemName]: item });
-                if (indexName)
-                  node.__hx_scope[indexName] = newIndex;
-                const childCtx = Object.setPrototypeOf(node.__hx_scope, ctx);
-                bindNode2(node, childCtx, instance, []);
-                newNodes[newIndex] = node;
-                if (parentNode)
-                  parentNode.insertBefore(node, anchor);
+                const itemRecord = createItemRecord(list[newIndex], newIndex, newKeys[newIndex]);
+                newItems[newIndex] = itemRecord;
+                if (parentNode) {
+                  for (let k = 0; k < itemRecord.nodes.length; k++) {
+                    parentNode.insertBefore(itemRecord.nodes[k], anchor);
+                  }
+                }
               } else if (moved) {
                 if (j < 0 || i !== lisSequence[j]) {
-                  if (parentNode)
-                    parentNode.insertBefore(newNodes[newIndex], anchor);
+                  if (parentNode) {
+                    const itemRecord = newItems[newIndex];
+                    for (let k = 0; k < itemRecord.nodes.length; k++) {
+                      parentNode.insertBefore(itemRecord.nodes[k], anchor);
+                    }
+                  }
                 } else {
                   j--;
                 }
               }
             }
           }
-          renderedNodes = newNodes;
+          renderedItems = newItems;
+          if (initialRan && instance)
+            queueComponentUpdated(instance);
         };
+        let initialRan = false;
         const e = effect(updateFn, { name: `for: ${listPath}`, area: "directive" });
+        initialRan = true;
         const teardown = () => {
           cleanup(e);
-          renderedNodes.forEach((n) => destroyNode(n));
-          renderedNodes = [];
+          renderedItems.forEach((item) => {
+            item.nodes.forEach((n) => destroyNode(n));
+          });
+          renderedItems = [];
         };
         trackCleanup(teardown);
         placeholder.__hx_cleanup = placeholder.__hx_cleanup || [];
@@ -2508,11 +3316,30 @@
       }
     };
   }
+  const scheduleRaf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (fn) => setTimeout(fn, 0);
+  function ensureCloakStyles(appConfig) {
+    if (typeof document === "undefined" || appConfig.autoInjectCloak === false)
+      return;
+    const rule = `[${appConfig.prefix}cloak] { display: none !important; }`;
+    let style = document.getElementById("helix-cloak-style");
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "helix-cloak-style";
+      style.textContent = rule;
+      if (document.head) {
+        document.head.appendChild(style);
+      }
+    } else if (!style.textContent.includes(`[${appConfig.prefix}cloak]`)) {
+      style.textContent += `
+${rule}`;
+    }
+  }
   function makeBindNode(appContext) {
     const appComponents = appContext.components;
     const appDirectives = appContext.directives;
     const appConfig = appContext.config;
     const builtinDirectives = createBuiltinDirectives(appConfig);
+    ensureCloakStyles(appConfig);
     const resolveDirective = (name) => {
       if (appDirectives[name])
         return appDirectives[name];
@@ -2570,6 +3397,8 @@
       if (cleanupTarget === void 0)
         cleanupTarget = instance && instance.cleanups || [];
       if (node.nodeType === 1) {
+        if (node.hasAttribute(`${appConfig.prefix}cloak`))
+          node.removeAttribute(`${appConfig.prefix}cloak`);
         if (node[BOUND]) {
           if (!force || node.__hx_binding && node.__hx_binding.ctx === ctx)
             return;
@@ -2630,6 +3459,17 @@
           return false;
         }
       });
+      const scope = new EffectScope();
+      const childInst = {
+        id: incrementGlobalInstanceId(),
+        name: compDefNormalized.name || tagName,
+        root: node,
+        scope,
+        hooks: { beforeMount: [], mount: [], updated: [], beforeUnmount: [], destroy: [], unmounted: [] },
+        cleanups: [],
+        parent: instance,
+        provides: instance ? Object.create(instance.provides || null) : /* @__PURE__ */ Object.create(null)
+      };
       const childNodes = Array.from(node.childNodes);
       const slotTemplates = [];
       childNodes.forEach((child) => {
@@ -2642,7 +3482,7 @@
           }
         }
       });
-      const slots = createSlots(slotTemplates, ctx, instance, bindNode);
+      const slots = createSlots(slotTemplates, ctx, childInst, bindNode);
       const defaultSlotEls = childNodes.filter((child) => {
         if (child.nodeType !== 1)
           return true;
@@ -2653,12 +3493,14 @@
           const fragment = document.createDocumentFragment();
           defaultSlotEls.forEach((el) => {
             const clone = el.cloneNode(true);
-            bindNode(clone, ctx, instance, void 0, force);
+            bindNode(clone, ctx, childInst, void 0, force);
             fragment.appendChild(clone);
           });
           return fragment;
         };
       }
+      let isComponentActive = true;
+      let hasMounted = false;
       const listeners = /* @__PURE__ */ Object.create(null);
       Array.from(node.attributes || []).forEach((attr) => {
         if (attr.name.startsWith("@") || attr.name.startsWith(`${appConfig.prefix}on:`)) {
@@ -2689,8 +3531,11 @@
               const rawValue = resolvePath(attr.value, ctx);
               propsTarget[propName] = validateProp(propName, rawValue, propsDef[propName]);
               trigger(propsTarget, propName);
+              if (hasMounted && isComponentActive) {
+                queueComponentUpdated(childInst);
+              }
             }, { name: `bind: ${propName}`, area: "binding" });
-            instance.cleanups.push(() => cleanup(e));
+            childInst.cleanups.push(() => cleanup(e));
           } else {
             propsTarget[propName] = validateProp(propName, attr.value, propsDef[propName]);
           }
@@ -2706,22 +3551,11 @@
           for (let i = 0; i < handlers.length; i++)
             handlers[i](...args);
       };
-      const scope = new EffectScope();
       node.innerHTML = "";
-      const childInst = {
-        id: incrementGlobalInstanceId(),
-        name: compDefNormalized.name || tagName,
-        root: node,
-        scope,
-        hooks: { beforeMount: [], mount: [], updated: [], beforeUnmount: [], destroy: [], unmounted: [] },
-        cleanups: [],
-        parent: instance,
-        provides: instance ? Object.create(instance.provides || null) : /* @__PURE__ */ Object.create(null)
-      };
       node.__hx_cleanup = node.__hx_cleanup || [];
-      let isComponentActive = true;
       node.__hx_cleanup.push(() => {
         isComponentActive = false;
+        hasMounted = false;
         childInst.hooks.beforeUnmount.forEach((fn) => fn());
         childInst.cleanups.forEach((fn) => {
           try {
@@ -2753,6 +3587,8 @@
         return;
       }
       const finishMount = (resolvedCtx) => {
+        if (!isComponentActive || hasMounted)
+          return;
         setCurrentInstance(prevInstance);
         if (resolvedCtx && resolvedCtx.template) {
           node.innerHTML = resolvedCtx.template;
@@ -2770,6 +3606,7 @@
         }
         childInst.hooks.beforeMount.forEach((fn) => fn());
         childInst.hooks.mount.forEach((fn) => fn());
+        hasMounted = true;
       };
       if (childCtx instanceof Promise) {
         childCtx.then((resolvedCtx) => {
@@ -2795,6 +3632,13 @@
           node.__hx_binding.cleanups.push(fn);
         }
       };
+      if (node.hasAttribute(`${appConfig.prefix}ignore`) || node.hasAttribute(`${appConfig.prefix}static`)) {
+        node.removeAttribute(`${appConfig.prefix}ignore`);
+        node.removeAttribute(`${appConfig.prefix}static`);
+        node[BOUND] = true;
+        node.__hx_static = true;
+        return;
+      }
       if (node.hasAttribute(`${appConfig.prefix}for`)) {
         const val = node.getAttribute(`${appConfig.prefix}for`);
         node.removeAttribute(`${appConfig.prefix}for`);
@@ -2808,16 +3652,52 @@
         return;
       }
       if (node.hasAttribute(`${appConfig.prefix}if`)) {
-        const val = node.getAttribute(`${appConfig.prefix}if`);
+        const ifVal = node.getAttribute(`${appConfig.prefix}if`);
         node.removeAttribute(`${appConfig.prefix}if`);
+        const branches = [{ el: node, exp: ifVal, type: "if" }];
+        let next = node.nextSibling;
+        while (next) {
+          if (next.nodeType === 3 && next.textContent.trim() === "") {
+            const wsNode = next;
+            next = next.nextSibling;
+            wsNode.remove();
+            continue;
+          }
+          if (next.nodeType === 8) {
+            next = next.nextSibling;
+            continue;
+          }
+          if (next.nodeType === 1) {
+            const elseIfVal = next.getAttribute(`${appConfig.prefix}else-if`);
+            const hasElse = next.hasAttribute(`${appConfig.prefix}else`);
+            if (elseIfVal !== null) {
+              next.removeAttribute(`${appConfig.prefix}else-if`);
+              next[BOUND] = true;
+              branches.push({ el: next, exp: elseIfVal, type: "else-if" });
+              next = next.nextSibling;
+              continue;
+            } else if (hasElse) {
+              next.removeAttribute(`${appConfig.prefix}else`);
+              next[BOUND] = true;
+              branches.push({ el: next, exp: null, type: "else" });
+              break;
+            }
+          }
+          break;
+        }
         const dir = resolveDirective("if");
         if (dir) {
-          const bindingObj = { value: val, ctx, instance, trackCleanup, bindNode };
+          const bindingObj = { value: ifVal, branches, ctx, instance, trackCleanup, bindNode };
           const hook = createDirectiveHook("if", "mounted", node, bindingObj, instance, normalizeDirective(dir));
           if (hook)
             hook();
         }
         return;
+      }
+      if (node.hasAttribute(`${appConfig.prefix}else-if`) || node.hasAttribute(`${appConfig.prefix}else`)) {
+        warn(`[Helix 🛠️] ${appConfig.prefix}else / ${appConfig.prefix}else-if used without preceding ${appConfig.prefix}if.`, "directive");
+        node.removeAttribute(`${appConfig.prefix}else-if`);
+        node.removeAttribute(`${appConfig.prefix}else`);
       }
       let hasDynamicAttr = false;
       const attrs = node.attributes;
@@ -2939,6 +3819,8 @@
               const updatedHook = createDirectiveHook(dirName, "updated", el, bindingObj, instance, normalized);
               if (updatedHook)
                 updatedHook();
+              if (instance)
+                queueComponentUpdated(instance);
             },
             lazy: false
           });
@@ -2955,7 +3837,7 @@
           });
         }
       });
-      requestAnimationFrame(() => {
+      scheduleRaf(() => {
         if (appConfig.removeAttributeBindings) {
           toRemove.forEach((name) => {
             if (node.hasAttribute(name))
@@ -2975,6 +3857,7 @@
     let isMounted = false;
     let rootElement = null;
     let rootInstance = null;
+    let mountedRootSelector = null;
     let unmountCallbacks = [];
     const appConfig = Object.create(globalConfig);
     Object.freeze(appConfig);
@@ -3190,19 +4073,17 @@
         });
         let cleanup2 = null;
         let installPromise = null;
-        if (typeof plugin.install === "function") {
-          const result = plugin.install(pluginAPI, options);
-          if (result && typeof result.then === "function") {
-            installPromise = result;
-          } else {
-            cleanup2 = result;
-          }
-        } else if (typeof plugin === "function") {
-          const result = plugin(pluginAPI, options);
-          if (result && typeof result.then === "function") {
-            installPromise = result;
-          } else {
-            cleanup2 = result;
+        const installMethod = typeof plugin.install === "function" ? plugin.install : typeof plugin.setup === "function" ? plugin.setup : typeof plugin === "function" ? plugin : null;
+        if (installMethod) {
+          try {
+            const result = installMethod(pluginAPI, options);
+            if (result && typeof result.then === "function") {
+              installPromise = result;
+            } else if (typeof result === "function") {
+              cleanup2 = result;
+            }
+          } catch (err) {
+            handleError(err, `plugin install: ${plugin.name || "anonymous"}`);
           }
         }
         const entry = {
@@ -3231,22 +4112,50 @@
         return app;
       },
       async mount(rootSelector) {
+        var _a, _b;
         if (isMounted) {
           warn(`App already mounted. Call unmount() first.`, "core");
           return rootInstance;
         }
-        rootElement = document.querySelector(rootSelector);
+        if (typeof document !== "undefined" && document.readyState === "loading") {
+          await new Promise((resolve) => {
+            document.addEventListener("DOMContentLoaded", resolve, { once: true });
+          });
+        }
+        mountedRootSelector = typeof rootSelector === "string" ? rootSelector : rootSelector && rootSelector.id ? `#${rootSelector.id}` : "root";
+        rootElement = typeof rootSelector === "string" && typeof document !== "undefined" && typeof document.querySelector === "function" ? document.querySelector(rootSelector) : rootSelector && rootSelector.nodeType === 1 ? rootSelector : null;
         if (!rootElement) {
-          warn(`[mount] Cannot find element: ${rootSelector}`, "core");
+          console.warn(`[Helix] mount() failed: no element matches "${rootSelector}"`);
           return null;
         }
-        const pendingAsync = appPlugins.filter((p) => p.promise).map((p) => p.promise);
+        let initialData = {};
+        const hxDataAttr = rootElement.getAttribute(`${appConfig.prefix}data`) || rootElement.getAttribute(`data-${appConfig.prefix}data`);
+        if (hxDataAttr) {
+          try {
+            initialData = JSON.parse(hxDataAttr);
+          } catch (e) {
+            if (appConfig.allowInlineExpressions) {
+              try {
+                initialData = new Function(`return (${hxDataAttr})`)();
+              } catch (err) {
+                logger.warn(`Failed to parse ${appConfig.prefix}data attribute: ${hxDataAttr}`, "template");
+              }
+            } else {
+              logger.warn(`Failed to parse JSON in ${appConfig.prefix}data attribute. Inline JS evaluation is disabled (allowInlineExpressions = false).`, "security");
+            }
+          }
+          rootElement.removeAttribute(`${appConfig.prefix}data`);
+          rootElement.removeAttribute(`data-${appConfig.prefix}data`);
+        }
+        const pendingAsync = [...globalPlugins, ...appPlugins].filter((p) => p.promise).map((p) => p.promise);
         if (pendingAsync.length > 0) {
           await Promise.all(pendingAsync);
         }
+        const scope = new EffectScope();
         const instance = {
           id: incrementGlobalInstanceId(),
           root: rootElement,
+          scope,
           hooks: { beforeMount: [], mount: [], updated: [], beforeUnmount: [], destroy: [], unmounted: [] },
           cleanups: [],
           provides: Object.create(appProvides)
@@ -3385,20 +4294,40 @@
         });
         let ctx;
         try {
-          if (typeof rootComponent === "function") {
-            ctx = rootComponent(appCtx);
-          } else if (rootComponent.setup) {
-            ctx = rootComponent.setup(appCtx);
-          } else {
-            ctx = reactive({});
-          }
+          ctx = scope.run(() => {
+            let res;
+            if (typeof rootComponent === "function") {
+              res = rootComponent(appCtx);
+            } else if (rootComponent.setup) {
+              res = rootComponent.setup(appCtx);
+            } else if (typeof rootComponent === "object" && Object.keys(rootComponent).length > 0) {
+              res = reactive({ ...initialData, ...rootComponent });
+            } else {
+              res = reactive({ ...initialData });
+            }
+            if (res && typeof res === "object") {
+              if (Object.keys(initialData).length > 0) {
+                Object.assign(res, initialData);
+              }
+              if (!res.$refs)
+                res.$refs = {};
+            }
+            return res;
+          });
         } catch (err) {
           handleError(err, "Root setup");
           setCurrentInstance(null);
+          scope.stop();
           return null;
         }
         rootCtx = ctx;
         setCurrentInstance(null);
+        globalApps.register(rootSelector, rootElement, instance, app);
+        if (rootElement.hasAttribute(`${appConfig.prefix}cloak`))
+          rootElement.removeAttribute(`${appConfig.prefix}cloak`);
+        (_b = (_a = rootElement.querySelectorAll) == null ? void 0 : _a.call(rootElement, `[${appConfig.prefix}cloak]`)) == null ? void 0 : _b.forEach((el) => {
+          el.removeAttribute(`${appConfig.prefix}cloak`);
+        });
         trace("Initial Mount Binding", () => bindNode(rootElement, ctx, instance));
         instance.hooks.beforeMount.forEach((fn) => fn());
         instance.hooks.mount.forEach((fn) => fn());
@@ -3419,9 +4348,13 @@
               handleError(e, "app unmount cleanup");
             }
           });
+          if (rootInstance.scope) {
+            rootInstance.scope.stop();
+          }
           rootInstance.hooks.destroy.forEach((fn) => fn());
           rootInstance.hooks.unmounted.forEach((fn) => fn());
         }
+        globalApps.unregister(mountedRootSelector, rootElement, rootInstance);
         [...appPlugins].reverse().forEach((p) => {
           if (typeof p.cleanup === "function") {
             try {
@@ -3440,6 +4373,47 @@
         unmountCallbacks.forEach((fn) => fn());
         isMounted = false;
         rootInstance = null;
+        return app;
+      },
+      rebind(targetNode) {
+        if (!isMounted || !rootElement) {
+          warn("Cannot rebind: app is not mounted.", "core");
+          return app;
+        }
+        let target = targetNode;
+        if (typeof target === "string") {
+          target = rootElement.querySelector(target);
+        }
+        if (target && !target.nodeType && (typeof target.length === "number" || typeof target[Symbol.iterator] === "function")) {
+          Array.from(target).forEach((n) => app.rebind(n));
+          return app;
+        }
+        if (!target || target.nodeType !== 1)
+          return app;
+        const allElements = [target, ...Array.from(target.querySelectorAll("*"))];
+        allElements.forEach((el) => {
+          if (el.__hx_binding && el.__hx_binding.cleanups) {
+            el.__hx_binding.cleanups.forEach((fn) => {
+              try {
+                fn();
+              } catch (e) {
+              }
+            });
+            el.__hx_binding.cleanups.length = 0;
+          }
+          if (Array.isArray(el.__hx_cleanup)) {
+            el.__hx_cleanup.forEach((fn) => {
+              try {
+                fn();
+              } catch (e) {
+              }
+            });
+            el.__hx_cleanup = null;
+          }
+          el[BOUND] = false;
+          el.__hx_static = false;
+          bindNode(el, rootCtx, rootInstance, [], true);
+        });
         return app;
       },
       onAppUnmount(callback) {
@@ -3781,12 +4755,20 @@
     return activeScope;
   }
   function onScopeDispose(fn) {
+    if (typeof fn !== "function")
+      return;
     if (activeScope) {
       if (!activeScope.cleanups)
         activeScope.cleanups = [];
       activeScope.cleanups.push(fn);
+    } else if (currentInstance && currentInstance.scope) {
+      if (!currentInstance.scope.cleanups)
+        currentInstance.scope.cleanups = [];
+      currentInstance.scope.cleanups.push(fn);
+    } else if (currentInstance && currentInstance.cleanups) {
+      currentInstance.cleanups.push(fn);
     } else {
-      warn("onScopeDispose() called with no active EffectScope.", "scope");
+      warn("onScopeDispose() called with no active EffectScope or instance lifecycle.", "scope");
     }
   }
   function definePlugin(definition) {
@@ -3862,7 +4844,6 @@
       cache = true,
       onError: onErrorHandler,
       suspensible = false
-      /* reserved for future SSR/Suspense streaming integration */
     } = options;
     const useCache = cache !== false;
     const cacheKey = options.name || loader.toString();
@@ -3956,27 +4937,42 @@
         if (cached) {
           return getTemplateFromComponent(cached, setupCtx);
         }
+        const suspenseRegister = suspensible ? inject("__hx_suspense__", null) : null;
         const loadPromise = load();
-        return new Promise((resolve) => {
-          let delayTimer = null;
-          if (delay > 0 && loadingComponent) {
-            delayTimer = setTimeout(() => {
-            }, delay);
-          }
-          loadPromise.then((loadedComp) => {
-            if (delayTimer)
-              clearTimeout(delayTimer);
-            resolve(getTemplateFromComponent(loadedComp, setupCtx));
-          }).catch((err) => {
-            if (delayTimer)
-              clearTimeout(delayTimer);
-            if (errorComponent) {
-              resolve(getTemplateFromComponent(errorComponent, setupCtx));
-            } else {
-              resolve({ template: "", error: err });
-            }
-          });
+        if (suspenseRegister) {
+          suspenseRegister(loadPromise);
+          return loadPromise.then((loadedComp) => getTemplateFromComponent(loadedComp, setupCtx)).catch((err) => errorComponent ? getTemplateFromComponent(errorComponent, setupCtx) : { template: "", error: err });
+        }
+        if (!loadingComponent && !errorComponent) {
+          return loadPromise.then((loadedComp) => getTemplateFromComponent(loadedComp, setupCtx));
+        }
+        const isImmediateLoading = delay === 0 && loadingComponent;
+        const initialLoadingTpl = isImmediateLoading ? getTemplateFromComponent(loadingComponent, setupCtx).template || "" : "";
+        const compState = reactive({
+          status: isImmediateLoading ? "loading" : "pending",
+          template: initialLoadingTpl
         });
+        let delayTimer = null;
+        if (delay > 0 && loadingComponent) {
+          delayTimer = setTimeout(() => {
+            if (compState.status === "pending") {
+              compState.status = "loading";
+              compState.template = getTemplateFromComponent(loadingComponent, setupCtx).template || "";
+            }
+          }, delay);
+        }
+        loadPromise.then((loadedComp) => {
+          if (delayTimer)
+            clearTimeout(delayTimer);
+          compState.status = "resolved";
+          compState.template = getTemplateFromComponent(loadedComp, setupCtx).template || "";
+        }).catch((err) => {
+          if (delayTimer)
+            clearTimeout(delayTimer);
+          compState.status = "error";
+          compState.template = errorComponent ? getTemplateFromComponent(errorComponent, setupCtx).template || "" : "";
+        });
+        return compState;
       }
     };
     registeredAsyncComponents.add(asyncCompHost);
@@ -4045,14 +5041,26 @@
           }
           return { template: "" };
         };
+        const fallbackHtml = computed(() => renderFallback().template);
         return {
           hasError,
           capturedError,
-          renderFallback,
+          fallbackHtml,
           reset() {
             hasError.value = false;
             capturedError.value = null;
-          }
+          },
+          template: `
+                    <div class="hx-error-boundary-wrapper">
+                        <template hx-if="hasError">
+                            <div hx-html="fallbackHtml"></div>
+                        </template>
+                        <template hx-if="!hasError">
+                            <slot></slot>
+                        </template>
+                    </div>
+                `,
+          renderFallback
         };
       }
     };
@@ -4080,32 +5088,31 @@
   const Suspense = {
     name: "Suspense",
     setup(ctx) {
-      const { slots } = ctx;
-      const state = reactive({
-        pending: true,
-        error: null
+      const state = reactive({ pending: true, error: null });
+      let pendingCount = 0;
+      provide("__hx_suspense__", (promise) => {
+        pendingCount++;
+        state.pending = true;
+        Promise.resolve(promise).catch((err) => {
+          state.error = err;
+        }).finally(() => {
+          pendingCount = Math.max(0, pendingCount - 1);
+          if (pendingCount === 0)
+            state.pending = false;
+        });
       });
       return {
         state,
-        renderFallback() {
-          if (slots.fallback) {
-            return slots.fallback();
-          }
-          return { template: "<div class='suspense-loading'>Loading...</div>" };
-        },
-        renderDefault() {
-          if (slots.default) {
-            return slots.default();
-          }
-          return { template: "" };
-        },
         template: `
                 <div class="helix-suspense">
                     <template hx-if="state.pending">
-                        <div hx-html="renderFallback().template"></div>
+                        <slot name="fallback"><div class="suspense-loading">Loading...</div></slot>
                     </template>
-                    <template hx-if="!state.pending">
-                        <div hx-html="renderDefault().template"></div>
+                    <template hx-else-if="state.error">
+                        <slot name="error"><div class="suspense-error">{{ state.error.message || state.error }}</div></slot>
+                    </template>
+                    <template hx-else>
+                        <slot></slot>
                     </template>
                 </div>
             `
@@ -4300,6 +5307,55 @@
     memoRef[IS_REF] = true;
     return memoRef;
   }
+  let htmxListenerAttached = false;
+  function initHtmxIntegration(Helix) {
+    if (typeof document === "undefined" || typeof window === "undefined")
+      return;
+    if (htmxListenerAttached)
+      return;
+    const handleHtmxEvent = (e) => {
+      var _a, _b, _c, _d, _e;
+      if (!globalConfig.htmxIntegration)
+        return;
+      const target = ((_a = e.detail) == null ? void 0 : _a.target) || ((_b = e.detail) == null ? void 0 : _b.elt) || e.target;
+      if (!target || target.nodeType !== 1)
+        return;
+      if (target.hasAttribute(`${globalConfig.prefix}cloak`))
+        target.removeAttribute(`${globalConfig.prefix}cloak`);
+      (_d = (_c = target.querySelectorAll) == null ? void 0 : _c.call(target, `[${globalConfig.prefix}cloak]`)) == null ? void 0 : _d.forEach((el) => {
+        el.removeAttribute(`${globalConfig.prefix}cloak`);
+      });
+      if (Helix && Helix.$apps) {
+        for (const appEntry of Helix.$apps.values()) {
+          const rootEl = appEntry.rootElement || appEntry.instance && appEntry.instance.root;
+          if (rootEl && (rootEl === target || rootEl.contains(target))) {
+            try {
+              if (typeof ((_e = appEntry.app) == null ? void 0 : _e.rebind) === "function") {
+                appEntry.app.rebind(target);
+                return;
+              }
+            } catch (err) {
+              logger.error("Error auto-rebinding HTMX swapped fragment in app:", err);
+            }
+          }
+        }
+      }
+      if (Helix && typeof Helix.rebind === "function") {
+        try {
+          Helix.rebind(target);
+        } catch (err) {
+        }
+      }
+    };
+    document.addEventListener("htmx:afterSwap", handleHtmxEvent);
+    document.addEventListener("htmx:load", handleHtmxEvent);
+    document.addEventListener("htmx:afterProcessNode", handleHtmxEvent);
+    htmxListenerAttached = true;
+  }
+  function enableHtmxIntegration(Helix) {
+    globalConfig.htmxIntegration = true;
+    initHtmxIntegration(Helix);
+  }
   const globalNamespaces = /* @__PURE__ */ Object.create(null);
   const globalProvides = /* @__PURE__ */ Object.create(null);
   function useGlobal(plugin, options = {}) {
@@ -4320,10 +5376,19 @@
       }
     }
     let cleanup2 = null;
-    if (typeof plugin.install === "function") {
-      cleanup2 = plugin.install(globalAPI, options);
-    } else if (typeof plugin === "function") {
-      cleanup2 = plugin(globalAPI, options);
+    const installMethod = typeof plugin.install === "function" ? plugin.install : typeof plugin.setup === "function" ? plugin.setup : typeof plugin === "function" ? plugin : null;
+    let installPromise = null;
+    if (installMethod) {
+      try {
+        const result = installMethod(globalAPI, options);
+        if (result && typeof result.then === "function") {
+          installPromise = result;
+        } else if (typeof result === "function") {
+          cleanup2 = result;
+        }
+      } catch (err) {
+        handleError(err, `global plugin install: ${plugin.name || "anonymous"}`);
+      }
     }
     if (typeof plugin.mounted === "function") {
       try {
@@ -4337,6 +5402,7 @@
       options,
       name: plugin.name || null,
       version: plugin.version || null,
+      promise: installPromise,
       cleanup: typeof cleanup2 === "function" ? cleanup2 : null,
       installedAt: Date.now(),
       _executed: true
@@ -4532,6 +5598,16 @@
       }
     }
     if (!instance || !ctx) {
+      for (const appEntry of globalApps.values()) {
+        const rootEl = appEntry.rootElement || appEntry.instance && appEntry.instance.root;
+        if (rootEl && (rootEl === node || rootEl.contains(node))) {
+          instance = appEntry.instance;
+          ctx = instance && instance.root && instance.root.__hx_binding && instance.root.__hx_binding.ctx || options;
+          break;
+        }
+      }
+    }
+    if (!instance || !ctx) {
       logger.warn("Cannot rebind node without binding metadata or explicit instance.", "binding");
       return;
     }
@@ -4550,6 +5626,15 @@
           }
         });
         el.__hx_binding.cleanups.length = 0;
+      }
+      if (Array.isArray(el.__hx_cleanup)) {
+        el.__hx_cleanup.forEach((fn) => {
+          try {
+            fn();
+          } catch (e) {
+          }
+        });
+        el.__hx_cleanup = null;
       }
       el[BOUND] = false;
       el.__hx_static = false;
@@ -4598,6 +5683,8 @@
     markRaw,
     isShallow,
     isProxy,
+    isReactive,
+    isReadonly,
     customRef,
     computed,
     effect,
@@ -4653,15 +5740,25 @@
     profile,
     getProfileData,
     memo,
+    pauseTracking,
+    resumeTracking,
+    enableTracking,
+    resetTracking,
+    untrack,
+    enableHtmx: () => enableHtmxIntegration(globalAPI),
+    initHtmx: () => initHtmxIntegration(globalAPI),
     devtools: devtoolsAPI,
     _internal: globalInternal,
     $bus: globalBus,
+    $apps: globalApps,
     registry: globalRegistry
   };
   if (typeof window !== "undefined") {
     window.Helix = globalAPI;
     initDevtools();
+    initHtmxIntegration(globalAPI);
   }
+  exports.$apps = globalApps;
   exports.$bus = globalBus;
   exports.EffectScope = EffectScope;
   exports.PatchFlags = PatchFlags;
@@ -4690,15 +5787,20 @@
   exports.effect = effect;
   exports.effectGroup = createEffectGroup;
   exports.effectScope = effectScope;
+  exports.enableHtmx = enableHtmxIntegration;
+  exports.enableTracking = enableTracking;
   exports.getCurrentInstance = getCurrentInstance;
   exports.getCurrentScope = getCurrentScope;
   exports.getProfileData = getProfileData;
+  exports.initHtmx = initHtmxIntegration;
   exports.inject = inject;
   exports.inspectComponent = inspectComponent;
   exports.inspectDeps = inspectDeps;
   exports.inspectTree = inspectTree;
   exports.isProxy = isProxy;
   exports.isRaw = isRaw;
+  exports.isReactive = isReactive;
+  exports.isReadonly = isReadonly;
   exports.isRef = isRef;
   exports.isShallow = isShallow;
   exports.lazyBind = lazyBind;
@@ -4721,6 +5823,7 @@
   exports.onUnmounted = onUnmounted;
   exports.onUpdated = onUpdated;
   exports.openBlock = openBlock;
+  exports.pauseTracking = pauseTracking;
   exports.preload = preload;
   exports.preloadAll = preloadAll;
   exports.profile = profile;
@@ -4736,7 +5839,9 @@
   exports.registry = globalRegistry;
   exports.removeDirective = removeDirectiveGlobal;
   exports.removeNamespace = removeNamespaceGlobal;
+  exports.resetTracking = resetTracking;
   exports.resolvePath = resolvePath;
+  exports.resumeTracking = resumeTracking;
   exports.runWithContext = runWithContextGlobal;
   exports.scopeScheduler = globalScopeScheduler;
   exports.shallowReactive = shallowReactive;
@@ -4750,6 +5855,7 @@
   exports.triggerPluginLifecycle = triggerPluginLifecycle;
   exports.triggerRef = triggerRef;
   exports.unref = unref;
+  exports.untrack = untrack;
   exports.unuse = unuseGlobal;
   exports.use = useGlobal;
   exports.validatePluginDependencies = validatePluginDependencies;

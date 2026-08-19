@@ -1,4 +1,4 @@
-export const VERSION = typeof __CORE_VERSION__ !== 'undefined' ? __CORE_VERSION__ : "11.1.19";
+export const VERSION = typeof __CORE_VERSION__ !== 'undefined' ? __CORE_VERSION__ : "11.1.20";
 
 export const RAW = Symbol("__hx_raw");
 export const IS_REF = Symbol("__hx_is_ref");
@@ -83,6 +83,8 @@ export let isFlushPending = false;
 export function setIsFlushPending(val) { isFlushPending = val; }
 export const MAX_FLUSH = 1e3;
 export const resolvedPromise = Promise.resolve();
+
+export { AppRegistry, globalApps } from './registry.js';
 
 import { globalConfig } from '../app/config.js';
 import { stopEffect } from '../reactivity/effect.js';

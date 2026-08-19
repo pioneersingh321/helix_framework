@@ -1,5 +1,18 @@
 # Helix.js Changelog
 
+## v11.1.20
+
+### Added & Improved
+
+- 🔄 **`onUpdated()` Lifecycle Hook**: Implemented full `queueComponentUpdated(instance)` lifecycle pipeline with post-flush deduplication (`queuePostFlushCb`) across reactive data updates, directive interpolations, collection mutations, and component props.
+- ⚡ **Deep `ref()` Reactivity (Vue 3 Parity)**: `ref(object)` now deeply wraps objects and arrays with `reactive()`, ensuring nested property mutations trigger dependent effects automatically. `shallowRef(object)` remains available for raw reference-only values.
+- 🔍 **Reactivity Inspection Exports**: Exported `isReactive()` and `isReadonly()` helpers on the core module and global `Helix` object.
+- 🔧 **`customRef()` Refactoring**: Fixed `customRef(factory)` so the factory function receives `(track, trigger)` and accurately delegates value access to the returned `{ get, set }` accessors.
+- 🧹 **`rebind()` Teardown & Isolation**: Unified teardown in `app.rebind()` and `rebindGlobal()` to cleanly execute both `__hx_binding.cleanups` and `__hx_cleanup` arrays prior to re-binding.
+- 🧩 **Component Prop Sync & Initialization**: Attached prop sync effects directly to `childInst.cleanups` and resolved variable initialization ordering in `bindComponentNode`.
+- 🌐 **Mock DOM Inter-Parent Detach Parity**: Updated `MockNode.appendChild` and `MockNode.insertBefore` to detach moved nodes from their existing parent, ensuring 1:1 real DOM parity.
+- 🚀 **`app.mount()` DOM Element Support**: Added support for passing raw DOM `Element` instances directly to `app.mount()`.
+
 ## v11.1.19
 
 ### Bug Fixes & Refactorings

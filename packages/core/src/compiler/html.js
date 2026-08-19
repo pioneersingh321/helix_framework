@@ -2,11 +2,26 @@ import { globalConfig } from '../app/config.js';
 
 export function sanitizeHtml(html) {
     if (typeof html !== "string") return "";
+    let sanitized = html;
     if (typeof globalConfig.htmlSanitizer === "function") {
-        return globalConfig.htmlSanitizer(html);
+        try {
+            sanitized = globalConfig.htmlSanitizer(html);
+            if (typeof sanitized !== "string") sanitized = "";
+        } catch (e) {
+            sanitized = "";
+        }
+    }
+    if (typeof document === "undefined") {
+        return sanitized
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+            .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
+            .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "")
+            .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, "")
+            .replace(/\s+on\w+\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]+)/gi, "")
+            .replace(/(?:href|src|xlink:href)\s*=\s*['"]?\s*javascript:[^'">\s]*/gi, "");
     }
     const tpl = document.createElement("template");
-    tpl.innerHTML = html.trim();
+    tpl.innerHTML = sanitized.trim();
     const dangerousSelectors = [
         "script",
         "iframe",

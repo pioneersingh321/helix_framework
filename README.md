@@ -1,6 +1,6 @@
 # 🧬 Helix.js Framework
 
-[![Version](https://img.shields.io/badge/version-11.1.19-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
+[![Version](https://img.shields.io/badge/version-11.1.20-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
 [![Bundle Size](https://img.shields.io/badge/bundle-109KB--uncompressed-teal.svg?style=flat-square)](#)
 [![Reactivity](https://img.shields.io/badge/reactivity-signal--native-blue.svg?style=flat-square)](#)
 [![Build Step](https://img.shields.io/badge/build-zero--build--step-orange.svg?style=flat-square)](#)
@@ -37,9 +37,16 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 
 *   🚀 **Zero Build Step:** Drop in a single `<script>` tag and start writing reactive UIs directly in your HTML.
 *   ⚡ **Fine-Grained Reactivity Engine:** A proxy-based signal system with `ref`, `reactive`, `computed`, `effect`, `watch`, `watchEffect`, `memo`, and `effectScope` modeled after Vue 3's reactive engine.
-*   🎨 **Declarative HTML Directives:** Bind data with `hx-if`, `hx-for`, `hx-model`, `hx-bind`, and `hx-on` (with `:` and `@` shorthands).
-*   🔌 **Single-Execution Plugin Engine (v11.1.19):** `Helix.use()` & `app.use()` featuring automated single-execution deduplication (`_executed` lifecycle tracking), semver validation, and teardown cleanup.
-*   🧱 **Composable Scoped Components:** Define elements with `setup()`, props, custom emits, slots, and an effect-scope cleanup model.
+*   🗺️ **Reactive Collections (`Map`, `Set`, `Date`):** Deep reactivity for `Map`, `Set`, and `Date` instances with tracked mutations, getters, iterations, and `readonly()` guards.
+*   🛡️ **Anti-FOUC Cloaking (`hx-cloak`):** Auto-injects CSS rules and cleans up cloak attributes on mount to eliminate flash-of-unmounted-content.
+*   🎨 **Declarative HTML Directives:** Bind data with `hx-if`, `hx-else-if`, `hx-else`, `hx-for`, `hx-model`, `hx-bind`, and `hx-on` (with `:` and `@` shorthands).
+*   ⚙️ **Rich Form & Event Modifiers:** `.lazy`, `.debounce.<ms>`, `.trim`, and `.number` on `hx-model`; `.outside`, `.window`, `.document`, and key filters (`.enter`, `.escape`, `.tab`) on `@event`.
+*   🌲 **Subtree Skip (`hx-ignore` / `hx-static`):** Skip Helix DOM compilation on third-party widgets (Chart.js, TinyMCE, Leaflet).
+*   💾 **Server State Hydration (`hx-data`):** Auto-hydrates JSON state embedded in server-rendered HTML into the root reactive context.
+*   🔄 **HTMX Auto-Rebind Integration (`Helix.enableHtmx`):** Automatically re-mounts reactive bindings on `htmx:afterSwap` / `htmx:load` and cleans up stale event listeners.
+*   🏢 **Multi-App Registry (`Helix.$apps`):** Cross-app registry tracking all active apps by selector, element, and instance ID.
+*   🔌 **Single-Execution Plugin Engine (v11.1.20):** `Helix.use()` & `app.use()` featuring automated single-execution deduplication (`_executed` lifecycle tracking), semver validation, and teardown cleanup.
+*   🧱 **Composable Scoped Components:** Define elements with `setup()`, props, custom emits, slots, and an effect-scope cleanup model (`onScopeDispose`).
 *   ⏳ **Async Components & Suspense:** Lazy-load components with `defineAsyncComponent`, fallback loaders, preloading (`Helix.preload`), and built-in `<Suspense>` UI state management.
 *   🛡️ **Error Boundaries & Resilience:** Catch descendant component errors with `createErrorBoundary()` and `onErrorCaptured()`, plus global `Helix.onError()`.
 *   🛠️ **DevTools & Memory Profiler:** Dynamic component tree inspection (`inspectTree()`), active dependency tracking (`inspectDeps()`), render performance profiling (`profile()`), and memory diagnostics (`checkMemoryLeaks()`).
@@ -49,7 +56,7 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 *   🛠️ **DevTools Introspection APIs (`Helix.devtools`):** Real-time inspection of active scopes (`getScopes`), running effects (`getEffects`), dependency graphs (`getDependencies`), and timings (`getTimings`).
 *   ⏱️ **Built-in Performance Profiler:** Measure render duration, effect executions, and mount metrics via `Helix.profile()`.
 *   🧠 **Memoized Computations (`Helix.memo`):** Cache heavy calculations and re-evaluate only when inputs or dependencies update.
-*   ⚡ **Virtual DOM–Less Keyed List Diffing (`hx-for`):** Two-pointer head/tail fast-path trimming and `DocumentFragment` bulk insertion for $O(1)$ appends/prepends.
+*   ⚡ **Virtual DOM–Less Keyed List Diffing (`hx-for`):** Two-pointer head/tail fast-path trimming, numeric ranges (`n in 10`), object iteration, and `DocumentFragment` bulk insertion for $O(1)$ appends/prepends.
 
 ---
 
@@ -152,11 +159,15 @@ Here is a simple example demonstrating reactive text, input modeling, conditiona
 Helix implements a fine-grained, proxy-based dependency tracking system modeled on Vue 3's reactive core.
 
 ### `ref(value)`
-Wraps a primitive or object in a reactive box. Read and write values via the `.value` property.
+Wraps a primitive or object in a reactive box. Read and write values via the `.value` property. If an object is passed, it is deeply converted using `reactive()` so nested property mutations trigger dependent effects automatically. For raw, shallow references without deep proxying, use `shallowRef()`.
 ```javascript
 const count = ref(0);
 count.value++;            // triggers dependent updates
 console.log(count.value); // 1
+
+// Deep object reactivity (Vue 3 parity)
+const user = ref({ profile: { name: "Ada" } });
+user.value.profile.name = "Grace"; // nested mutation automatically triggers effects
 ```
 
 ### `reactive(object)`
@@ -230,14 +241,50 @@ scope.run(() => {
 scope.stop();
 ```
 
+### 🗺️ Reactive Collections (`Map`, `Set`, `Date`)
+Helix provides deep proxy reactivity for standard collections:
+```javascript
+// Reactive Map
+const cache = reactive(new Map());
+cache.set("item1", { name: "Book" });
+console.log(cache.get("item1").name); // Tracked read
+
+// Reactive Set
+const tags = reactive(new Set(["admin"]));
+tags.add("editor"); // Triggers effects watching tags.has("editor") or tags.size
+
+// Reactive Date
+const created = reactive(new Date());
+created.setFullYear(2027); // Mutator triggers dependent effects
+```
+
+### 🛡️ Tracking Controls & `untrack`
+Execute logic without subscribing to reactive dependencies, or temporarily pause tracking:
+```javascript
+// untrack(): Read reactive properties without creating subscriptions
+effect(() => {
+  const score = untrack(() => state.score);
+  console.log("Only runs when state.name changes:", state.name);
+});
+
+// pauseTracking / resumeTracking:
+Helix.pauseTracking();
+state.a = 1;
+state.b = 2;
+Helix.resumeTracking();
+```
+
 ### 🛠️ Reactivity Utilities
 
 | API Method | Purpose |
 | :--- | :--- |
 | `memo` | Optimized memoized computation with custom dependency array evaluation. |
 | `effectScope` / `onScopeDispose` | Creates and disposes composable reactive effect scopes. |
+| `untrack` | Executes a function without tracking reactive dependencies. |
+| `pauseTracking` / `resumeTracking` | Stack-safe tracking pause/resume controls. |
+| `isReactive` / `isReadonly` | Checks whether an object is a reactive proxy or readonly wrapper. |
 | `shallowRef` / `shallowReactive` | Restricts reactivity strictly to root properties. |
-| `readonly` / `shallowReadonly` | Returns an immutable, read-only wrapper of a reactive object. |
+| `readonly` / `shallowReadonly` | Returns an immutable, read-only wrapper of a reactive object, Map, or Set. |
 | `isRef` / `unref` / `toValue` | Inspects, unwraps, or extracts value variables. |
 | `toRef` / `toRefs` | Destructures reactive object properties into distinct reactive refs. |
 | `toRaw` / `markRaw` | Wipes reactivity proxy tracking or flags objects to skip reactivity. |
@@ -251,14 +298,23 @@ scope.stop();
 
 All directives use the `hx-` prefix by default. Attribute shorthand `:` stands for `hx-bind:`, and `@` represents `hx-on:`.
 
-### 1. Interpolation & Text
+### 1. Anti-FOUC Cloaking (`hx-cloak`)
+Hides elements on slow-loading pages until Helix has mounted:
+```html
+<div hx-cloak>
+  <h1>{{ title }}</h1>
+</div>
+```
+*Auto-injects `[hx-cloak] { display: none !important; }` and automatically strips the attribute on mount.*
+
+### 2. Interpolation & Text
 *   **`{{ expression }}`**: Double-brace syntax inserts text values safely.
 *   **`hx-text="message"`**: Updates the node's `textContent`.
 *   **`hx-html="richMessage"`**: Updates the node's `innerHTML`.
     > [!WARNING]
     > **XSS Vulnerability:** Never render unsanitized user-generated content via `hx-html`.
 
-### 2. Attribute Bindings (`hx-bind` / `:`)
+### 3. Attribute Bindings (`hx-bind` / `:`)
 Binds reactive state to standard element attributes (e.g., `:href`, `:src`, `:disabled`).
 ```html
 <a :href="url">Link</a>
@@ -275,19 +331,25 @@ Binds reactive state to standard element attributes (e.g., `:href`, `:src`, `:di
     <div :style="{ color: activeColor, fontSize: fontSize + 'px' }"></div>
     ```
 
-### 3. Event Handling (`hx-on` / `@`)
+### 4. Event Handling (`hx-on` / `@`)
 Listens to native DOM events. Supports inline invocations, custom arguments, and event parameter references (`$event`).
 ```html
 <button @click="increment">Click</button>
 <button @click="deleteItem(item.id, $event)">Delete</button>
 ```
 
-#### Event Modifiers:
+#### Rich Event Modifiers:
 *   `@submit.prevent`: Invokes `event.preventDefault()`.
 *   `@click.stop`: Invokes `event.stopPropagation()`.
+*   `@click.outside="closeModal"`: Detects clicks outside the element (dropdowns, modals).
+*   `@keydown.window.escape="close"`: Attaches key listener directly to `window`.
+*   `@keydown.document.tab="onTab"`: Attaches key listener directly to `document`.
+*   Key Filters: `.enter`, `.escape`, `.tab`, `.space`, `.up`, `.down`, `.left`, `.right`, `.delete`.
+*   System Modifiers: `.ctrl`, `.alt`, `.shift`, `.meta`.
+*   Event Options: `.self`, `.once`, `.passive`, `.capture`.
 
-### 4. Two-Way Model Bindings (`hx-model`)
-Synchronizes state with forms including inputs, textareas, checkboxes, radio inputs, and select dropdowns.
+### 5. Two-Way Model Bindings (`hx-model`)
+Synchronizes state with inputs, textareas, checkboxes, radio inputs, and select dropdowns.
 ```html
 <input type="text" hx-model="form.email" />
 <input type="checkbox" hx-model="form.agree" />
@@ -296,34 +358,68 @@ Synchronizes state with forms including inputs, textareas, checkboxes, radio inp
 </select>
 ```
 
-### 5. Conditional Rendering (`hx-if`)
-Conditionally renders an element. Elements under `hx-if` are fully created when truthy and completely destroyed along with nested event handlers when falsy to prevent memory leaks.
+#### Model Modifiers:
+*   `hx-model.lazy`: Updates state on `'change'` event instead of `'input'`.
+*   `hx-model.debounce.300ms`: Debounces state updates (e.g. search inputs).
+*   `hx-model.trim`: Automatically trims leading and trailing whitespace.
+*   `hx-model.number`: Coerces input value to a JavaScript number.
+
+### 6. Conditional Rendering (`hx-if` / `hx-else-if` / `hx-else`)
+Multi-branch conditional rendering with full DOM teardown:
 ```html
-<div hx-if="isLoggedIn">Welcome Back!</div>
+<div hx-if="status === 'loading'">Loading...</div>
+<div hx-else-if="status === 'error'">An error occurred.</div>
+<div hx-else>Loaded successfully!</div>
 ```
 
-### 6. List Rendering (`hx-for`)
-Loops through arrays to render lists of items. Providing a `:key` enables optimal DOM node reconciliation via Helix's **longest-increasing-subsequence** diff algorithm.
+### 7. List Rendering (`hx-for`)
+Loops through arrays, numeric ranges, objects, Maps, and Sets:
 ```html
+<!-- Array iteration with stable key -->
 <ul>
   <li hx-for="item in items" :key="item.id">{{ item.name }}</li>
 </ul>
+
+<!-- Range iteration (1 to 10) -->
+<span hx-for="n in 10">Page {{ n }}</span>
+
+<!-- Object iteration (value, key) -->
+<div hx-for="(val, key) in user">{{ key }}: {{ val }}</div>
+
+<!-- Multi-root list item using <template hx-for> -->
+<template hx-for="item in items" :key="item.id">
+  <dt>{{ item.title }}</dt>
+  <dd>{{ item.description }}</dd>
+</template>
 ```
 
-### 7. Template Refs (`hx-ref`)
-References elements directly inside the component scope.
+### 8. Subtree Skip (`hx-ignore` / `hx-static`)
+Skips Helix compilation for 3rd-party non-reactive DOM widgets (Chart.js, Leaflet, TinyMCE):
+```html
+<div id="chart" hx-ignore></div>
+```
+
+### 9. Server State Hydration (`hx-data`)
+Auto-hydrates JSON state from server templates (PHP, Laravel, Django, Rails) on root elements:
+```html
+<div id="app" hx-data='{"count": 5, "username": "Grace"}'>
+  <p>{{ username }}: {{ count }}</p>
+</div>
+```
+
+### 10. Template Refs (`hx-ref`) & `$refs`
+References elements directly in the component scope via `ctx.$refs`:
 ```html
 <input hx-ref="usernameInput" />
 ```
 ```javascript
-setup() {
-  const usernameInput = ref(null);
-  onMounted(() => usernameInput.value.focus());
-  return { usernameInput };
+setup({ $refs }) {
+  onMounted(() => $refs.usernameInput.focus());
+  return {};
 }
 ```
 
-### 8. Visibility Toggle (`hx-show`)
+### 11. Visibility Toggle (`hx-show`)
 Toggles an element's visibility using the CSS `display` property, preserving the element in the DOM tree.
 ```html
 <div hx-show="isToggled">Toggle display:none style</div>
@@ -445,7 +541,7 @@ Helix.$bus.off("notify-user", handler);
 
 ## 🧩 Plugins & Namespaces
 
-Extend Helix with global namespaces, custom components, and custom directives using `Helix.use()` or `app.use()`. The system features semver dependency resolution and a **Single-Execution Plugin Engine (v11.1.19)** with automated `_executed` state tracking so `install()` runs **exactly once**.
+Extend Helix with global namespaces, custom components, and custom directives using `Helix.use()` or `app.use()`. The system features semver dependency resolution and a **Single-Execution Plugin Engine (v11.1.20)** with automated `_executed` state tracking so `install()` runs **exactly once**.
 
 ```javascript
 const NetworkPlugin = {
@@ -492,25 +588,60 @@ Configure global configuration parameters prior to mounting any application inst
 
 ```javascript
 Helix.config.debug = true;         // Enables developer console warning flags
-Helix.config.prefix = "hx-";       // Sets custom directive attributes
+Helix.config.prefix = "hx-" ;       // Sets custom directive attributes (defaults to "hx-")
 Helix.config.delimiters = ["{{", "}}"]; // Custom text interpolators
+Helix.config.htmxIntegration = false;   // Enables automatic HTMX swap & load re-mounting
+Helix.config.autoInjectCloak = true;    // Automatically injects [h-cloak] display:none CSS
 ```
 
 | Config Option | Default Value | Description |
 | :--- | :--- | :--- |
 | `debug` | `false` | Enable validation and performance traces inside the developer console. |
-| `prefix` | `"hx-"` | Custom HTML tag prefix for directive bindings. |
+| `prefix` | `"h-"` | Custom HTML tag prefix for directive bindings. |
 | `delimiters` | `["{{", "}}"]` | Opening and closing string sequences for template text variables. |
 | `allowInlineExpressions` | `false` | Enables executing full inline JS code. (E.g. `@click="state.val++"`). |
 | `removeAttributeBindings` | `true` | Wipes custom directives (`hx-if`, `hx-model`) from nodes after compilation. |
 | `rethrowErrors` | `true` | Directs error handler cycles to re-throw runtime failures. |
 | `slowThreshold` | `2` | Threshold limit in milliseconds for logging slow operation warnings. |
 | `htmlSanitizer` | `null` | Custom sanitizer callback for `hx-html` (e.g. `(html) => DOMPurify.sanitize(html)`). |
+| `htmxIntegration` | `false` | Automatically listens for `htmx:afterSwap` and `htmx:load` to rebind swapped DOM. |
+| `autoInjectCloak` | `true` | Automatically injects `[${prefix}cloak]` display:none style in `<head>`. |
 
 ---
 
-## 🔄 Dynamic DOM Rebinding (`Helix.rebind`)
+## 🏢 Multi-App Registry (`Helix.$apps`)
 
+Track, inspect, and coordinate multiple Helix apps on the same page:
+
+```javascript
+// Look up by CSS selector, DOM element, or instance ID
+const appEntry = Helix.$apps.get("#chat-widget");
+console.log(appEntry.instance, appEntry.app);
+
+// Check or list all mounted apps
+if (Helix.$apps.has("#sidebar-app")) {
+  const allApps = Helix.$apps.list(); // Array of { selector, element, instance, app, id, mountedAt }
+}
+```
+
+---
+
+## 🔄 Dynamic DOM Rebinding (`Helix.rebind`) & HTMX Integration
+
+### Official HTMX Auto-Rebind
+Automatically remounts reactive directives and strips cloak attributes whenever HTMX swaps HTML:
+
+```javascript
+// Enable globally:
+Helix.enableHtmx(); // or Helix.config.htmxIntegration = true;
+```
+
+When HTMX swaps HTML via `hx-get="/api/items" hx-swap="innerHTML"`:
+1. Strips any incoming `[hx-cloak]` attributes immediately so content displays smoothly.
+2. Identifies the owning Helix app instance from `Helix.$apps`.
+3. Automatically triggers `app.rebind(target)` to mount reactive directives and clean up stale event listeners.
+
+### Manual Dynamic DOM Rebinding
 When third-party libraries (such as **DataTables**, jQuery plugins, or server-side AJAX responses) dynamically insert HTML into the DOM containing Helix directives (`@click`, `hx-model`, `{{ ... }}`), use `Helix.rebind()` or `app.rebind()` to compile and bind reactive state to the new elements.
 
 ```javascript
@@ -849,10 +980,10 @@ If you are hosting the workspace under a local web server like MAMP, access them
 
 ---
 
-## 🚀 Releases & Downloads (v11.1.19)
+## 🚀 Releases & Downloads (v11.1.20)
 
-- 📦 **Release Archive**: [helix-v11.1.19.zip](file:///d:/mamp/htdocs/helix_framework/dist/helix-v11.1.19.zip)
+- 📦 **Release Archive**: [helix-v11.1.20.zip](file:///d:/mamp/htdocs/helix_framework/dist/helix-v11.1.20.zip)
 - 📄 **Development Bundle**: [dist/helix.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.js) (154 KB)
 - ⚡ **Production Minified**: [dist/helix.min.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.min.js) (68 KB)
 - 📋 **Full Changelog**: [dist/Changelog.md](file:///d:/mamp/htdocs/helix_framework/dist/Changelog.md)
-- 🏷️ **GitHub Tag & Release**: [v11.1.19](https://github.com/pioneersingh321/helix_framework/releases/tag/v11.1.19)
+- 🏷️ **GitHub Tag & Release**: [v11.1.20](https://github.com/pioneersingh321/helix_framework/releases/tag/v11.1.20)

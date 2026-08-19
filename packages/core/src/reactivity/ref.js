@@ -5,17 +5,24 @@ import {
     warn
 } from '../shared/shared.js';
 import { track, trigger } from './effect.js';
+import { reactive } from './reactive.js';
+
+function toReactive(val) {
+    return (typeof val === "object" && val !== null) ? reactive(val) : val;
+}
 
 export function ref(value) {
+    let _val = toReactive(value);
     const refObj = {};
     Object.defineProperty(refObj, "value", {
         get() {
             track(refObj, "value");
-            return value;
+            return _val;
         },
         set(newVal) {
             if (value !== newVal) {
                 value = newVal;
+                _val = toReactive(newVal);
                 trigger(refObj, "value");
             }
         }
@@ -26,30 +33,21 @@ export function ref(value) {
 }
 
 export function customRef(factory) {
-    let value;
-    let _track;
-    let _trigger;
     const refObj = {};
+    const { get, set } = factory(
+        () => track(refObj, "value"),
+        () => trigger(refObj, "value")
+    );
     Object.defineProperty(refObj, "value", {
         get() {
-            _track();
-            return value;
+            return get();
         },
         set(newVal) {
-            if (value !== newVal) {
-                value = newVal;
-                _trigger();
-            }
+            set(newVal);
         }
     });
     refObj[IS_REF] = true;
     refObj[RAW] = refObj;
-    const { track: trackFn, trigger: triggerFn } = factory(
-        () => { if (_track) _track(); },
-        () => { if (_trigger) _trigger(); }
-    );
-    _track = trackFn;
-    _trigger = triggerFn;
     return refObj;
 }
 

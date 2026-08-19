@@ -1,35 +1,35 @@
 import { reactive } from '../reactivity/reactive.js';
+import { provide } from '../app/lifecycle.js';
 
 export const Suspense = {
     name: "Suspense",
     setup(ctx) {
-        const { slots } = ctx;
-        const state = reactive({
-            pending: true,
-            error: null
+        const state = reactive({ pending: true, error: null });
+        let pendingCount = 0;
+
+        provide('__hx_suspense__', (promise) => {
+            pendingCount++;
+            state.pending = true;
+            Promise.resolve(promise)
+                .catch((err) => { state.error = err; })
+                .finally(() => {
+                    pendingCount = Math.max(0, pendingCount - 1);
+                    if (pendingCount === 0) state.pending = false;
+                });
         });
 
         return {
             state,
-            renderFallback() {
-                if (slots.fallback) {
-                    return slots.fallback();
-                }
-                return { template: "<div class='suspense-loading'>Loading...</div>" };
-            },
-            renderDefault() {
-                if (slots.default) {
-                    return slots.default();
-                }
-                return { template: "" };
-            },
             template: `
                 <div class="helix-suspense">
                     <template hx-if="state.pending">
-                        <div hx-html="renderFallback().template"></div>
+                        <slot name="fallback"><div class="suspense-loading">Loading...</div></slot>
                     </template>
-                    <template hx-if="!state.pending">
-                        <div hx-html="renderDefault().template"></div>
+                    <template hx-else-if="state.error">
+                        <slot name="error"><div class="suspense-error">{{ state.error.message || state.error }}</div></slot>
+                    </template>
+                    <template hx-else>
+                        <slot></slot>
                     </template>
                 </div>
             `

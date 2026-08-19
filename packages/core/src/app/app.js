@@ -6,6 +6,8 @@ import {
     incrementGlobalInstanceId,
     currentInstance,
     setCurrentInstance,
+    EffectScope,
+    globalApps,
     warn,
     trace,
     handleError,
@@ -54,6 +56,7 @@ export function createApp(rootComponent = {}) {
     let isMounted = false;
     let rootElement = null;
     let rootInstance = null;
+    let mountedRootSelector = null;
     let unmountCallbacks = [];
     const appConfig = Object.create(globalConfig);
     Object.freeze(appConfig);
@@ -266,19 +269,17 @@ export function createApp(rootComponent = {}) {
 
             let cleanup = null;
             let installPromise = null;
-            if (typeof plugin.install === "function") {
-                const result = plugin.install(pluginAPI, options);
-                if (result && typeof result.then === "function") {
-                    installPromise = result;
-                } else {
-                    cleanup = result;
-                }
-            } else if (typeof plugin === "function") {
-                const result = plugin(pluginAPI, options);
-                if (result && typeof result.then === "function") {
-                    installPromise = result;
-                } else {
-                    cleanup = result;
+            const installMethod = typeof plugin.install === "function" ? plugin.install : (typeof plugin.setup === "function" ? plugin.setup : (typeof plugin === "function" ? plugin : null));
+            if (installMethod) {
+                try {
+                    const result = installMethod(pluginAPI, options);
+                    if (result && typeof result.then === "function") {
+                        installPromise = result;
+                    } else if (typeof result === "function") {
+                        cleanup = result;
+                    }
+                } catch (err) {
+                    handleError(err, `plugin install: ${plugin.name || "anonymous"}`);
                 }
             }
 
@@ -310,20 +311,52 @@ export function createApp(rootComponent = {}) {
                 warn(`App already mounted. Call unmount() first.`, "core");
                 return rootInstance;
             }
-            rootElement = document.querySelector(rootSelector);
+
+            if (typeof document !== "undefined" && document.readyState === "loading") {
+                await new Promise((resolve) => {
+                    document.addEventListener("DOMContentLoaded", resolve, { once: true });
+                });
+            }
+
+            mountedRootSelector = typeof rootSelector === "string" ? rootSelector : (rootSelector && rootSelector.id ? `#${rootSelector.id}` : "root");
+            rootElement = typeof rootSelector === "string" && typeof document !== "undefined" && typeof document.querySelector === "function"
+                ? document.querySelector(rootSelector)
+                : (rootSelector && rootSelector.nodeType === 1 ? rootSelector : null);
             if (!rootElement) {
-                warn(`[mount] Cannot find element: ${rootSelector}`, "core");
+                console.warn(`[Helix] mount() failed: no element matches "${rootSelector}"`);
                 return null;
             }
 
-            const pendingAsync = appPlugins.filter((p) => p.promise).map((p) => p.promise);
+            let initialData = {};
+            const hxDataAttr = rootElement.getAttribute(`${appConfig.prefix}data`) || rootElement.getAttribute(`data-${appConfig.prefix}data`);
+            if (hxDataAttr) {
+                try {
+                    initialData = JSON.parse(hxDataAttr);
+                } catch (e) {
+                    if (appConfig.allowInlineExpressions) {
+                        try {
+                            initialData = new Function(`return (${hxDataAttr})`)();
+                        } catch (err) {
+                            logger.warn(`Failed to parse ${appConfig.prefix}data attribute: ${hxDataAttr}`, "template");
+                        }
+                    } else {
+                        logger.warn(`Failed to parse JSON in ${appConfig.prefix}data attribute. Inline JS evaluation is disabled (allowInlineExpressions = false).`, "security");
+                    }
+                }
+                rootElement.removeAttribute(`${appConfig.prefix}data`);
+                rootElement.removeAttribute(`data-${appConfig.prefix}data`);
+            }
+
+            const pendingAsync = [...globalPlugins, ...appPlugins].filter((p) => p.promise).map((p) => p.promise);
             if (pendingAsync.length > 0) {
                 await Promise.all(pendingAsync);
             }
 
+            const scope = new EffectScope();
             const instance = {
                 id: incrementGlobalInstanceId(),
                 root: rootElement,
+                scope,
                 hooks: { beforeMount: [], mount: [], updated: [], beforeUnmount: [], destroy: [], unmounted: [] },
                 cleanups: [],
                 provides: Object.create(appProvides)
@@ -463,20 +496,42 @@ export function createApp(rootComponent = {}) {
 
             let ctx;
             try {
-                if (typeof rootComponent === "function") {
-                    ctx = rootComponent(appCtx);
-                } else if (rootComponent.setup) {
-                    ctx = rootComponent.setup(appCtx);
-                } else {
-                    ctx = reactive({});
-                }
+                ctx = scope.run(() => {
+                    let res;
+                    if (typeof rootComponent === "function") {
+                        res = rootComponent(appCtx);
+                    } else if (rootComponent.setup) {
+                        res = rootComponent.setup(appCtx);
+                    } else if (typeof rootComponent === "object" && Object.keys(rootComponent).length > 0) {
+                        res = reactive({ ...initialData, ...rootComponent });
+                    } else {
+                        res = reactive({ ...initialData });
+                    }
+                    if (res && typeof res === "object") {
+                        if (Object.keys(initialData).length > 0) {
+                            Object.assign(res, initialData);
+                        }
+                        if (!res.$refs) res.$refs = {};
+                    }
+                    return res;
+                });
             } catch (err) {
                 handleError(err, "Root setup");
                 setCurrentInstance(null);
+                scope.stop();
                 return null;
             }
             rootCtx = ctx;
             setCurrentInstance(null);
+
+            globalApps.register(rootSelector, rootElement, instance, app);
+
+            // Remove cloak on root element and descendants
+            if (rootElement.hasAttribute(`${appConfig.prefix}cloak`)) rootElement.removeAttribute(`${appConfig.prefix}cloak`);
+            rootElement.querySelectorAll?.(`[${appConfig.prefix}cloak]`)?.forEach((el) => {
+                el.removeAttribute(`${appConfig.prefix}cloak`);
+            });
+
             trace("Initial Mount Binding", () => bindNode(rootElement, ctx, instance));
             instance.hooks.beforeMount.forEach((fn) => fn());
             instance.hooks.mount.forEach((fn) => fn());
@@ -494,9 +549,14 @@ export function createApp(rootComponent = {}) {
                 rootInstance.cleanups.forEach((fn) => {
                     try { fn(); } catch (e) { handleError(e, "app unmount cleanup"); }
                 });
+                if (rootInstance.scope) {
+                    rootInstance.scope.stop();
+                }
                 rootInstance.hooks.destroy.forEach((fn) => fn());
                 rootInstance.hooks.unmounted.forEach((fn) => fn());
             }
+
+            globalApps.unregister(mountedRootSelector, rootElement, rootInstance);
 
             [...appPlugins].reverse().forEach((p) => {
                 if (typeof p.cleanup === "function") {
@@ -513,6 +573,41 @@ export function createApp(rootComponent = {}) {
             unmountCallbacks.forEach((fn) => fn());
             isMounted = false;
             rootInstance = null;
+            return app;
+        },
+        rebind(targetNode) {
+            if (!isMounted || !rootElement) {
+                warn("Cannot rebind: app is not mounted.", "core");
+                return app;
+            }
+            let target = targetNode;
+            if (typeof target === "string") {
+                target = rootElement.querySelector(target);
+            }
+            if (target && !target.nodeType && (typeof target.length === "number" || typeof target[Symbol.iterator] === "function")) {
+                Array.from(target).forEach((n) => app.rebind(n));
+                return app;
+            }
+            if (!target || target.nodeType !== 1) return app;
+
+            const allElements = [target, ...Array.from(target.querySelectorAll('*'))];
+            allElements.forEach((el) => {
+                if (el.__hx_binding && el.__hx_binding.cleanups) {
+                    el.__hx_binding.cleanups.forEach((fn) => {
+                        try { fn(); } catch (e) {}
+                    });
+                    el.__hx_binding.cleanups.length = 0;
+                }
+                if (Array.isArray(el.__hx_cleanup)) {
+                    el.__hx_cleanup.forEach((fn) => {
+                        try { fn(); } catch (e) {}
+                    });
+                    el.__hx_cleanup = null;
+                }
+                el[BOUND] = false;
+                el.__hx_static = false;
+                bindNode(el, rootCtx, rootInstance, [], true);
+            });
             return app;
         },
         onAppUnmount(callback) {

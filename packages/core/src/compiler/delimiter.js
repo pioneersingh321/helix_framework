@@ -3,6 +3,7 @@ import {
 } from '../shared/shared.js';
 import { resolveExpression } from './compiler.js';
 import { effect, cleanup } from '../reactivity/effect.js';
+import { queueComponentUpdated } from '../app/lifecycle.js';
 
 export function escapeRegex(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -64,23 +65,30 @@ export function bindTextInterpolation(node, ctx, instance, delimiters) {
     marker.remove();
 
     const cleanupFns = [];
+    let initialRan = false;
     textNodes.forEach(({ node: textNode, expr }) => {
         const updateFn = () => {
             const res = resolveExpression(expr, ctx, { fallback: '', contextName: 'text-interpolation' });
             const newText = typeof res === 'object' && res !== null ? JSON.stringify(res) : res ?? '';
             if (textNode.textContent !== newText) {
                 textNode.textContent = newText;
+                if (initialRan && instance) {
+                    queueComponentUpdated(instance);
+                }
             }
         };
         const e = effect(updateFn, { name: `interpolation: ${expr}`, area: 'compiler' });
         cleanupFns.push(() => cleanup(e));
     });
+    initialRan = true;
 
     if (!parent.__hx_cleanup) {
         parent.__hx_cleanup = [];
     }
     cleanupFns.forEach(fn => parent.__hx_cleanup.push(fn));
-    cleanupFns.forEach(fn => instance.cleanups.push(fn));
+    if (instance && instance.cleanups) {
+        cleanupFns.forEach(fn => instance.cleanups.push(fn));
+    }
 
     return true;
 }

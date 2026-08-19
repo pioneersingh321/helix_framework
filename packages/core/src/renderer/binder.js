@@ -54,6 +54,7 @@ import {
     onBeforeUnmount,
     onUnmounted,
     onUpdated,
+    queueComponentUpdated,
     provide,
     inject,
     validateProp,
@@ -100,11 +101,34 @@ export function createDirectiveHook(dirName, hookName, el, binding, instance, no
     };
 }
 
+const scheduleRaf = typeof requestAnimationFrame === "function"
+    ? requestAnimationFrame
+    : (fn) => setTimeout(fn, 0);
+
+function ensureCloakStyles(appConfig) {
+    if (typeof document === "undefined" || appConfig.autoInjectCloak === false) return;
+    const rule = `[${appConfig.prefix}cloak] { display: none !important; }`;
+    let style = document.getElementById("helix-cloak-style");
+    if (!style) {
+        style = document.createElement("style");
+        style.id = "helix-cloak-style";
+        style.textContent = rule;
+        if (document.head) {
+            document.head.appendChild(style);
+        }
+    } else if (!style.textContent.includes(`[${appConfig.prefix}cloak]`)) {
+        style.textContent += `\n${rule}`;
+    }
+}
+
 export function makeBindNode(appContext) {
     const appComponents = appContext.components;
     const appDirectives = appContext.directives;
     const appConfig = appContext.config;
     const builtinDirectives = createBuiltinDirectives(appConfig);
+
+    ensureCloakStyles(appConfig);
+
     const resolveDirective = (name) => {
         if (appDirectives[name]) return appDirectives[name];
         if (globalDirectives[name]) return globalDirectives[name];
@@ -163,6 +187,8 @@ export function makeBindNode(appContext) {
     function bindNode(node, ctx, instance, cleanupTarget, force = false) {
         if (cleanupTarget === undefined) cleanupTarget = (instance && instance.cleanups) || [];
         if (node.nodeType === 1) {
+            if (node.hasAttribute(`${appConfig.prefix}cloak`)) node.removeAttribute(`${appConfig.prefix}cloak`);
+
             if (node[BOUND]) {
                 if (!force || (node.__hx_binding && node.__hx_binding.ctx === ctx)) return;
                 if (node.__hx_binding && node.__hx_binding.cleanups) {
@@ -221,6 +247,18 @@ export function makeBindNode(appContext) {
                 return false;
             }
         });
+        const scope = new EffectScope();
+        const childInst = {
+            id: incrementGlobalInstanceId(),
+            name: compDefNormalized.name || tagName,
+            root: node,
+            scope,
+            hooks: { beforeMount: [], mount: [], updated: [], beforeUnmount: [], destroy: [], unmounted: [] },
+            cleanups: [],
+            parent: instance,
+            provides: instance ? Object.create(instance.provides || null) : Object.create(null)
+        };
+
         const childNodes = Array.from(node.childNodes);
         const slotTemplates = [];
         childNodes.forEach((child) => {
@@ -233,7 +271,7 @@ export function makeBindNode(appContext) {
                 }
             }
         });
-        const slots = createSlots(slotTemplates, ctx, instance, bindNode);
+        const slots = createSlots(slotTemplates, ctx, childInst, bindNode);
         const defaultSlotEls = childNodes.filter((child) => {
             if (child.nodeType !== 1) return true;
             return !slotTemplates.includes(child);
@@ -243,13 +281,15 @@ export function makeBindNode(appContext) {
                 const fragment = document.createDocumentFragment();
                 defaultSlotEls.forEach((el) => {
                     const clone = el.cloneNode(true);
-                    bindNode(clone, ctx, instance, undefined, force);
+                    bindNode(clone, ctx, childInst, undefined, force);
                     fragment.appendChild(clone);
                 });
                 return fragment;
             };
         }
 
+        let isComponentActive = true;
+        let hasMounted = false;
         const listeners = Object.create(null);
         Array.from(node.attributes || []).forEach((attr) => {
             if (attr.name.startsWith("@") || attr.name.startsWith(`${appConfig.prefix}on:`)) {
@@ -279,8 +319,11 @@ export function makeBindNode(appContext) {
                         const rawValue = resolvePath(attr.value, ctx);
                         propsTarget[propName] = validateProp(propName, rawValue, propsDef[propName]);
                         trigger(propsTarget, propName);
+                        if (hasMounted && isComponentActive) {
+                            queueComponentUpdated(childInst);
+                        }
                     }, { name: `bind: ${propName}`, area: "binding" });
-                    instance.cleanups.push(() => cleanup(e));
+                    childInst.cleanups.push(() => cleanup(e));
                 } else {
                     propsTarget[propName] = validateProp(propName, attr.value, propsDef[propName]);
                 }
@@ -293,22 +336,11 @@ export function makeBindNode(appContext) {
             const handlers = listeners[normalizedName];
             if (handlers) for (let i = 0; i < handlers.length; i++) handlers[i](...args);
         };
-        const scope = new EffectScope();
         node.innerHTML = "";
-        const childInst = {
-            id: incrementGlobalInstanceId(),
-            name: compDefNormalized.name || tagName,
-            root: node,
-            scope,
-            hooks: { beforeMount: [], mount: [], updated: [], beforeUnmount: [], destroy: [], unmounted: [] },
-            cleanups: [],
-            parent: instance,
-            provides: instance ? Object.create(instance.provides || null) : Object.create(null)
-        };
         node.__hx_cleanup = node.__hx_cleanup || [];
-        let isComponentActive = true;
         node.__hx_cleanup.push(() => {
             isComponentActive = false;
+            hasMounted = false;
             childInst.hooks.beforeUnmount.forEach((fn) => fn());
             childInst.cleanups.forEach((fn) => {
                 try { fn(); } catch (e) { handleError(e, "component unmount cleanup"); }
@@ -336,6 +368,7 @@ export function makeBindNode(appContext) {
             return;
         }
         const finishMount = (resolvedCtx) => {
+            if (!isComponentActive || hasMounted) return;
             setCurrentInstance(prevInstance);
             if (resolvedCtx && resolvedCtx.template) {
                 node.innerHTML = resolvedCtx.template;
@@ -353,6 +386,7 @@ export function makeBindNode(appContext) {
             }
             childInst.hooks.beforeMount.forEach((fn) => fn());
             childInst.hooks.mount.forEach((fn) => fn());
+            hasMounted = true;
         };
         if (childCtx instanceof Promise) {
             childCtx.then((resolvedCtx) => {
@@ -378,6 +412,16 @@ export function makeBindNode(appContext) {
                 node.__hx_binding.cleanups.push(fn);
             }
         };
+
+        // prefix-ignore / prefix-static directive: skip binding children for third-party widgets
+        if (node.hasAttribute(`${appConfig.prefix}ignore`) || node.hasAttribute(`${appConfig.prefix}static`)) {
+            node.removeAttribute(`${appConfig.prefix}ignore`);
+            node.removeAttribute(`${appConfig.prefix}static`);
+            node[BOUND] = true;
+            node.__hx_static = true;
+            return;
+        }
+
         if (node.hasAttribute(`${appConfig.prefix}for`)) {
             const val = node.getAttribute(`${appConfig.prefix}for`);
             node.removeAttribute(`${appConfig.prefix}for`);
@@ -389,17 +433,62 @@ export function makeBindNode(appContext) {
             }
             return;
         }
+
+        // Conditional branch chains: prefix-if, prefix-else-if, prefix-else
         if (node.hasAttribute(`${appConfig.prefix}if`)) {
-            const val = node.getAttribute(`${appConfig.prefix}if`);
+            const ifVal = node.getAttribute(`${appConfig.prefix}if`);
             node.removeAttribute(`${appConfig.prefix}if`);
+
+            const branches = [{ el: node, exp: ifVal, type: "if" }];
+
+            let next = node.nextSibling;
+            while (next) {
+                if (next.nodeType === 3 && next.textContent.trim() === "") {
+                    const wsNode = next;
+                    next = next.nextSibling;
+                    wsNode.remove();
+                    continue;
+                }
+                if (next.nodeType === 8) {
+                    next = next.nextSibling;
+                    continue;
+                }
+                if (next.nodeType === 1) {
+                    const elseIfVal = next.getAttribute(`${appConfig.prefix}else-if`);
+                    const hasElse = next.hasAttribute(`${appConfig.prefix}else`);
+
+                    if (elseIfVal !== null) {
+                        next.removeAttribute(`${appConfig.prefix}else-if`);
+                        next[BOUND] = true;
+                        branches.push({ el: next, exp: elseIfVal, type: "else-if" });
+                        next = next.nextSibling;
+                        continue;
+                    } else if (hasElse) {
+                        next.removeAttribute(`${appConfig.prefix}else`);
+                        next[BOUND] = true;
+                        branches.push({ el: next, exp: null, type: "else" });
+                        break;
+                    }
+                }
+                break;
+            }
+
             const dir = resolveDirective("if");
             if (dir) {
-                const bindingObj = { value: val, ctx, instance, trackCleanup, bindNode };
+                const bindingObj = { value: ifVal, branches, ctx, instance, trackCleanup, bindNode };
                 const hook = createDirectiveHook("if", "mounted", node, bindingObj, instance, normalizeDirective(dir));
                 if (hook) hook();
             }
             return;
         }
+
+        // Standalone prefix-else-if or prefix-else without preceding prefix-if
+        if (node.hasAttribute(`${appConfig.prefix}else-if`) || node.hasAttribute(`${appConfig.prefix}else`)) {
+            warn(`[Helix 🛠️] ${appConfig.prefix}else / ${appConfig.prefix}else-if used without preceding ${appConfig.prefix}if.`, "directive");
+            node.removeAttribute(`${appConfig.prefix}else-if`);
+            node.removeAttribute(`${appConfig.prefix}else`);
+        }
+
         let hasDynamicAttr = false;
         const attrs = node.attributes;
         if (attrs) {
@@ -517,6 +606,7 @@ export function makeBindNode(appContext) {
                         if (beforeUpdateHook) beforeUpdateHook();
                         const updatedHook = createDirectiveHook(dirName, "updated", el, bindingObj, instance, normalized);
                         if (updatedHook) updatedHook();
+                        if (instance) queueComponentUpdated(instance);
                     },
                     lazy: false
                 });
@@ -531,7 +621,7 @@ export function makeBindNode(appContext) {
                 });
             }
         });
-        requestAnimationFrame(() => {
+        scheduleRaf(() => {
             if (appConfig.removeAttributeBindings) {
                 toRemove.forEach((name) => {
                     if (node.hasAttribute(name)) node.removeAttribute(name);

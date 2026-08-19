@@ -1,4 +1,6 @@
 import { handleError, warn } from '../shared/shared.js';
+import { inject } from '../app/lifecycle.js';
+import { reactive } from '../reactivity/reactive.js';
 
 const registeredAsyncComponents = new Set();
 const memoryCache = new Map();
@@ -19,7 +21,7 @@ export function defineAsyncComponent(source) {
         retryDelay = 1000,
         cache = true,
         onError: onErrorHandler,
-        suspensible = false /* reserved for future SSR/Suspense streaming integration */
+        suspensible = false
     } = options;
 
     const useCache = cache !== false;
@@ -122,38 +124,52 @@ export function defineAsyncComponent(source) {
                 return getTemplateFromComponent(cached, setupCtx);
             }
 
-            let showLoading = delay === 0 && loadingComponent;
-
+            const suspenseRegister = suspensible ? inject('__hx_suspense__', null) : null;
             const loadPromise = load();
 
-            return new Promise((resolve) => {
-                let delayTimer = null;
-                let isResolved = false;
+            if (suspenseRegister) {
+                suspenseRegister(loadPromise);
+                return loadPromise
+                    .then((loadedComp) => getTemplateFromComponent(loadedComp, setupCtx))
+                    .catch((err) => errorComponent
+                        ? getTemplateFromComponent(errorComponent, setupCtx)
+                        : { template: "", error: err });
+            }
 
-                if (delay > 0 && loadingComponent) {
-                    delayTimer = setTimeout(() => {
-                        if (!isResolved) {
-                            showLoading = true;
-                        }
-                    }, delay);
-                }
+            if (!loadingComponent && !errorComponent) {
+                return loadPromise.then((loadedComp) => getTemplateFromComponent(loadedComp, setupCtx));
+            }
 
-                loadPromise
-                    .then((loadedComp) => {
-                        isResolved = true;
-                        if (delayTimer) clearTimeout(delayTimer);
-                        resolve(getTemplateFromComponent(loadedComp, setupCtx));
-                    })
-                    .catch((err) => {
-                        isResolved = true;
-                        if (delayTimer) clearTimeout(delayTimer);
-                        if (errorComponent) {
-                            resolve(getTemplateFromComponent(errorComponent, setupCtx));
-                        } else {
-                            resolve({ template: "", error: err });
-                        }
-                    });
+            const isImmediateLoading = delay === 0 && loadingComponent;
+            const initialLoadingTpl = isImmediateLoading ? (getTemplateFromComponent(loadingComponent, setupCtx).template || "") : "";
+            const compState = reactive({
+                status: isImmediateLoading ? "loading" : "pending",
+                template: initialLoadingTpl
             });
+
+            let delayTimer = null;
+            if (delay > 0 && loadingComponent) {
+                delayTimer = setTimeout(() => {
+                    if (compState.status === "pending") {
+                        compState.status = "loading";
+                        compState.template = getTemplateFromComponent(loadingComponent, setupCtx).template || "";
+                    }
+                }, delay);
+            }
+
+            loadPromise
+                .then((loadedComp) => {
+                    if (delayTimer) clearTimeout(delayTimer);
+                    compState.status = "resolved";
+                    compState.template = getTemplateFromComponent(loadedComp, setupCtx).template || "";
+                })
+                .catch((err) => {
+                    if (delayTimer) clearTimeout(delayTimer);
+                    compState.status = "error";
+                    compState.template = errorComponent ? (getTemplateFromComponent(errorComponent, setupCtx).template || "") : "";
+                });
+
+            return compState;
         }
     };
 

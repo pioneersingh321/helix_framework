@@ -116,12 +116,16 @@ Directives are HTML attributes prefixed with `hx-` (configurable), with `:` as s
 
 ### `ref(value)`
 
-A single reactive value. Read and write through `.value`.
+A single reactive value. Read and write through `.value`. If an object is passed, it is deeply converted using `reactive()` so nested property mutations automatically trigger dependent effects. For raw, shallow references without deep proxying, use `shallowRef()`.
 
 ```js
 const count = ref(0);
 count.value++;            // triggers dependents
 console.log(count.value); // 1
+
+// Deep object reactivity (Vue 3 parity)
+const user = ref({ profile: { name: "Ada" } });
+user.value.profile.name = "Grace"; // triggers updates
 ```
 
 ### `reactive(object)`
@@ -180,26 +184,78 @@ watchEffect((onCleanup) => {
 });
 ```
 
+### Reactive Collections (`Map`, `Set`, `Date`)
+
+Helix proxies `Map`, `Set`, and `Date` instances with deep reactivity:
+
+```js
+// Reactive Map
+const map = reactive(new Map());
+map.set("user", "Alice");
+console.log(map.get("user")); // Reactive read
+
+// Reactive Set
+const set = reactive(new Set());
+set.add("admin");
+console.log(set.has("admin")); // Reactive check
+
+// Reactive Date
+const date = reactive(new Date());
+date.setFullYear(2027); // Mutator triggers dependent effects
+```
+
+### Tracking Controls & `untrack`
+
+Pause and resume reactive dependency tracking or run a block without subscribing:
+
+```js
+// untrack: read state inside an effect without creating a subscription
+effect(() => {
+  const currentCount = untrack(() => state.count);
+  console.log("Only runs when other tracked dependencies change", state.name);
+});
+
+// Bulk mutation tracking control:
+Helix.pauseTracking();
+state.a = 1;
+state.b = 2;
+Helix.resumeTracking();
+```
+
 ### Utilities
 
 | Helper | Purpose |
 | --- | --- |
+| `isReactive`, `isReadonly` | Checks whether an object is a reactive proxy or readonly wrapper |
 | `shallowRef` / `shallowReactive` | Reactivity only at the top level |
-| `readonly` / `shallowReadonly` | Immutable reactive views |
+| `readonly` / `shallowReadonly` | Immutable reactive views (supports Objects, Arrays, Maps, Sets) |
 | `isRef`, `unref`, `toValue` | Ref inspection / unwrapping |
 | `toRef`, `toRefs` | Convert reactive properties to refs |
 | `toRaw`, `markRaw` | Escape / opt out of reactivity |
 | `isProxy`, `isShallow` | Proxy inspection |
 | `customRef` | Build a ref with custom track/trigger (e.g. debounced) |
 | `triggerRef` | Force-trigger a `shallowRef` |
+| `untrack` | Execute a function without tracking reactive dependencies |
+| `pauseTracking` / `resumeTracking` | Stack-safe tracking pause/resume |
 | `nextTick` | Await the next DOM flush |
-| `EffectScope` | Group effects for collective disposal |
+| `EffectScope` / `effectScope` | Group effects for collective disposal |
+| `onScopeDispose` | Register cleanup callback in the active scope or component |
 
 ---
 
 ## Template directives
 
 All directives use the `hx-` prefix by default. `:x` is shorthand for `hx-bind:x` and `@x` is shorthand for `hx-on:x`.
+
+### Anti-FOUC Cloaking — `hx-cloak`
+
+Hides unmounted markup on slow-loading pages until Helix mounts. Injects `[hx-cloak] { display: none !important; }` automatically and strips the attribute once rendered:
+
+```html
+<div hx-cloak>
+  <h1>{{ title }}</h1>
+</div>
+```
 
 ### Text & HTML
 
@@ -239,54 +295,113 @@ All directives use the `hx-` prefix by default. `:x` is shorthand for `hx-bind:x
 <!-- Inline call with arguments and the native event -->
 <button @click="remove(item.id, $event)">Delete</button>
 
-<!-- Modifiers -->
+<!-- Event Modifiers -->
 <form @submit.prevent="onSubmit">…</form>
 <a @click.stop="noop">…</a>
+<div @click.outside="closeModal">…</div>
+<button @keydown.window.escape="close">Escape anywhere</button>
+<input @keydown.enter="submit" />
 ```
 
-Supported event modifiers: **`.prevent`** (calls `preventDefault()`) and **`.stop`** (calls `stopPropagation()`).
+**Supported Event Modifiers:**
+- **DOM/Propagation:** `.prevent` (`preventDefault`), `.stop` (`stopPropagation`), `.self`, `.once`, `.passive`, `.capture`
+- **Targeting:** `.outside` (detects clicks outside the element), `.window` (attaches to `window`), `.document` (attaches to `document`)
+- **Key Filters:** `.enter`, `.escape`, `.tab`, `.space`, `.up`, `.down`, `.left`, `.right`, `.delete`
+- **System Keys:** `.ctrl`, `.alt`, `.shift`, `.meta`
 
 ### Two-way binding — `hx-model`
 
-Works with text inputs, textareas, checkboxes, radios, and single/multiple selects. Numeric inputs (`type="number"`) coerce to `Number` automatically.
+Works with text inputs, textareas, checkboxes, radios, and selects with built-in modifiers:
 
 ```html
+<!-- Default on input -->
 <input hx-model="form.email" />
+
+<!-- Modifiers -->
+<input hx-model.lazy="form.username" />            <!-- Listens on 'change' -->
+<input hx-model.debounce.300ms="searchQuery" />    <!-- Debounces state updates by 300ms -->
+<input hx-model.trim="form.name" />                <!-- Trims leading/trailing whitespace -->
+<input hx-model.number="form.age" type="number" /> <!-- Auto-coerces to numeric type -->
+
 <input type="checkbox" hx-model="form.subscribe" />
 <input type="radio" value="a" hx-model="form.choice" />
 <select hx-model="form.country">…</select>
 <select multiple hx-model="form.tags">…</select>
 ```
 
-### Conditional rendering — `hx-if`
+### Conditional rendering — `hx-if` / `hx-else-if` / `hx-else`
+
+Multi-branch conditional rendering with full DOM element teardown and recreation:
 
 ```html
-<div hx-if="isLoggedIn">Welcome back</div>
+<div hx-if="status === 'loading'">
+  <p>Loading data...</p>
+</div>
+<div hx-else-if="status === 'error'">
+  <p>An error occurred.</p>
+</div>
+<div hx-else>
+  <p>Content loaded successfully!</p>
+</div>
 ```
-
-The element is fully created when the condition becomes truthy and completely destroyed (with its effects and listeners) when it becomes falsy.
 
 ### List rendering — `hx-for`
 
+Iterate arrays, numbers (ranges), objects, Maps, and Sets:
+
 ```html
+<!-- Array iteration with stable key -->
 <ul>
   <li hx-for="item in items" :key="item.id">{{ item.name }}</li>
 </ul>
+
+<!-- Range iteration (1 to 5) -->
+<div hx-for="n in 5">Page {{ n }}</div>
+
+<!-- Object iteration (value, key) -->
+<div hx-for="(val, key) in user">{{ key }}: {{ val }}</div>
+
+<!-- Multi-root list item using <template hx-for> -->
+<template hx-for="item in items" :key="item.id">
+  <dt>{{ item.term }}</dt>
+  <dd>{{ item.definition }}</dd>
+</template>
 ```
 
-Provide a `:key` for stable, keyed reconciliation. Without one, object items are auto-keyed per list instance. The reconciler uses a longest-increasing-subsequence diff to minimize DOM moves.
+### Subtree Skip — `hx-ignore` / `hx-static`
 
-### Template refs — `hx-ref`
+Tells Helix to ignore this element and its descendants. Ideal for 3rd-party non-reactive widgets (Leaflet maps, Chart.js, TinyMCE, CKEditor):
+
+```html
+<div id="chart-container" hx-ignore>
+  <!-- Third-party library manipulates DOM here without interference -->
+</div>
+```
+
+### Server State Hydration — `hx-data`
+
+Allows server-side templates (PHP, Laravel, Django, Rails) to provide initial JSON state directly on the root element:
+
+```html
+<div id="app" hx-data='{"count": 10, "user": "Ada"}'>
+  <span>{{ user }}: {{ count }}</span>
+</div>
+```
+
+### Template refs & `$refs` — `hx-ref`
+
+Access underlying DOM nodes directly via `ctx.$refs[name]`:
 
 ```html
 <input hx-ref="emailInput" />
 ```
 
 ```js
-setup() {
-  const emailInput = ref(null);
-  onMount(() => emailInput.value.focus());
-  return { emailInput };
+setup({ $refs }) {
+  onMount(() => {
+    $refs.emailInput.focus();
+  });
+  return {};
 }
 ```
 
@@ -435,29 +550,64 @@ Global defaults live on `Helix.config` (sealed — you can change values, not sh
 
 ```js
 Helix.config.debug = true;         // enable [Helix] warnings
-Helix.config.prefix = "h-";        // directive prefix
+Helix.config.prefix = "hx-";       // directive prefix
 Helix.config.delimiters = ["{{", "}}"];
 Helix.config.allowInlineExpressions = false; // enable with caution (uses new Function)
 Helix.config.removeAttributeBindings = true;
 Helix.config.rethrowErrors = true;
 Helix.config.slowThreshold = 2;    // ms; perf tracing threshold
+Helix.config.htmxIntegration = false; // auto-rebind on HTMX swap
+Helix.config.autoInjectCloak = true;  // auto-inject cloak style rules
 ```
 
 | Option | Default | Description |
 | --- | --- | --- |
 | `debug` | `false` | Emit developer warnings via `console.warn` |
-| `prefix` | `"h-"` | Directive attribute prefix |
+| `prefix` | `"hx-"` | Directive attribute prefix |
 | `delimiters` | `["{{", "}}"]` | Text interpolation delimiters |
 | `allowInlineExpressions` | `false` | Allow full JS expressions in bindings (security-sensitive — never enable with untrusted input) |
 | `removeAttributeBindings` | `true` | Strip directive attributes from the DOM after binding |
 | `rethrowErrors` | `true` | Re-throw errors after the error handler runs |
 | `slowThreshold` | `2` | Millisecond threshold for slow-operation tracing |
+| `htmxIntegration` | `false` | Automatically listen to `htmx:afterSwap` / `htmx:load` and rebind swapped DOM |
+| `autoInjectCloak` | `true` | Automatically inject `[${prefix}cloak]` display:none style tag in `<head>` |
 
 > **Security note:** `allowInlineExpressions` evaluates strings with `new Function`. Keep it `false` unless every expression source is fully trusted, and never bind untrusted user input through it.
 
 ---
 
-## New Core APIs (v11.1.17)
+## App Registry (`Helix.$apps`) & HTMX Integration
+
+### Multi-App Registry (`Helix.$apps`)
+Track, inspect, and coordinate multiple Helix apps on the same page:
+
+```js
+// Look up by selector, DOM element, or instance ID
+const appEntry = Helix.$apps.get("#chat-widget");
+console.log(appEntry.instance, appEntry.app);
+
+// Check or list all mounted apps
+if (Helix.$apps.has("#sidebar-app")) {
+  const allApps = Helix.$apps.list(); // Array of { selector, element, instance, app, id, mountedAt }
+}
+```
+
+### Official HTMX Re-bind Integration
+Automatically rebinds reactive directives when HTMX replaces HTML fragments:
+
+```js
+// Enable globally:
+Helix.enableHtmx(); // or Helix.config.htmxIntegration = true;
+```
+
+When HTMX swaps HTML into `#app` via `hx-get="/api/items" hx-swap="innerHTML"`:
+1. Strips any incoming `[hx-cloak]` attributes so content shows immediately without FOUC.
+2. Identifies which Helix app instance owns the swapped target.
+3. Automatically triggers `app.rebind(target)` to mount reactive directives and clean up stale event listeners.
+
+---
+
+## New Core APIs (v11.1.19)
 
 ### Public DOM API (`Helix.dom`)
 Low-level DOM utilities for directive and plugin authors:
