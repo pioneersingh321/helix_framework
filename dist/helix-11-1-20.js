@@ -1861,7 +1861,10 @@
   }
   function resolvePath(path, ctx) {
     try {
-      const val = getPathParts(path).reduce((acc, part) => acc == null ? void 0 : acc[part], ctx);
+      const val = getPathParts(path).reduce((acc, part) => {
+        const unwrapped = isRef(acc) ? acc.value : acc;
+        return unwrapped == null ? void 0 : unwrapped[part];
+      }, ctx);
       return isRef(val) ? val.value : val;
     } catch (err) {
       warn(`Failed to resolve path: ${path}`, "compiler", err);
@@ -1870,7 +1873,10 @@
   }
   function resolveRaw(path, ctx) {
     try {
-      return getPathParts(path).reduce((acc, part) => acc == null ? void 0 : acc[part], ctx);
+      return getPathParts(path).reduce((acc, part) => {
+        const unwrapped = isRef(acc) ? acc.value : acc;
+        return unwrapped == null ? void 0 : unwrapped[part];
+      }, ctx);
     } catch (err) {
       warn(`Failed to resolve raw path: ${path}`, "compiler", err);
       return void 0;
@@ -2870,13 +2876,24 @@
             }
           }
           let targetFn;
+          let thisArg = ctx;
           let args = [e];
-          const trimmed = val.trim();
+          const trimmed = val ? val.trim() : "";
           const parenIdx = trimmed.indexOf("(");
           if (parenIdx > -1 && trimmed.endsWith(")")) {
             const fnPath = trimmed.slice(0, parenIdx).trim();
             const argsStr = trimmed.slice(parenIdx + 1, trimmed.length - 1).trim();
             targetFn = resolveRaw(fnPath, ctx);
+            if (fnPath.includes(".")) {
+              const parts = getPathParts(fnPath);
+              if (parts.length > 1) {
+                const rawParent = resolveRaw(parts.slice(0, -1).join("."), ctx);
+                const parentObj = isRef(rawParent) ? rawParent.value : rawParent;
+                if (parentObj && (typeof parentObj === "object" || typeof parentObj === "function")) {
+                  thisArg = parentObj;
+                }
+              }
+            }
             if (argsStr) {
               const rawArgs = parseArgs(argsStr);
               args = rawArgs.map((a) => {
@@ -2898,11 +2915,21 @@
               args = [];
             }
           } else {
-            targetFn = resolveRaw(val, ctx);
+            targetFn = resolveRaw(trimmed, ctx);
+            if (trimmed.includes(".")) {
+              const parts = getPathParts(trimmed);
+              if (parts.length > 1) {
+                const rawParent = resolveRaw(parts.slice(0, -1).join("."), ctx);
+                const parentObj = isRef(rawParent) ? rawParent.value : rawParent;
+                if (parentObj && (typeof parentObj === "object" || typeof parentObj === "function")) {
+                  thisArg = parentObj;
+                }
+              }
+            }
           }
           if (typeof targetFn === "function") {
             try {
-              targetFn.call(ctx, ...args);
+              targetFn.call(thisArg, ...args);
             } catch (err) {
               handleError(err, `Event @${evtType}`);
             }
@@ -2913,7 +2940,13 @@
               handleError(err, `Event @${evtType}`);
             }
           } else {
-            warn(`Handler not found: ${val}`, "event");
+            try {
+              const isCall = trimmed.endsWith(")");
+              const fn = new Function("$ctx", "$event", `with($ctx) { return (${isCall ? trimmed : trimmed + "($event)"}); }`);
+              fn(ctx, e);
+            } catch (inlineErr) {
+              warn(`Handler not found: ${val}`, "event");
+            }
           }
         };
         if (isOutside) {
@@ -2929,11 +2962,8 @@
           return;
         }
         const listenerTarget = isWindow && typeof window !== "undefined" ? window : isDocument && typeof document !== "undefined" ? document : el;
-        const listenerOpts = {
-          once: isOnce,
-          passive: isPassive,
-          capture: isCapture
-        };
+        const hasOpts = isOnce || isPassive || isCapture;
+        const listenerOpts = hasOpts ? { once: isOnce, passive: isPassive, capture: isCapture } : isCapture;
         listenerTarget.addEventListener(evtType, executeHandler, listenerOpts);
         trackCleanup(() => listenerTarget.removeEventListener(evtType, executeHandler, listenerOpts));
       }

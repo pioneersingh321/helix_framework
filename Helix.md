@@ -542,6 +542,47 @@ Helix.registry.dependsOn("a", "b");
 
 Version ranges support `>=`, `>`, `<=`, `<`, `^`, `~`, and exact matches, including semver pre-release ordering (`1.0.0-alpha` < `1.0.0`).
 
+### Official Store Plugin (`Helix.store` / `Helix.defineStore`)
+
+Helix Store provides signal-native state management with zero-ceremony global template access:
+
+```html
+<script src="dist/helix.js"></script>
+<script src="plugins/store/helix-store.min.js"></script>
+
+<div id="app">
+  <p>Count: {{ $store.counter.count }}</p>
+  <button @click="$store.counter.increment()">+1</button>
+</div>
+
+<script>
+  // 1. Instant Simple Store
+  Helix.store('counter', {
+    count: 0,
+    increment() { this.count++; }
+  });
+
+  // 2. Structured Domain Store with persistence & undo/redo
+  const useAuth = Helix.defineStore('auth', {
+    state: () => ({ user: null, token: null }),
+    getters: {
+      isLoggedIn: (state) => !!state.token
+    },
+    actions: {
+      async login(credentials) {
+        const res = await Helix.$fetch.post('/api/login', credentials, { signal: this.$signal });
+        this.user = res.data.user;
+        this.token = res.data.token;
+      }
+    },
+    persist: { driver: 'localStorage', paths: ['token'] },
+    history: true
+  });
+
+  Helix.createApp().mount('#app');
+</script>
+```
+
 ---
 
 ## Configuration

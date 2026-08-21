@@ -66,16 +66,20 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 helix_framework/
 ├── dist/                 # Production distribution builds
 │   └── helix.js          # Core framework library (v11.1.8 Zenith Edition)
+├── packages/             # Framework and plugin source packages
+│   ├── core/             # Framework core reactive engine
+│   └── helix-store/      # Signal-native reactive state management package (v1.0.0)
 ├── plugins/              # Official stable plugins & custom directives
-│   ├── directives.js     # Extra custom directives (v-fetch, etc.)
-│   ├── helix-axios.js    # Axios HTTP client plugin (v2.2.0)
-│   ├── helix-behavior.js # DOM behavior pipe scripting (v1.3.1)
-│   ├── helix-fetch.js    # Fetch client wrapper plugin (v2.8.2)
-│   ├── helix-form.js     # Form serialization & type casting (v2.0.0)
-│   ├── helix-loader.js   # Global/Local loading spinner & overlays (v2.5)
-│   ├── helix-model.js    # Client-side AST database queries (v2.2.1)
-│   ├── helix-notify.js   # SweetAlert2 toast & modal wrapper (v2.1)
-│   └── helix-validation.js # Zero-config form & field validation (v2.1.5)
+│   ├── directives/       # Extra custom directives (v-fetch, etc.)
+│   ├── axios/            # Axios HTTP client plugin
+│   ├── fetch/            # Fetch client wrapper plugin
+│   ├── loader/           # Global/Local loading spinner & overlays
+│   ├── model/            # Client-side AST database queries
+│   ├── notify/           # SweetAlert2 toast & modal wrapper
+│   ├── scope/            # Isolated scope lifecycle plugin
+│   ├── store/            # Signal-native Store plugin (v1.0.0)
+│   ├── tooltip/          # Lightweight tooltip plugin
+│   └── validation/       # Zero-config form & field validation
 ├── archive/              # Safe historical repository copy (Legacy versions)
 │   ├── core/             # Deprecated framework base versions (v11.1.4 to v11.1.7-base)
 │   └── plugins/          # Legacy plugin versions
@@ -680,6 +684,48 @@ app.mount('#app');
 ## ⚡ Ecosystem Plugins (Interactive)
 
 Expand the sections below to explore the official plugins shipped within the `plugins/` directory:
+
+<details open>
+<summary>📂 1. Helix Store (plugins/store/helix-store.js / helix-store.min.js - v1.0.0)</summary>
+<br>
+
+A modular, signal-native reactive state management architecture built specifically for **Helix.js**. Supports instant simple stores (`Helix.store`), enterprise domain stores (`Helix.defineStore`), global template auto-binding (`$store` / `store`), deterministic undo/redo, deep mutation tracking, and pluggable persistence.
+
+#### Key Store Flavors:
+```javascript
+// 1. Instant Simple Store (Builders, Forms, UI State)
+const builder = Helix.store('builderStore', {
+  currentStageId: null,
+  stages: [{ id: 1, name: 'Screening' }],
+  openSettings(stg) { this.currentStageId = stg.id; }
+});
+
+// 2. Structured Options Store (HRMS, ERP, Domain Models)
+const useAuthStore = Helix.defineStore('auth', {
+  state: () => ({ user: null, token: null }),
+  getters: {
+    isLoggedIn: (state) => !!state.token
+  },
+  actions: {
+    async login(credentials) {
+      const res = await Helix.$fetch.post('/api/login', credentials, { signal: this.$signal });
+      this.user = res.data.user;
+      this.token = res.data.token;
+    }
+  },
+  persist: { driver: 'localStorage', paths: ['token', 'user'] }
+});
+```
+
+#### Global Template Directives Binding:
+```html
+<div id="app">
+  <!-- Zero-boilerplate global template auto-binding -->
+  <span hx-text="$store.builderStore.stages.length"></span>
+  <button @click="$store.builderStore.openSettings(stg)">Settings</button>
+</div>
+```
+</details>
 
 <details>
 <summary>📂 1. Helix Validation (helix-validation.js - v2.1.5)</summary>

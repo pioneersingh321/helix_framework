@@ -106,7 +106,7 @@ const scheduleRaf = typeof requestAnimationFrame === "function"
     : (fn) => setTimeout(fn, 0);
 
 function ensureCloakStyles(appConfig) {
-    if (typeof document === "undefined" || appConfig.autoInjectCloak === false) return;
+    if (typeof document === "undefined" || !document.getElementById || !document.createElement || appConfig.autoInjectCloak === false) return;
     const rule = `[${appConfig.prefix}cloak] { display: none !important; }`;
     let style = document.getElementById("helix-cloak-style");
     if (!style) {

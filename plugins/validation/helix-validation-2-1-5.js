@@ -57,6 +57,8 @@
     between: ({ p }) => `Must be between ${p.min} and ${p.max}.`,
     pattern: () => "Invalid format.",
     sameAs: ({ p }) => `Must match ${p.label || "the other field"}.`,
+    equalto: ({ p }) => `Must match ${p.label || "the other field"}.`,
+    equalTo: ({ p }) => `Must match ${p.label || "the other field"}.`,
     oneOf: ({ p }) => `Must be one of: ${(p.values || []).join(", ")}.`
   };
   const parseCache = /* @__PURE__ */ new Map();
@@ -975,6 +977,47 @@
     4,
     { label }
   ));
+  const equalto = mkFactory((targetSelectorOrFn, label) => mkRule(
+    (v, ctx) => {
+      let otherVal = void 0;
+      if (typeof targetSelectorOrFn === "function") {
+        otherVal = targetSelectorOrFn();
+      } else if (typeof targetSelectorOrFn === "string") {
+        if (ctx && ctx.parent && typeof ctx.parent.field === "function") {
+          const otherCtrl = ctx.parent.field(targetSelectorOrFn);
+          if (otherCtrl) {
+            otherVal = otherCtrl.value && otherCtrl.value.value !== void 0 ? otherCtrl.value.value : otherCtrl.value;
+          }
+        }
+        if (otherVal === void 0 && typeof document !== "undefined") {
+          let el = null;
+          try {
+            el = document.querySelector(targetSelectorOrFn);
+          } catch (e) {
+          }
+          if (!el) {
+            try {
+              el = document.querySelector(`[name="${targetSelectorOrFn}"]`);
+            } catch (e) {
+            }
+          }
+          if (!el && !targetSelectorOrFn.startsWith("#") && !targetSelectorOrFn.startsWith(".")) {
+            try {
+              el = document.getElementById(targetSelectorOrFn);
+            } catch (e) {
+            }
+          }
+          if (el) {
+            otherVal = el.value !== void 0 ? el.value : el.textContent;
+          }
+        }
+      }
+      return v !== otherVal ? resolveMsg("equalto", { label: label || targetSelectorOrFn }, v, ctx) : null;
+    },
+    "equalto",
+    4,
+    { target: targetSelectorOrFn, label }
+  ));
   const oneOf = mkFactory((values) => mkRule(
     (v, ctx) => {
       const resolvedValues = resolveParam(values) || [];
@@ -985,6 +1028,8 @@
     { values }
   ));
   rules.add("sameAs", sameAs);
+  rules.add("equalto", equalto);
+  rules.add("equalTo", equalto);
   rules.add("oneOf", oneOf);
   function withMessage(message, ruleFn) {
     var _a, _b, _c, _d, _e, _f;
@@ -1301,6 +1346,7 @@
     const app = ctx.app;
     const config = ctx.config;
     opts = opts || {};
+    let _f = null;
     const _id = ctx.uid();
     const value = app.isRef(initialValue) ? initialValue : app.ref(initialValue !== void 0 ? initialValue : "");
     const dirty = app.ref(false);
@@ -1319,7 +1365,7 @@
     ]);
     const errors = app.computed(() => {
       const msgs = _tagged.value.map((t) => t.message);
-      const currentMode = _f.mode || config.mode;
+      const currentMode = _f && _f.mode || opts.mode || config.mode;
       if (currentMode === "firstError") {
         return msgs.slice(0, 1);
       }
@@ -1581,7 +1627,7 @@
       emitter.emit({ type: EVENTS.STATUS, status: newStatus });
     }, { immediate: false });
     _stoppers.push(stopStatusWatch);
-    const _f = {
+    _f = {
       _id,
       _type: "field",
       _parent: null,
@@ -1900,7 +1946,7 @@
         const tagged = ctrl._tagged.value.filter((t) => t && t.message);
         const toShow = config.showAllErrors ? tagged : [tagged[0]].filter(Boolean);
         const errorMsg = toShow.map((t) => t.message).join(", ");
-        const container = getOrCreateBootstrapFeedback(el, fid, "invalid", feedbackClass);
+        const container = dOpts.errTarget && document.querySelector(dOpts.errTarget) || getOrCreateBootstrapFeedback(el, fid, "invalid", feedbackClass);
         setContainerHtml(container, escapeHtml(errorMsg));
       } else {
         el.setAttribute("aria-invalid", "false");
@@ -2781,6 +2827,9 @@
       errorCount,
       hasErrors,
       validate,
+      validateGroup(groupName, groupOpts) {
+        return validate(Object.assign({}, groupOpts, { group: groupName }));
+      },
       submit,
       focusFirstInvalid,
       bind,
@@ -3156,17 +3205,19 @@
         ruleFns.push(fn);
       return true;
     }
-    if (lowerName === "type") {
+    if (lowerName === "type" || lowerName === "data-parsley-type") {
       const lowerVal = v.toLowerCase();
       if (lowerVal === "email")
         ruleFns.push(email);
       if (lowerVal === "url")
         ruleFns.push(url);
-      if (lowerVal === "number")
+      if (lowerVal === "number" || lowerVal === "digits")
         ruleFns.push(numeric);
+      if (lowerVal === "integer")
+        ruleFns.push(integer);
       return true;
     }
-    if (lowerName === `${prefix}-rule` || lowerName === `${prefix}-rules` || lowerName === "rule" || lowerName === "rules") {
+    if (lowerName === `${prefix}-rule` || lowerName === `${prefix}-rules` || lowerName === "hx-rule" || lowerName === "hx-rules" || lowerName === "rule" || lowerName === "rules" || lowerName === "data-parsley-rule") {
       const parsedRules = normalizeRules(v, reg);
       ruleFns.push(...parsedRules);
       return true;
@@ -3174,15 +3225,30 @@
     return false;
   }
   function parseMessages(lowerName, v, prefix, msgOverrides) {
-    const msgMatch = lowerName.match(new RegExp(`^${prefix}-(.+)-message$`));
+    let msgMatch = lowerName.match(new RegExp(`^(?:${prefix}|hx|data-${prefix}|data-hx)-(.+)-message$`));
     if (msgMatch && msgMatch[1] !== "remote") {
+      msgOverrides[msgMatch[1]] = v;
+      return true;
+    }
+    msgMatch = lowerName.match(/^data-parsley-(.+)-message$/);
+    if (msgMatch && msgMatch[1] !== "error" && msgMatch[1] !== "remote") {
+      msgOverrides[msgMatch[1]] = v;
+      return true;
+    }
+    msgMatch = lowerName.match(new RegExp(`^(?:${prefix}|hx|data-${prefix}|data-hx)-msg-(.+)$`));
+    if (msgMatch) {
+      msgOverrides[msgMatch[1]] = v;
+      return true;
+    }
+    msgMatch = lowerName.match(new RegExp(`^(?:${prefix}|hx|data-${prefix}|data-hx)-error-(.+)$`));
+    if (msgMatch && msgMatch[1] !== "container" && msgMatch[1] !== "target" && msgMatch[1] !== "message") {
       msgOverrides[msgMatch[1]] = v;
       return true;
     }
     return false;
   }
   function parseBehavior(lowerName, v, prefix, opts, el, ruleFns, ctx) {
-    if (lowerName === `${prefix}-required-if`) {
+    if (lowerName === `${prefix}-required-if` || lowerName === "hx-required-if") {
       const parentForm = getFormFromEl(el, ctx);
       if (parentForm) {
         ruleFns.push(requiredIf(() => {
@@ -3192,7 +3258,7 @@
       }
       return true;
     }
-    if (lowerName === `${prefix}-required-unless`) {
+    if (lowerName === `${prefix}-required-unless` || lowerName === "hx-required-unless") {
       const parentForm = getFormFromEl(el, ctx);
       if (parentForm) {
         ruleFns.push(requiredUnless(() => {
@@ -3202,73 +3268,69 @@
       }
       return true;
     }
-    if (lowerName === `${prefix}-debounce`) {
+    if (lowerName === `${prefix}-debounce` || lowerName === "hx-debounce" || lowerName === "data-parsley-debounce") {
       opts.debounce = Number(v);
       return true;
     }
-    if (lowerName === `${prefix}-trigger`) {
+    if (lowerName === `${prefix}-trigger` || lowerName === "hx-trigger" || lowerName === "data-parsley-trigger") {
       opts.trigger = v;
       return true;
     }
-    if (lowerName === `${prefix}-group`) {
+    if (lowerName === `${prefix}-group` || lowerName === "hx-group" || lowerName === "data-parsley-group") {
       opts.group = v.includes(",") ? v.split(",").map((s) => s.trim()) : v;
       return true;
     }
-    if (lowerName === `${prefix}-excluded`) {
+    if (lowerName === `${prefix}-excluded` || lowerName === "hx-excluded" || lowerName === "data-parsley-excluded") {
       opts.excluded = true;
       return true;
     }
-    if (lowerName === `${prefix}-auto-dirty`) {
+    if (lowerName === `${prefix}-auto-dirty` || lowerName === "hx-auto-dirty") {
       opts.autoDirty = true;
       return true;
     }
-    if (lowerName === `${prefix}-lazy`) {
+    if (lowerName === `${prefix}-lazy` || lowerName === "hx-lazy") {
       opts.lazy = true;
       return true;
     }
-    if (lowerName === `${prefix}-depends-on`) {
+    if (lowerName === `${prefix}-depends-on` || lowerName === "hx-depends-on") {
       opts.dependsOn = v.split(",").map((s) => s.trim());
       return true;
     }
-    if (lowerName === `${prefix}-mode`) {
+    if (lowerName === `${prefix}-mode` || lowerName === "hx-mode") {
       opts.mode = v;
       return true;
     }
     return false;
   }
   function parseDisplay(lowerName, v, prefix, opts) {
-    if (lowerName === `${prefix}-pending-text`) {
+    if (lowerName === `${prefix}-pending-text` || lowerName === "hx-pending-text" || lowerName === "data-hx-pending-text") {
       opts.pendingText = v;
       return true;
     }
-    if (lowerName === `${prefix}-class-handler`) {
+    if (lowerName === `${prefix}-class-handler` || lowerName === `${prefix}-class-target` || lowerName === "hx-class-target" || lowerName === "hx-class-handler" || lowerName === "data-parsley-class-handler") {
       opts.classHandler = v;
       return true;
     }
-    if (lowerName === `${prefix}-error-target`) {
+    if (lowerName === `${prefix}-error-target` || lowerName === `${prefix}-error-container` || lowerName === `${prefix}-errors-container` || lowerName === "hx-error-container" || lowerName === "hx-errors-container" || lowerName === "data-parsley-errors-container") {
       opts.errTarget = v;
       return true;
     }
-    if (lowerName === `${prefix}-errors-container`) {
-      opts.errTarget = v;
-      return true;
-    }
-    if (lowerName === `${prefix}-message` || lowerName === "message") {
+    if (lowerName === `${prefix}-message` || lowerName === `${prefix}-msg` || lowerName === `${prefix}-error-message` || lowerName === "hx-msg" || lowerName === "hx-message" || lowerName === "hx-error-message" || lowerName === "data-parsley-error-message" || lowerName === "message") {
       opts.message = v;
       return true;
     }
     return false;
   }
   function parseRemote(lowerName, v, prefix, opts) {
-    if (lowerName === `${prefix}-remote`) {
+    if (lowerName === `${prefix}-remote` || lowerName === "hx-remote" || lowerName === "data-parsley-remote") {
       opts.remoteUrl = v;
       return true;
     }
-    if (lowerName === `${prefix}-remote-message`) {
+    if (lowerName === `${prefix}-remote-message` || lowerName === "hx-remote-message" || lowerName === "data-parsley-remote-message") {
       opts.remoteOpts.fallback = v;
       return true;
     }
-    if (lowerName === `${prefix}-remote-options`) {
+    if (lowerName === `${prefix}-remote-options` || lowerName === "hx-remote-options" || lowerName === "data-parsley-remote-options") {
       try {
         Object.assign(opts.remoteOpts, JSON.parse(v));
       } catch {
@@ -3300,44 +3362,66 @@
     };
     const boolMap = {
       [`${prefix}-required`]: () => required,
+      "hx-required": () => required,
       "required": () => required,
       [`${prefix}-require`]: () => required,
+      "hx-require": () => required,
       "require": () => required,
+      "data-parsley-required": () => required,
       [`${prefix}-email`]: () => email,
+      "hx-email": () => email,
       [`${prefix}-url`]: () => url,
+      "hx-url": () => url,
       [`${prefix}-numeric`]: () => numeric,
-      [`${prefix}-integer`]: () => integer
+      "hx-numeric": () => numeric,
+      [`${prefix}-integer`]: () => integer,
+      "hx-integer": () => integer
     };
     const paramMap = {
       [`${prefix}-minlength`]: (v) => minLength(Number(v)),
+      "hx-minlength": (v) => minLength(Number(v)),
       "minlength": (v) => minLength(Number(v)),
+      "data-parsley-minlength": (v) => minLength(Number(v)),
       [`${prefix}-maxlength`]: (v) => maxLength(Number(v)),
+      "hx-maxlength": (v) => maxLength(Number(v)),
       "maxlength": (v) => maxLength(Number(v)),
+      "data-parsley-maxlength": (v) => maxLength(Number(v)),
       [`${prefix}-min`]: (v) => min(Number(v)),
+      "hx-min": (v) => min(Number(v)),
       "min": (v) => min(Number(v)),
+      "data-parsley-min": (v) => min(Number(v)),
       [`${prefix}-max`]: (v) => max(Number(v)),
+      "hx-max": (v) => max(Number(v)),
       "max": (v) => max(Number(v)),
+      "data-parsley-max": (v) => max(Number(v)),
       [`${prefix}-between`]: (v) => {
         const [a, b] = v.split(",");
         return between(Number(a), Number(b));
       },
+      "hx-between": (v) => {
+        const [a, b] = v.split(",");
+        return between(Number(a), Number(b));
+      },
+      "data-parsley-range": (v) => {
+        const parts = v.replace(/[\[\]]/g, "").split(",");
+        return between(Number(parts[0]), Number(parts[1]));
+      },
+      "data-parsley-length": (v) => {
+        const parts = v.replace(/[\[\]]/g, "").split(",");
+        return between(Number(parts[0]), Number(parts[1]));
+      },
       [`${prefix}-pattern`]: (v) => pattern(v),
+      "hx-pattern": (v) => pattern(v),
       "pattern": (v) => pattern(v),
+      "data-parsley-pattern": (v) => pattern(v),
       [`${prefix}-one-of`]: (v) => oneOf(v.split(",")),
-      [`${prefix}-same-as`]: (v) => {
-        let t = null;
-        try {
-          t = document.querySelector(v);
-        } catch (e) {
-        }
-        if (!t) {
-          try {
-            t = document.querySelector(`[name="${v}"]`);
-          } catch (e) {
-          }
-        }
-        return t ? sameAs(() => t.value, v) : null;
-      }
+      "hx-one-of": (v) => oneOf(v.split(",")),
+      [`${prefix}-equalto`]: (v) => equalto(v),
+      "hx-equalto": (v) => equalto(v),
+      "data-parsley-equalto": (v) => equalto(v),
+      "equalto": (v) => equalto(v),
+      [`${prefix}-same-as`]: (v) => equalto(v),
+      "hx-same-as": (v) => equalto(v)
     };
     Array.from(el.attributes).forEach(({ name: a, value: v }) => {
       const lowerName = a.toLowerCase();
@@ -3352,6 +3436,15 @@
       if (parseRemote(lowerName, v, prefix, opts))
         return;
     });
+    if (!opts.group && el && el.closest) {
+      const groupAncestor = el.closest(`[${prefix}-group], [data-parsley-group], [hx-group]`);
+      if (groupAncestor && groupAncestor !== el) {
+        const gVal = groupAncestor.getAttribute(`${prefix}-group`) || groupAncestor.getAttribute("data-parsley-group") || groupAncestor.getAttribute("hx-group");
+        if (gVal) {
+          opts.group = gVal.includes(",") ? gVal.split(",").map((s) => s.trim()) : gVal;
+        }
+      }
+    }
     const seenRules = /* @__PURE__ */ new Set();
     const uniqueRuleFns = [];
     ruleFns.forEach((fn) => {
@@ -3367,7 +3460,9 @@
     const finalFns = Object.keys(msgOverrides).length ? uniqueRuleFns.map((fn) => {
       var _a;
       const name = ((_a = fn.meta) == null ? void 0 : _a.name) || fn._ruleName;
-      return name && msgOverrides[name] ? withMessage(msgOverrides[name], fn) : fn;
+      const lowerName = name ? name.toLowerCase() : "";
+      const customMsg = name && (msgOverrides[name] || msgOverrides[lowerName]);
+      return customMsg ? withMessage(customMsg, fn) : fn;
     }) : uniqueRuleFns;
     return { ruleFns: finalFns, opts };
   }
@@ -3542,18 +3637,19 @@
   function scanForms(localContext, targetNode, force) {
     const ctx = localContext || getCurrentContext();
     const prefix = resolvePrefix(ctx);
+    const formSelector = `[${prefix}-form], [data-parsley-validate], [hx-form]`;
     const formsToScan = [];
     if (targetNode) {
       if (targetNode.nodeType === 1) {
-        if (force || targetNode.matches && targetNode.matches(`[${prefix}-form]`)) {
+        if (force || targetNode.matches && targetNode.matches(formSelector)) {
           formsToScan.push(targetNode);
         }
         if (targetNode.querySelectorAll) {
-          formsToScan.push(...targetNode.querySelectorAll(`[${prefix}-form]`));
+          formsToScan.push(...targetNode.querySelectorAll(formSelector));
         }
       }
     } else {
-      formsToScan.push(...document.querySelectorAll(`[${prefix}-form]`));
+      formsToScan.push(...document.querySelectorAll(formSelector));
     }
     formsToScan.forEach((formEl) => {
       if (ctx.formContextMap.has(formEl) || formEl.__hxAutoBound)
@@ -3982,7 +4078,9 @@
     }
   };
   function registerDirectives(app, options) {
+    app.directive("validate", validateDirective);
     app.directive("rule", validateDirective);
+    app.directive("rules", validateDirective);
     app.directive("form", formDirective);
     app.directive("list", listDirective);
   }
@@ -4080,6 +4178,8 @@
         between,
         pattern,
         sameAs,
+        equalto,
+        equalTo: equalto,
         oneOf,
         helpers,
         withMessage,
@@ -4165,11 +4265,13 @@
             delete GlobalHelix.validation;
         }
         if (app.removeDirective) {
+          app.removeDirective("validate");
           app.removeDirective("rule");
+          app.removeDirective("rules");
           app.removeDirective("form");
           app.removeDirective("list");
         } else {
-          console.warn("[Helix Validation] This Helix core build has no app.removeDirective(); the 'rule', 'form', and 'list' directives remain registered after teardown. Re-installing this plugin on the same app instance is not supported.");
+          console.warn("[Helix Validation] This Helix core build has no app.removeDirective(); the validation directives remain registered after teardown.");
         }
         if (app.$validation === $validation)
           delete app.$validation;
@@ -4190,6 +4292,7 @@
   exports.default = HelixValidationPlugin;
   exports.each = each;
   exports.email = email;
+  exports.equalto = equalto;
   exports.field = field;
   exports.form = form;
   exports.helpers = helpers;

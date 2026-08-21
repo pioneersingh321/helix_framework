@@ -231,7 +231,7 @@ const bootstrap5Driver = {
             const toShow = config.showAllErrors ? tagged : [tagged[0]].filter(Boolean);
             const errorMsg = toShow.map(t => t.message).join(', ');
 
-            const container = getOrCreateBootstrapFeedback(el, fid, 'invalid', feedbackClass);
+            const container = (dOpts.errTarget && document.querySelector(dOpts.errTarget)) || getOrCreateBootstrapFeedback(el, fid, 'invalid', feedbackClass);
             setContainerHtml(container, escapeHtml(errorMsg));
         } else {
             el.setAttribute('aria-invalid', 'false');

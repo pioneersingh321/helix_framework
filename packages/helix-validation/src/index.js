@@ -25,6 +25,7 @@ import {
 } from './rules/number.js';
 import {
     sameAs,
+    equalto,
     oneOf
 } from './rules/array.js';
 import {
@@ -55,7 +56,9 @@ import { listDirective } from './directives/list.js';
 import { STATUS, EVENTS } from './constants.js';
 
 function registerDirectives(app, options) {
+    app.directive('validate', validateDirective);
     app.directive('rule', validateDirective);
+    app.directive('rules', validateDirective);
     app.directive('form', formDirective);
     app.directive('list', listDirective);
 }
@@ -186,6 +189,8 @@ const HelixValidationPlugin = {
             between,
             pattern,
             sameAs,
+            equalto,
+            equalTo: equalto,
             oneOf,
             helpers,
             withMessage,
@@ -278,11 +283,13 @@ const HelixValidationPlugin = {
             }
 
             if (app.removeDirective) {
+                app.removeDirective('validate');
                 app.removeDirective('rule');
+                app.removeDirective('rules');
                 app.removeDirective('form');
                 app.removeDirective('list');
             } else {
-                console.warn("[Helix Validation] This Helix core build has no app.removeDirective(); the 'rule', 'form', and 'list' directives remain registered after teardown. Re-installing this plugin on the same app instance is not supported.");
+                console.warn("[Helix Validation] This Helix core build has no app.removeDirective(); the validation directives remain registered after teardown.");
             }
             if (app.$validation === $validation) delete app.$validation;
             delete app[INSTALL_MARK];
@@ -318,6 +325,7 @@ export {
     between,
     pattern,
     sameAs,
+    equalto,
     oneOf,
     helpers,
     withMessage,

@@ -286,3 +286,94 @@ Lookup the programmatic form instance associated with a DOM element:
 const formInstance = getForm('#registration-form');
 formInstance.submit();
 ```
+
+---
+
+## 8. Parsley.js HTML-First Quickstart & Migration
+
+Helix Validation provides full drop-in support for Parsley.js style HTML-first validation. Write plain HTML with zero JavaScript, or migrate existing Parsley forms effortlessly.
+
+### Complete HTML-First Registration Form
+
+```html
+<form hx-form id="signup-form">
+  <!-- HTML5 auto-inferred rules + custom message attribute -->
+  <div class="form-group">
+    <label>Email</label>
+    <input 
+      name="email" 
+      type="email" 
+      required 
+      hx-msg-required="Email address is required!"
+      hx-msg-email="Please provide a valid email format."
+    />
+  </div>
+
+  <!-- Min length constraint + custom error placement -->
+  <div class="form-group">
+    <label>Password</label>
+    <div id="pw-wrapper">
+      <input 
+        id="password" 
+        name="password" 
+        type="password" 
+        minlength="8" 
+        required 
+        hx-error-container="#pw-errors"
+        hx-class-target="#pw-wrapper"
+        hx-msg-minlength="Password must contain at least 8 characters"
+      />
+    </div>
+    <div id="pw-errors"></div>
+  </div>
+
+  <!-- Equal-To match rule (password confirmation) -->
+  <div class="form-group">
+    <label>Confirm Password</label>
+    <input 
+      name="confirm_password" 
+      type="password" 
+      required 
+      hx-equalto="#password" 
+      hx-msg-equalto="Passwords do not match!"
+    />
+  </div>
+
+  <!-- Multi-step form groups -->
+  <fieldset hx-group="step-1">
+    <legend>Step 1 Information</legend>
+    <input name="first_name" required />
+  </fieldset>
+
+  <button type="submit">Register</button>
+</form>
+```
+
+### Multi-Step Wizard Validation
+
+Validate specific groups/steps independently:
+
+```javascript
+const myForm = getForm('#signup-form');
+
+// Validate only step-1 fields
+const step1Passed = await myForm.validateGroup('step-1');
+if (step1Passed) {
+    showStep2();
+}
+```
+
+### Drop-In Parsley Attribute Mapping
+
+| Parsley.js Attribute | Helix Equivalent | Description |
+| :--- | :--- | :--- |
+| `data-parsley-validate` | `hx-form` / `data-parsley-validate` | Automatically scans and binds form |
+| `data-parsley-required` | `required` / `hx-required` | Required field constraint |
+| `data-parsley-type="email"` | `type="email"` / `hx-email` | Email validation |
+| `data-parsley-minlength="n"` | `minlength="n"` / `hx-minlength="n"` | Minimum character length |
+| `data-parsley-equalto="#target"` | `hx-equalto="#target"` | Matches value of target element |
+| `data-parsley-errors-container="#el"` | `hx-error-container="#el"` | Custom element for error text |
+| `data-parsley-class-handler="#el"` | `hx-class-target="#el"` | Custom element for valid/invalid classes |
+| `data-parsley-<rule>-message="..."` | `hx-msg-<rule>="..."` | Custom message for specific rule |
+| `data-parsley-group="step-1"` | `hx-group="step-1"` | Groups fields for step-by-step validation |
+| `data-parsley-trigger="blur"` | `hx-trigger="eager"` | Eager re-validation after initial blur |

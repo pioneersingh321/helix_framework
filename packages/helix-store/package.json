@@ -1,0 +1,18 @@
+{
+  "name": "helix-store",
+  "version": "1.0.0",
+  "description": "Signal-native reactive store management plugin for Helix.js framework",
+  "type": "module",
+  "main": "dist/helix-store.js",
+  "module": "dist/helix-store.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode min && node post-build.js",
+    "test": "node --test test/store.test.js test/integration-real-core.test.js"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  }
+}

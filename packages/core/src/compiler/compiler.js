@@ -44,7 +44,10 @@ export function getPathParts(path) {
 
 export function resolvePath(path, ctx) {
     try {
-        const val = getPathParts(path).reduce((acc, part) => acc?.[part], ctx);
+        const val = getPathParts(path).reduce((acc, part) => {
+            const unwrapped = isRef(acc) ? acc.value : acc;
+            return unwrapped?.[part];
+        }, ctx);
         return isRef(val) ? val.value : val;
     } catch (err) {
         warn(`Failed to resolve path: ${path}`, "compiler", err);
@@ -54,7 +57,10 @@ export function resolvePath(path, ctx) {
 
 export function resolveRaw(path, ctx) {
     try {
-        return getPathParts(path).reduce((acc, part) => acc?.[part], ctx);
+        return getPathParts(path).reduce((acc, part) => {
+            const unwrapped = isRef(acc) ? acc.value : acc;
+            return unwrapped?.[part];
+        }, ctx);
     } catch (err) {
         warn(`Failed to resolve raw path: ${path}`, "compiler", err);
         return void 0;

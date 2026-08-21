@@ -11,6 +11,7 @@ export function field(initialValue, ruleDefs, opts, localContext) {
     const config = ctx.config;
     opts = opts || {};
 
+    let _f = null;
     const _id       = ctx.uid();
     const value     = app.isRef(initialValue) ? initialValue : app.ref(initialValue !== undefined ? initialValue : '');
     const dirty     = app.ref(false);
@@ -31,7 +32,7 @@ export function field(initialValue, ruleDefs, opts, localContext) {
     ]);
     const errors  = app.computed(() => {
         const msgs = _tagged.value.map(t => t.message);
-        const currentMode = _f.mode || config.mode;
+        const currentMode = (_f && _f.mode) || opts.mode || config.mode;
         if (currentMode === 'firstError') {
             return msgs.slice(0, 1);
         }
@@ -276,7 +277,7 @@ export function field(initialValue, ruleDefs, opts, localContext) {
     }, { immediate: false });
     _stoppers.push(stopStatusWatch);
 
-    const _f = {
+    _f = {
         _id, _type: 'field', _parent: null, _context: ctx,
         _runId: null,
         _runAbort: null,

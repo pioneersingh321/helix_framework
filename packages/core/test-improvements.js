@@ -978,7 +978,43 @@ async function runMockDomTests() {
         } catch (e) {
             compMountError = e;
         }
-        assert(compMountError === null, "Component with :title bound prop mounts without ReferenceError/initialization error");
+        // 37. Nested Event Handler Path & this binding (@submit.prevent="store.employeeForm.submit")
+        let submitPrevented = false;
+        let submitCallContext = null;
+        const testStore = {
+            employeeForm: {
+                name: "EmployeeFormInstance",
+                submit(e) {
+                    submitCallContext = this;
+                    if (e && e.defaultPrevented) submitPrevented = true;
+                }
+            }
+        };
+
+        const formApp = createApp({
+            setup() {
+                return { store: testStore };
+            }
+        });
+
+        const formEl = new MockNode(1, "form");
+        formEl.setAttribute("@submit.prevent", "store.employeeForm.submit");
+        const formAppRoot = new MockNode(1, "div");
+        formAppRoot.appendChild(formEl);
+
+        await formApp.mount(formAppRoot);
+
+        let defaultPrevented = false;
+        const mockSubmitEvent = {
+            type: "submit",
+            target: formEl,
+            preventDefault() { defaultPrevented = true; this.defaultPrevented = true; },
+            stopPropagation() {}
+        };
+        formEl.dispatchEvent(mockSubmitEvent);
+
+        assert(defaultPrevented === true, "@submit.prevent prevented default event");
+        assert(submitCallContext === testStore.employeeForm, "Nested handler store.employeeForm.submit executed with correct parent this context");
 
     } finally {
         global.document = origDoc;

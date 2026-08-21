@@ -34,5 +34,7 @@ export const MSGS = {
     between:   ({ p })  => `Must be between ${p.min} and ${p.max}.`,
     pattern:   ()       => 'Invalid format.',
     sameAs:    ({ p })  => `Must match ${p.label || 'the other field'}.`,
+    equalto:   ({ p })  => `Must match ${p.label || 'the other field'}.`,
+    equalTo:   ({ p })  => `Must match ${p.label || 'the other field'}.`,
     oneOf:     ({ p })  => `Must be one of: ${(p.values || []).join(', ')}.`,
 };

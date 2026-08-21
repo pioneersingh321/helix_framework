@@ -4,9 +4,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Helix Validation · Live Example</title>
+  <title>Helix Validation · Parsley.js Parity & Reactive Form Engine</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
   <!-- 1) Helix core, then 2) the validation plugin -->
   <script src="./dist/helix.js"></script>
@@ -14,30 +15,55 @@
 
   <style>
     :root {
-      --hx-bg: #0d1117;
+      --hx-primary: #4f46e5;
+      --hx-primary-hover: #4338ca;
+      --hx-accent: #06b6d4;
     }
 
     body {
-      background: #f5f7fb;
+      background: #f8fafc;
+      color: #1e293b;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
     .hero {
-      background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
       color: #fff;
-      border-radius: 1rem;
+      border-radius: 1.25rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
     }
 
     .hero code {
-      color: #ffe08a;
-      background: rgba(255, 255, 255, .12);
-      padding: .1rem .4rem;
-      border-radius: .35rem;
+      color: #a5f3fc;
+      background: rgba(255, 255, 255, .1);
+      padding: .15rem .5rem;
+      border-radius: .375rem;
+      font-weight: 500;
     }
 
     .demo-card {
-      border: none;
-      border-radius: 1rem;
-      box-shadow: 0 10px 30px rgba(13, 38, 76, .08);
+      border: 1px solid #e2e8f0;
+      border-radius: 1.25rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+      background: #fff;
+      transition: box-shadow 0.2s ease;
+    }
+
+    .demo-card:hover {
+      box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.08);
     }
 
     /* ── Validation visual states (plugin emits hx-* classes) ── */
@@ -47,43 +73,44 @@
 
     .hx-err {
       display: block;
-      color: #dc3545;
-      font-size: .85rem;
+      color: #ef4444;
+      font-size: .84rem;
       margin-top: .35rem;
+      font-weight: 500;
     }
 
     .hx-err--remote {
-      color: #dc3545;
+      color: #f59e0b;
       font-weight: 600;
     }
 
     .hx-err--pending {
-      color: #6c757d;
+      color: #64748b;
       font-style: italic;
     }
 
     input.hx-invalid,
     select.hx-invalid,
     textarea.hx-invalid {
-      border-color: #dc3545 !important;
-      box-shadow: 0 0 0 .2rem rgba(220, 53, 69, .15);
+      border-color: #ef4444 !important;
+      box-shadow: 0 0 0 .2rem rgba(239, 68, 68, .15) !important;
     }
 
     input.hx-valid,
     select.hx-valid,
     textarea.hx-valid {
-      border-color: #198754 !important;
-      box-shadow: 0 0 0 .2rem rgba(25, 135, 84, .12);
+      border-color: #10b981 !important;
+      box-shadow: 0 0 0 .2rem rgba(16, 185, 129, .12) !important;
     }
 
     input.hx-validating {
-      border-color: #0d6efd !important;
-      box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .12);
+      border-color: #6366f1 !important;
+      box-shadow: 0 0 0 .2rem rgba(99, 102, 241, .15) !important;
     }
 
     .field-hint {
       font-size: .8rem;
-      color: #6c757d;
+      color: #64748b;
     }
 
     .attr-pill {
@@ -91,149 +118,392 @@
       font-size: .72rem;
       background: #eef2ff;
       color: #4338ca;
-      padding: .1rem .45rem;
-      border-radius: .35rem;
+      padding: .15rem .5rem;
+      border-radius: .375rem;
       white-space: nowrap;
+      border: 1px solid #e0e7ff;
+    }
+
+    .feature-badge {
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      font-weight: 700;
+      padding: .35rem .75rem;
+      border-radius: 9999px;
+    }
+
+    .step-pill {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: .85rem;
+    }
+
+    .step-pill.active {
+      background: #4f46e5;
+      color: #fff;
+    }
+
+    .step-pill.inactive {
+      background: #e2e8f0;
+      color: #64748b;
     }
   </style>
 </head>
 
 <body>
-  <div id="app" class="container py-5" style="max-width: 880px;">
+  <div id="app" class="container py-5" style="max-width: 920px;">
 
-    <!-- ── Hero ── -->
-    <div class="hero p-4 p-md-5 mb-5">
-      <h1 class="fw-bold mb-2">Helix Validation</h1>
-      <p class="mb-0 fs-5 opacity-75">
-        Reactive, zero-config form validation. Drop <code>v-validate</code> and
-        <code>hx-*</code> attributes on your inputs — no per-field JavaScript required.
+    <!-- ── Hero Banner ── -->
+    <div class="hero p-4 p-md-5 mb-5 shadow-sm">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <span class="badge bg-primary-subtle text-primary-emphasis feature-badge">v2.1.5 · Release</span>
+        <span class="badge bg-success-subtle text-success-emphasis feature-badge">Parsley.js Parity</span>
+      </div>
+      <h1 class="fw-bold mb-2 display-6">Helix Validation Showcase</h1>
+      <p class="mb-0 fs-5 opacity-90">
+        HTML-first declarative validation engine for modern web apps. Zero boilerplate, standard HTML5 constraints, custom messages, multi-step wizards, and reactive signal state.
       </p>
     </div>
 
-    <!-- ── Success / error banners (reactive Helix state) ── -->
-    <div class="alert alert-success d-flex flex-column gap-1" v-if="ui.success">
-      <strong>✅ Form submitted successfully!</strong>
-      <ul class="mb-0 small">
+    <!-- ── Success / Error Alerts ── -->
+    <div class="alert alert-success d-flex flex-column gap-1 shadow-sm border-0" v-if="ui.success">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-check-circle-fill text-success fs-5"></i>
+        <strong>Form submitted successfully!</strong>
+      </div>
+      <ul class="mb-0 mt-2 small ps-4">
         <li v-for="row in ui.summary" :key="row.label">
           <span class="fw-semibold text-capitalize" v-text="row.label"></span>:
           <span v-text="row.value"></span>
         </li>
       </ul>
     </div>
-    <div class="alert alert-danger" v-if="ui.error" v-text="ui.error"></div>
+    <div class="alert alert-danger d-flex align-items-center gap-2 shadow-sm border-0" v-if="ui.error">
+      <i class="bi bi-exclamation-triangle-fill text-danger fs-5"></i>
+      <span v-text="ui.error"></span>
+    </div>
 
     <!-- ════════════════════════════════════════════════════════════ -->
-    <!-- DEMO 1 — Full sign-up form                                    -->
+    <!-- DEMO 1 — Reactive Sign-up Form (v-validate + HTML5 constraints) -->
     <!-- ════════════════════════════════════════════════════════════ -->
     <div class="card demo-card mb-5">
       <div class="card-body p-4 p-md-5">
-        <h3 class="card-title mb-4">Create your account</h3>
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h3 class="card-title mb-1 fw-bold">1. Account Registration</h3>
+            <p class="text-muted small">Eager validation, password confirmation via <code>hx-equalto</code>, and simulated async username check.</p>
+          </div>
+          <span class="badge bg-indigo-subtle text-primary border">Eager Re-Validation</span>
+        </div>
 
-        <!-- NOTE: no v-model on validated inputs — the directive owns the value.
-           Each input self-validates via v-validate / data-hx-* attributes. -->
         <form id="signupForm" @submit.prevent="onSubmit" novalidate>
-
           <!-- Full name -->
           <div class="mb-3">
-            <label class="form-label">Full name</label>
+            <label class="form-label fw-semibold">Full name <span class="text-danger">*</span></label>
             <input class="form-control" name="name" type="text" placeholder="Ada Lovelace"
-              v-validate="required|minLength:3">
-            <span class="attr-pill">v-validate="required|minLength:3"</span>
+              v-validate="required|minLength:3"
+              hx-msg-required="Please enter your full name."
+              hx-msg-minlength="Name must be at least 3 characters.">
+            <div class="mt-1 d-flex gap-1 flex-wrap">
+              <span class="attr-pill">v-validate="required|minLength:3"</span>
+              <span class="attr-pill">hx-msg-required</span>
+            </div>
           </div>
 
           <!-- Email -->
           <div class="mb-3">
-            <label class="form-label">Email address</label>
-            <input class="form-control" name="email" type="email" placeholder="ada@example.com" v-validate="required"
-              hx-email hx-email-message="Hmm, that doesn't look like a valid email.">
-            <span class="attr-pill">required + hx-email (custom message)</span>
-          </div>
-
-          <!-- Username with remote (async) availability check -->
-          <div class="mb-3">
-            <label class="form-label">Username</label>
-            <input class="form-control" name="username" type="text" placeholder="try: admin, root, test (taken)"
-              v-validate="required|minLength:3" hx-remote="/api/check-username"
-              hx-remote-message="Could not reach the server." hx-pending-text="Checking availability…"
-              hx-debounce="500">
-            <div class="field-hint mt-1">
-              <span class="attr-pill">hx-remote</span> calls an API as you type.
-              Names <em>admin, root, test, john, helix</em> are simulated as taken.
+            <label class="form-label fw-semibold">Email address <span class="text-danger">*</span></label>
+            <input class="form-control" name="email" type="email" placeholder="ada@example.com"
+              v-validate="required"
+              hx-email
+              hx-msg-email="Please enter a valid email (e.g. ada@example.com).">
+            <div class="mt-1 d-flex gap-1 flex-wrap">
+              <span class="attr-pill">type="email"</span>
+              <span class="attr-pill">hx-msg-email</span>
             </div>
           </div>
 
-          <!-- Password -->
+          <!-- Username with remote async check -->
           <div class="mb-3">
-            <label class="form-label">Password</label>
-            <input class="form-control" id="password" name="password" type="password"
-              placeholder="At least 8 characters" v-validate="required|minLength:8"
-              hx-pattern="(?=.*[A-Za-z])(?=.*\d).+"
-              hx-pattern-message="Include at least one letter and one number.">
-            <span class="attr-pill">required|minLength:8 + pattern</span>
+            <label class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
+            <input class="form-control" name="username" type="text" placeholder="try: admin, root, test (simulated taken)"
+              v-validate="required|minLength:3"
+              hx-remote="/api/check-username"
+              hx-remote-message="Could not reach the server."
+              hx-pending-text="Checking availability…"
+              hx-debounce="400">
+            <div class="field-hint mt-1">
+              <span class="attr-pill">hx-remote</span> verifies availability live via API. <em>admin, root, test</em> are reserved.
+            </div>
           </div>
 
-          <!-- Confirm password (cross-field via hx-same-as) -->
-          <div class="mb-3">
-            <label class="form-label">Confirm password</label>
-            <input class="form-control" name="confirm" type="password" placeholder="Re-type your password"
-              v-validate="required" hx-same-as="#password">
-            <span class="attr-pill">hx-same-as="#password"</span>
+          <!-- Password & Confirm Password -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Password <span class="text-danger">*</span></label>
+              <input class="form-control" id="password" name="password" type="password"
+                placeholder="At least 8 chars"
+                v-validate="required|minLength:8"
+                hx-pattern="(?=.*[A-Za-z])(?=.*\d).+"
+                hx-pattern-message="Include at least one letter and one number.">
+              <div class="mt-1"><span class="attr-pill">minLength:8 + pattern</span></div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Confirm Password <span class="text-danger">*</span></label>
+              <input class="form-control" name="confirm_password" type="password"
+                placeholder="Re-type password"
+                v-validate="required"
+                hx-equalto="#password"
+                hx-msg-equalto="Passwords do not match!">
+              <div class="mt-1"><span class="attr-pill">hx-equalto="#password"</span></div>
+            </div>
           </div>
 
-          <!-- Age (numeric range) -->
-          <div class="mb-3">
-            <label class="form-label">Age</label>
-            <input class="form-control w-50" name="age" type="number" placeholder="18 – 120"
-              v-validate="required|integer|between:18,120">
-            <span class="attr-pill">required|integer|between:18,120</span>
+          <!-- Age & Website -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Age <span class="text-danger">*</span></label>
+              <input class="form-control" name="age" type="number" placeholder="18 – 120"
+                v-validate="required|integer|between:18,120"
+                hx-msg-between="Must be between 18 and 120 years old.">
+              <div class="mt-1"><span class="attr-pill">between:18,120</span></div>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label fw-semibold">Portfolio Website <span class="text-muted fw-normal">(optional)</span></label>
+              <input class="form-control" name="website" type="text" placeholder="https://your-site.dev"
+                v-validate="url">
+              <div class="mt-1"><span class="attr-pill">url (skips empty values)</span></div>
+            </div>
           </div>
 
-          <!-- Website (optional → only validated when filled) -->
-          <div class="mb-3">
-            <label class="form-label">Website <span class="text-muted">(optional)</span></label>
-            <input class="form-control" name="website" type="text" placeholder="https://your-site.dev" v-validate="url">
-            <span class="attr-pill">url (skips empty values)</span>
-          </div>
-
-          <!-- Terms (custom 'accepted' rule registered in JS below) -->
+          <!-- Custom Accepted Rule -->
           <div class="mb-4 form-check">
-            <input class="form-check-input" id="terms" name="terms" type="checkbox" v-validate="accepted"
-              hx-trigger="change" hx-auto-dirty hx-class-handler="parent">
-            <label class="form-check-label" for="terms">
+            <input class="form-check-input" id="terms" name="terms" type="checkbox"
+              v-validate="accepted"
+              hx-trigger="change"
+              hx-auto-dirty
+              hx-class-handler="parent">
+            <label class="form-check-label fw-semibold" for="terms">
               I agree to the Terms of Service
             </label>
-            <span class="attr-pill ms-1">custom rule via rules.add()</span>
+            <div class="mt-1"><span class="attr-pill">custom rule via rules.add('accepted', ...)</span></div>
           </div>
 
           <div class="d-flex gap-2">
-            <button class="btn btn-primary px-4" type="submit">Create account</button>
-            <button class="btn btn-outline-secondary" type="button" @click="onReset">Reset</button>
+            <button class="btn btn-primary px-4 fw-semibold" type="submit">
+              <i class="bi bi-person-plus me-1"></i> Create Account
+            </button>
+            <button class="btn btn-outline-secondary px-3" type="button" @click="onReset">Reset</button>
           </div>
         </form>
       </div>
     </div>
 
     <!-- ════════════════════════════════════════════════════════════ -->
-    <!-- DEMO 2 — Standalone field + programmatic check                -->
+    <!-- DEMO 2 — Zero-JS HTML-First Form with Custom Error Container  -->
     <!-- ════════════════════════════════════════════════════════════ -->
     <div class="card demo-card mb-5">
       <div class="card-body p-4 p-md-5">
-        <h3 class="card-title mb-2">Newsletter (standalone field)</h3>
-        <p class="text-muted">
-          A single validated input — no surrounding form needed. The button reads the
-          field state through <code>el.__hxField</code>.
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h3 class="card-title mb-1 fw-bold">2. Zero-JS Form with Custom Error Placement</h3>
+            <p class="text-muted small">Standard HTML attributes with <code>hx-form</code>, <code>hx-msg-*</code>, and <code>hx-error-container</code>.</p>
+          </div>
+          <span class="badge bg-success-subtle text-success border">Zero-JS Auto Scan</span>
+        </div>
+
+        <form hx-form id="html5Form" @submit.prevent="onHtml5Submit" novalidate>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Company Email <span class="text-danger">*</span></label>
+            <div id="company-email-wrapper" class="input-group">
+              <span class="input-group-text"><i class="bi bi-building"></i></span>
+              <input class="form-control" name="company_email" type="email" required
+                hx-error-container="#company-email-errors"
+                hx-class-target="#company-email-wrapper"
+                hx-msg-required="Corporate email is required."
+                hx-msg-email="Must be a valid corporate email format.">
+            </div>
+            <!-- Custom container placed outside the input group -->
+            <div id="company-email-errors" class="mt-1"></div>
+            <div class="mt-1 d-flex gap-1 flex-wrap">
+              <span class="attr-pill">hx-error-container="#company-email-errors"</span>
+              <span class="attr-pill">hx-class-target="#company-email-wrapper"</span>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Security Passcode (Min 6 digits) <span class="text-danger">*</span></label>
+            <input class="form-control" name="passcode" type="password" required minlength="6"
+              hx-msg-minlength="Security passcode must contain at least 6 characters.">
+            <div class="mt-1"><span class="attr-pill">minlength="6" + hx-msg-minlength</span></div>
+          </div>
+
+          <button class="btn btn-outline-primary fw-semibold" type="submit">
+            <i class="bi bi-shield-check me-1"></i> Verify & Submit Form
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <!-- DEMO 3 — Multi-Step Form Wizard (`hx-group` & `validateGroup`)-->
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <div class="card demo-card mb-5">
+      <div class="card-body p-4 p-md-5">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h3 class="card-title mb-1 fw-bold">3. Multi-Step Wizard Validation</h3>
+            <p class="text-muted small">Validate specific groups/steps independently via <code>validateGroup('step-1')</code>.</p>
+          </div>
+          <span class="badge bg-warning-subtle text-warning-emphasis border">Step Wizard</span>
+        </div>
+
+        <!-- Step Indicator -->
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <div class="d-flex align-items-center gap-2">
+            <span :class="step1PillClass">1</span>
+            <span class="fw-semibold small">Personal</span>
+          </div>
+          <div class="flex-grow-1 border-bottom"></div>
+          <div class="d-flex align-items-center gap-2">
+            <span :class="step2PillClass">2</span>
+            <span class="fw-semibold small">Billing</span>
+          </div>
+          <div class="flex-grow-1 border-bottom"></div>
+          <div class="d-flex align-items-center gap-2">
+            <span :class="step3PillClass">3</span>
+            <span class="fw-semibold small">Done</span>
+          </div>
+        </div>
+
+        <form hx-form id="wizardForm" novalidate>
+          <!-- Step 1 Group -->
+          <div v-show="isStep1">
+            <fieldset hx-group="step-1">
+              <div class="mb-3">
+                <label class="form-label fw-semibold">First Name <span class="text-danger">*</span></label>
+                <input class="form-control" name="wizard_first_name" required minlength="2"
+                  hx-msg-required="First name is required.">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Last Name <span class="text-danger">*</span></label>
+                <input class="form-control" name="wizard_last_name" required minlength="2"
+                  hx-msg-required="Last name is required.">
+              </div>
+            </fieldset>
+            <button class="btn btn-primary" type="button" @click="nextStep(1)">
+              Next: Billing Info <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+          </div>
+
+          <!-- Step 2 Group -->
+          <div v-show="isStep2">
+            <fieldset hx-group="step-2">
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Billing Address <span class="text-danger">*</span></label>
+                <input class="form-control" name="billing_address" required
+                  hx-msg-required="Billing address is required.">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Postal / ZIP Code <span class="text-danger">*</span></label>
+                <input class="form-control" name="postal_code" required minlength="4"
+                  hx-msg-required="Postal code is required.">
+              </div>
+            </fieldset>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-secondary" type="button" @click="ui.currentStep = 1">Back</button>
+              <button class="btn btn-primary" type="button" @click="nextStep(2)">
+                Next: Confirmation <i class="bi bi-arrow-right ms-1"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 3 Complete -->
+          <div v-show="isStep3">
+            <div class="text-center py-4">
+              <i class="bi bi-check-circle text-success display-4"></i>
+              <h4 class="mt-3 fw-bold">All Steps Validated!</h4>
+              <p class="text-muted">Both step-1 and step-2 groups passed verification.</p>
+              <button class="btn btn-outline-primary btn-sm mt-2" type="button" @click="ui.currentStep = 1">
+                Start Over
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <!-- DEMO 4 — Drop-in Parsley.js Syntax Compatibility Demo          -->
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <div class="card demo-card mb-5">
+      <div class="card-body p-4 p-md-5">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h3 class="card-title mb-1 fw-bold">4. Drop-in Parsley.js Compatibility</h3>
+            <p class="text-muted small">Supports <code>data-parsley-validate</code>, <code>data-parsley-equalto</code>, <code>data-parsley-minlength</code>, and <code>data-parsley-*-message</code>.</p>
+          </div>
+          <span class="badge bg-secondary-subtle text-secondary-emphasis border">Parsley Migration</span>
+        </div>
+
+        <form data-parsley-validate id="parsleyForm" @submit.prevent="onParsleySubmit" novalidate>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">New Password <span class="text-danger">*</span></label>
+              <input class="form-control" id="p_password" name="p_password" type="password"
+                data-parsley-required="true"
+                data-parsley-minlength="6"
+                data-parsley-minlength-message="Must be at least 6 characters.">
+              <div class="mt-1"><span class="attr-pill">data-parsley-minlength="6"</span></div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Repeat Password <span class="text-danger">*</span></label>
+              <input class="form-control" name="p_confirm" type="password"
+                data-parsley-required="true"
+                data-parsley-equalto="#p_password"
+                data-parsley-equalto-message="Passwords do not match.">
+              <div class="mt-1"><span class="attr-pill">data-parsley-equalto="#p_password"</span></div>
+            </div>
+          </div>
+
+          <button class="btn btn-outline-dark fw-semibold" type="submit">
+            <i class="bi bi-file-earmark-code me-1"></i> Test Parsley Form
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <!-- DEMO 5 — Standalone Field & Programmatic Sandbox              -->
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <div class="card demo-card mb-5">
+      <div class="card-body p-4 p-md-5">
+        <h3 class="card-title mb-2 fw-bold">5. Standalone Field (Newsletter)</h3>
+        <p class="text-muted small">
+          Single validated input outside any form with instant eager re-validation.
         </p>
 
         <div class="alert alert-info py-2" v-if="ui.newsletterMsg" v-text="ui.newsletterMsg"></div>
 
         <div class="input-group">
           <input class="form-control" id="newsletter" name="newsletter_email" type="email" placeholder="you@example.com"
-            v-validate="required|email" hx-trigger="eager">
-          <button class="btn btn-success" type="button" @click="onSubscribe">Subscribe</button>
+            v-validate="required|email" hx-trigger="eager"
+            hx-msg-required="Please provide an email to subscribe."
+            hx-msg-email="Please enter a valid email format.">
+          <button class="btn btn-success px-4 fw-semibold" type="button" @click="onSubscribe">
+            <i class="bi bi-send me-1"></i> Subscribe
+          </button>
         </div>
       </div>
     </div>
 
+    <!-- ── Footer ── -->
     <p class="text-center text-muted small mb-0">
       Powered by Helix <span v-text="helixVersion"></span> + Helix Validation
       <span v-text="validateVersion"></span>
@@ -243,37 +513,31 @@
   <script>
     /* ────────────────────────────────────────────────────────────────
        1. Configure Helix and install the validation plugin globally.
-          With a single global install, the validate/form/list directives
-          are registered once on the global directive table and resolved
-          as a fallback during binding.
        ──────────────────────────────────────────────────────────────── */
-    Helix.config.prefix = 'v-';
     const { create, reactive, ref, computed, watch } = Helix;
+    Helix.config.prefix = 'v-';
 
     Helix.use(HelixValidationPlugin, {
-      trigger: 'eager',   // validate on blur first, then live on every keystroke
-      debounce: 400,       // debounce for remote/async checks
+      trigger: 'eager',   // validate on blur first, then live on keystroke
+      debounce: 400,      // debounce for remote/async checks
       showAllErrors: false,// show one message per field at a time
       messages: {
-        // `sameAs` is the rule's internal name (hx-same-as maps to it).
-        sameAs: 'Passwords do not match.'
+        sameAs: 'Passwords do not match.',
+        equalto: 'Values do not match.'
       }
     });
 
-    // Grab the validation rules registry from Helix.validation namespace.
-    const { rules } = Helix.validation;
+    // Grab the validation rules registry
+    const { rules, getForm } = Helix.validation;
 
-    /* 2. Register a custom rule for the "I agree" checkbox.
-          Built-in `required` treats boolean false as "present", so we add
-          an `accepted` rule that demands an explicitly truthy value. */
+    /* 2. Register custom 'accepted' rule for checkbox */
     rules.add('accepted', (value) =>
       (value === true || value === 'true' || value === 'on' || value === 1)
         ? null
         : 'You must accept the Terms of Service to continue.'
     );
 
-    /* 3. Stub the network so the remote-validation demo works without a backend.
-          Replace this with a real endpoint in production. */
+    /* 3. Stub network endpoint for /api/check-username simulation */
     const _realFetch = window.fetch.bind(window);
     window.fetch = (input, init) => {
       const urlStr = typeof input === 'string' ? input : (input && input.url) || '';
@@ -287,41 +551,49 @@
         return new Promise((resolve) => {
           setTimeout(() => resolve(new Response(JSON.stringify(payload), {
             status: 200, headers: { 'Content-Type': 'application/json' }
-          })), 650);
+          })), 500);
         });
       }
       return _realFetch(input, init);
     };
 
     /* ────────────────────────────────────────────────────────────────
-       4. Create + mount the app. createApp keeps the install single
-          (it does not re-run global plugins), so binding stays clean.
+       4. Create + mount the app.
        ──────────────────────────────────────────────────────────────── */
-    const app = Helix.createApp(({ reactive }) => {
+    const app = Helix.createApp(({ reactive, computed }) => {
       const ui = reactive({
         success: false,
         error: '',
         summary: [],
-        newsletterMsg: ''
+        newsletterMsg: '',
+        currentStep: 1
       });
+
+      const isStep1 = computed(() => ui.currentStep === 1);
+      const isStep2 = computed(() => ui.currentStep === 2);
+      const isStep3 = computed(() => ui.currentStep === 3);
+
+      const step1PillClass = computed(() => ui.currentStep === 1 ? 'step-pill active' : 'step-pill inactive');
+      const step2PillClass = computed(() => ui.currentStep === 2 ? 'step-pill active' : 'step-pill inactive');
+      const step3PillClass = computed(() => ui.currentStep === 3 ? 'step-pill active' : 'step-pill inactive');
 
       const fieldsIn = (formEl) =>
         Array.from(formEl.querySelectorAll('[name]'))
           .map((el) => ({ el, f: el.__hxField }))
           .filter((x) => x.f);
 
+      // Demo 1 Submit
       const onSubmit = async () => {
         const formEl = document.getElementById('signupForm');
         const entries = fieldsIn(formEl);
 
-        // Touch + run every field's validators, then read the merged error state.
         entries.forEach(({ f }) => f.touch());
         await Promise.all(entries.map(({ f }) => f.validate()));
 
         const firstInvalid = entries.find(({ f }) => f.errors.value.length > 0);
         if (firstInvalid) {
           ui.success = false;
-          ui.error = 'Please fix the highlighted fields and try again.';
+          ui.error = 'Please fix the highlighted fields in Demo 1 and try again.';
           firstInvalid.el.focus();
           return;
         }
@@ -346,6 +618,57 @@
         ui.summary = [];
       };
 
+      // Demo 2 Submit (Zero-JS form)
+      const onHtml5Submit = async () => {
+        const formEl = document.getElementById('html5Form');
+        const formCtrl = getForm(formEl);
+        if (formCtrl) {
+          const isValid = await formCtrl.validate();
+          if (!isValid) {
+            ui.error = 'Demo 2: Please correct the company email and passcode.';
+            ui.success = false;
+          } else {
+            ui.error = '';
+            ui.success = true;
+            ui.summary = [
+              { label: 'Company Email', value: formEl.querySelector('[name=company_email]').value },
+              { label: 'Security Passcode', value: '••••••••' }
+            ];
+          }
+        }
+      };
+
+      // Demo 3 Step Wizard Navigation
+      const nextStep = async (fromStep) => {
+        const formEl = document.getElementById('wizardForm');
+        const formCtrl = getForm(formEl);
+        if (!formCtrl) return;
+
+        const groupName = `step-${fromStep}`;
+        const passed = await formCtrl.validateGroup(groupName);
+        if (passed) {
+          ui.currentStep = fromStep + 1;
+        }
+      };
+
+      // Demo 4 Parsley Submit
+      const onParsleySubmit = async () => {
+        const formEl = document.getElementById('parsleyForm');
+        const formCtrl = getForm(formEl);
+        if (formCtrl) {
+          const isValid = await formCtrl.validate();
+          if (isValid) {
+            ui.error = '';
+            ui.success = true;
+            ui.summary = [{ label: 'Parsley Password Status', value: 'Passwords match & length verified' }];
+          } else {
+            ui.error = 'Demo 4: Parsley fields have validation errors.';
+            ui.success = false;
+          }
+        }
+      };
+
+      // Demo 5 Subscribe
       const onSubscribe = async () => {
         const el = document.getElementById('newsletter');
         const f = el && el.__hxField;
@@ -363,11 +686,20 @@
 
       return {
         ui,
+        isStep1,
+        isStep2,
+        isStep3,
+        step1PillClass,
+        step2PillClass,
+        step3PillClass,
         onSubmit,
         onReset,
+        onHtml5Submit,
+        nextStep,
+        onParsleySubmit,
         onSubscribe,
         helixVersion: Helix.version,
-        validateVersion: (Helix.$validation.config && Helix.$validation.version) || '2.1.5'
+        validateVersion: (Helix.$validation && Helix.$validation.version) || '2.1.5'
       };
     });
 
