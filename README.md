@@ -728,7 +728,7 @@ const useAuthStore = Helix.defineStore('auth', {
 </details>
 
 <details>
-<summary>📂 1. Helix Validation (helix-validation.js - v2.1.5)</summary>
+<summary>📂 2. Helix Validation (helix-validation.js - v2.1.5)</summary>
 <br>
 
 A zero-configuration, interactive validation engine. Apply rules directly via DOM data attributes or validate objects programmatically.
@@ -767,7 +767,7 @@ $v.check('invalid-email', 'required|email').then(errors => {
 </details>
 
 <details>
-<summary>📂 2. Helix Behavior Scripting (helix-behavior.js - v1.3.1)</summary>
+<summary>📂 3. Helix Behavior Scripting (helix-behavior.js - v1.3.1)</summary>
 <br>
 
 A powerful pipeline execution engine that handles DOM events and state triggers declaratively within standard elements without writing custom JavaScript scripts.
@@ -802,7 +802,7 @@ A powerful pipeline execution engine that handles DOM events and state triggers 
 </details>
 
 <details>
-<summary>📂 3. Helix Fetch (helix-fetch.js - v2.8.2)</summary>
+<summary>📂 4. Helix Fetch (helix-fetch.js - v2.8.2)</summary>
 <br>
 
 A lightweight fetch request wrapper featuring execution queueing, automatic background polling, response caching, and AbortController integrations.
@@ -825,7 +825,7 @@ Helix.$fetch.clearCache();            // Clears complete query cache
 </details>
 
 <details>
-<summary>📂 4. Helix Axios (helix-axios.js - v2.2.0)</summary>
+<summary>📂 5. Helix Axios (helix-axios.js - v2.2.0)</summary>
 <br>
 
 An advanced Axios networking plugin featuring automatic exponential backoff retries, request deduplication, out-of-order execution guardrails, and file uploads.
@@ -849,7 +849,7 @@ Helix.$http.setToken('my-auth-token', 'Bearer');
 </details>
 
 <details>
-<summary>📂 5. Helix Form (helix-form.js - v2.0.0)</summary>
+<summary>📂 6. Helix Form (helix-form.js - v2.0.0)</summary>
 <br>
 
 Extracts and serializes DOM form controls directly into structured, typed JSON objects.
@@ -871,7 +871,7 @@ const formData = Helix.$form.toFormData({ user: { avatar: file, name: 'Ada' } })
 </details>
 
 <details>
-<summary>📂 6. Helix Loader (helix-loader.js - v2.5)</summary>
+<summary>📂 7. Helix Loader (helix-loader.js - v2.5)</summary>
 <br>
 
 Renders animated page-level loading screens or localized container loader widgets.
@@ -892,7 +892,7 @@ Helix.$loader.hide();
 </details>
 
 <details>
-<summary>📂 7. Helix Notify (helix-notify.js - v2.1)</summary>
+<summary>📂 8. Helix Notify (helix-notify.js - v2.1)</summary>
 <br>
 
 Integrates SweetAlert2 to manage toast queues, notification alerts, and Promise-based confirm dialogs.
@@ -913,7 +913,7 @@ Helix.$notify.async('Filing tax forms', 'Please wait...', apiRequestPromise);
 </details>
 
 <details>
-<summary>📂 8. Helix Model (helix-model.js - v2.2.1)</summary>
+<summary>📂 9. Helix Model (helix-model.js - v2.2.1)</summary>
 <br>
 
 A robust in-memory database query and data model utility. Query datasets with AST compile paths, sorted index hashes, paging, and joins.
