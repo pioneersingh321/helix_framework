@@ -2,7 +2,7 @@
 
 A lightweight, Vue-inspired reactive JavaScript framework — signal-native reactivity, declarative HTML directives, components, and a plugin ecosystem, all in a single dependency-free file that runs directly in the browser.
 
-**Version:** `11.1.19` · **Size:** single file, no build step · **License:** MIT
+**Version:** `11.1.21` · **Size:** single file, no build step · **License:** MIT
 
 ---
 
@@ -290,24 +290,50 @@ Hides unmounted markup on slow-loading pages until Helix mounts. Injects `[hx-cl
 ### Event handling — `hx-on` / `@`
 
 ```html
+<!-- Method binding -->
 <button @click="save">Save</button>
 
-<!-- Inline call with arguments and the native event -->
+<!-- Inline call with arguments and $event -->
 <button @click="remove(item.id, $event)">Delete</button>
 
-<!-- Event Modifiers -->
-<form @submit.prevent="onSubmit">…</form>
-<a @click.stop="noop">…</a>
-<div @click.outside="closeModal">…</div>
-<button @keydown.window.escape="close">Escape anywhere</button>
-<input @keydown.enter="submit" />
+<!-- Dynamic event binding -->
+<button @[customEvent]="onTrigger">Dynamic Event</button>
 ```
 
-**Supported Event Modifiers:**
-- **DOM/Propagation:** `.prevent` (`preventDefault`), `.stop` (`stopPropagation`), `.self`, `.once`, `.passive`, `.capture`
-- **Targeting:** `.outside` (detects clicks outside the element), `.window` (attaches to `window`), `.document` (attaches to `document`)
-- **Key Filters:** `.enter`, `.escape`, `.tab`, `.space`, `.up`, `.down`, `.left`, `.right`, `.delete`
-- **System Keys:** `.ctrl`, `.alt`, `.shift`, `.meta`
+#### 🖱️ Click & Mouse Modifiers
+*   `@click.left`: Restricts execution strictly to left-click.
+*   `@click.right` / `@contextmenu.prevent.right`: Restricts execution to right-click.
+*   `@click.middle`: Restricts execution to middle-click (mouse wheel).
+*   `@click.outside="close"`: Detects clicks outside the element (dropdowns, modals, popovers).
+
+#### ⌨️ Keyboard Modifiers & Aliases
+Filter keyboard events (`@keydown`, `@keyup`, `@keypress`):
+*   **Key Aliases**: `.enter`, `.esc` / `.escape`, `.tab`, `.space`, `.delete` (Backspace/Delete), `.up`, `.down`, `.left`, `.right`, `.page-down`, `.page-up`.
+*   **Character Keys**: Single letter or digit keys (`@keydown.k`, `@keydown.q`, `@keydown.1`).
+```html
+<input @keydown.enter="submit" />
+<input @keydown.esc="closeModal" />
+<input @keydown.window.escape="closeModal" />
+```
+
+#### ⚡ System Modifiers & `.exact`
+*   **System Keys**: `.ctrl`, `.alt`, `.shift`, `.meta` (Command/Windows).
+*   **Exact Matching (`.exact`)**: Enforces that only the specified modifiers are active without extraneous held keys.
+```html
+<button @click.ctrl="openNewTab">Ctrl + Click</button>
+<button @click.ctrl.exact="strictCtrl">Strictly Ctrl alone</button>
+<button @click.exact="plainClick">No system modifier pressed</button>
+```
+
+#### 🌊 Propagation & Flow Modifiers
+*   `.prevent`: Calls `event.preventDefault()`.
+*   `.stop`: Calls `event.stopPropagation()`.
+*   `.self`: Fires only if `event.target === event.currentTarget`.
+*   `.once`: Executes handler once and automatically unbinds.
+*   `.passive`: Enhances touch/scroll performance (cannot call `preventDefault()`).
+*   `.capture`: Uses event capture phase.
+*   `.window`: Attaches the event listener to `window`.
+*   `.document`: Attaches the event listener to `document`.
 
 ### Two-way binding — `hx-model`
 
@@ -836,6 +862,94 @@ table.on('draw.dt', function () {
 - **Recursive Subtree Rebinding**: Recursively traverses and compiles all uncompiled child nodes (`<tr>`, `<button @click="...">`, etc.).
 - **Context Fallback**: Automatically falls back to app `rootCtx` or searches parent ancestor nodes for binding context.
 
+### Built-in Transition & Animation Engine (`hx-transition`)
+Apply smooth CSS enter/leave transitions on `hx-show` and `hx-if`:
+```html
+<div hx-show="isOpen" hx-transition="fade">
+  Animated Content
+</div>
+```
+- **CSS Phases**: `fade-enter-from` $\rightarrow$ `fade-enter-active` $\rightarrow$ `fade-enter-to`, `fade-leave-from` $\rightarrow$ `fade-leave-active` $\rightarrow$ `fade-leave-to`.
+- **FLIP List Animations**: `<TransitionGroup moveClass="item-move">` automatically applies FLIP inverted transforms on `hx-for` list reordering.
+- **Hook Events**: `@before-enter`, `@enter`, `@after-enter`, `@before-leave`, `@leave`, `@after-leave`.
+
+### Built-in Teleport Engine (`hx-teleport` & `<Teleport>`)
+Transport DOM subtrees into external portal targets (`body`, `#modal-target`) while retaining reactive scope and events:
+```html
+<div hx-teleport="#modal-portal-target" hx-show="isModalOpen">
+  <div class="modal">Teleported Modal Content</div>
+</div>
+
+<Teleport to="body" :disabled="isInline">
+  <div class="toast">Portal Toast</div>
+</Teleport>
+```
+
+### Vue 3.5-Style `useTemplateRef()` & Function Refs
+Synchronize DOM elements and component instances with reactive refs:
+```js
+import { createApp, useTemplateRef, onMounted } from 'helix-core';
+
+createApp({
+  setup() {
+    const inputRef = useTemplateRef('username');
+    onMounted(() => inputRef.value?.focus());
+    return { inputRef };
+  },
+  template: `<input ref="username" />`
+});
+```
+- **Function Refs**: `<input :ref="(el) => init(el)" />` calls `init(el)` on mount and `init(null)` on unmount.
+- **Auto Cleanup**: Automatically resets `ref.value = null` on unmount.
+
+### Component Error Boundaries (`onErrorCaptured`)
+Intercept descendant component runtime errors and halt cascading crashes:
+```js
+onErrorCaptured((err, instance, info) => {
+  console.error(`Caught error in ${info}:`, err);
+  return false; // Prevents upward error bubbling
+});
+```
+
+### W3C Standard Web Components (`defineCustomElement`)
+Compile any Helix component into a standard browser Custom Element (`class extends HTMLElement`):
+```js
+import { defineCustomElement } from 'helix-core';
+
+const MyWidget = defineCustomElement({
+  props: { name: { type: String, default: 'Developer' } },
+  styles: `.badge { font-weight: bold; color: blue; }`,
+  template: `<span class="badge">Hello, {{ name }}!</span>`
+});
+
+customElements.define('my-widget', MyWidget);
+```
+- **Reactive Props Proxy**: Attribute updates (`setAttribute`) and property assignments (`el.name = '...'`) reactively update templates without stale snapshot freezes.
+- **Lifecycle Generation Tokens**: Discard stale async mounts during fast disconnects and handle clean reconnects.
+- **Native Custom Events**: Component `emit()` dispatches bubbling native `CustomEvent` objects.
+
+### Dynamic Components (`<component :is="...">` / `hx-is`)
+Mount components dynamically at runtime by tag name, definition object, or reactive ref:
+```html
+<component :is="currentTabName"></component>
+```
+
+### Prefix-Defined Slots (`h-slot`, `hx-slot`, `custom-slot`, `#`)
+Dynamic slot extraction honors custom application prefixes (`appConfig.prefix`):
+```html
+<card-layout>
+  <template hx-slot:header="props">
+    <h2>{{ props.title }}</h2>
+  </template>
+  <template hx-slot>
+    <p>Default content</p>
+  </template>
+  <template #footer>
+    <button>Close</button>
+  </template>
+</card-layout>
+```
+
 ---
 
 ## Full API reference
@@ -843,14 +957,14 @@ table.on('draw.dt', function () {
 **App creation**
 `createApp(rootComponent)` · `Helix.mount(selector, setupFn)` · `app.mount(selector)` · `app.unmount()` · `app.onAppUnmount(fn)`
 
-**Registration**
-`app.component(name, def)` · `app.directive(name, def)` · `app.removeDirective(name)` · `app.use(plugin, opts)` · `app.namespace(name, apis)` · `app.removeNamespace(name)` · `app.provide(key, val)` · `Helix.definePlugin(def)` · `Helix.directives(map)`
+**Registration & Web Components**
+`app.component(name, def)` · `app.directive(name, def)` · `app.removeDirective(name)` · `app.use(plugin, opts)` · `app.namespace(name, apis)` · `app.removeNamespace(name)` · `app.provide(key, val)` · `Helix.definePlugin(def)` · `Helix.directives(map)` · `defineCustomElement(def, opts)`
 
 **Reactivity & Transactions**
-`reactive` · `shallowReactive` · `readonly` · `shallowReadonly` · `ref` · `shallowRef` · `customRef` · `triggerRef` · `computed` · `effect` · `watch` · `watchEffect` · `simpleEffect` · `EffectScope` · `batch` (`batch.high`, `batch.low`) · `createEffectGroup` (`effectGroup`) · `inspectDeps`
+`reactive` · `shallowReactive` · `readonly` · `shallowReadonly` · `ref` · `shallowRef` · `customRef` · `triggerRef` · `computed` · `effect` · `watch` · `watchEffect` · `simpleEffect` · `EffectScope` · `effectScope` · `onScopeDispose` · `batch` (`batch.high`, `batch.low`) · `createEffectGroup` (`effectGroup`) · `inspectDeps`
 
-**DOM & Component Utilities**
-`Helix.dom` (`bind`, `cleanup`, `destroy`, `inspect`, `findNode`) · `defineAsyncComponent` · `preload` · `preloadAll` · `createErrorBoundary` · `onErrorCaptured` · `inspectComponent` · `ScopeScheduler` · `scopeScheduler` · `onError` · `checkMemoryLeaks`
+**DOM, Built-in Components & Portals**
+`Helix.dom` (`bind`, `cleanup`, `destroy`, `inspect`, `findNode`) · `defineAsyncComponent` · `preload` · `preloadAll` · `createErrorBoundary` · `onErrorCaptured` · `useTemplateRef` · `<Transition>` · `<TransitionGroup>` · `<Teleport>` · `<suspense>` · `inspectComponent` · `ScopeScheduler` · `scopeScheduler` · `onError` · `checkMemoryLeaks`
 
 **Ref utilities**
 `isRef` · `unref` · `toValue` · `toRef` · `toRefs` · `toRaw` · `markRaw` · `isShallow` · `isProxy`

@@ -58,8 +58,7 @@ export function createApp(rootComponent = {}) {
     let rootInstance = null;
     let mountedRootSelector = null;
     let unmountCallbacks = [];
-    const appConfig = Object.create(globalConfig);
-    Object.freeze(appConfig);
+    const appConfig = Object.assign(Object.create(globalConfig), rootComponent.config || {}, rootComponent.prefix ? { prefix: rootComponent.prefix } : {});
     const appContext = {
         config: appConfig,
         components: appComponents,

@@ -1,6 +1,7 @@
 import { currentInstance, warn } from '../shared/shared.js';
 import { ref } from '../reactivity/ref.js';
 import { computed } from '../reactivity/computed.js';
+import { globalConfig } from './config.js';
 
 export function onErrorCaptured(cb) {
     if (!currentInstance) {
@@ -48,6 +49,7 @@ export function createErrorBoundary(fallbackComponent) {
             };
 
             const fallbackHtml = computed(() => renderFallback().template);
+            const p = globalConfig.prefix || 'h-';
 
             return {
                 hasError,
@@ -59,10 +61,10 @@ export function createErrorBoundary(fallbackComponent) {
                 },
                 template: `
                     <div class="hx-error-boundary-wrapper">
-                        <template hx-if="hasError">
-                            <div hx-html="fallbackHtml"></div>
+                        <template ${p}if="hasError">
+                            <div ${p}html="fallbackHtml"></div>
                         </template>
-                        <template hx-if="!hasError">
+                        <template ${p}if="!hasError">
                             <slot></slot>
                         </template>
                     </div>

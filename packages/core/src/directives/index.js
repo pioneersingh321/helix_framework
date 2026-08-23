@@ -30,6 +30,20 @@ import {
 import {
     queueComponentUpdated
 } from '../app/lifecycle.js';
+import {
+    createEventListener
+} from '../events/index.js';
+import {
+    resolveTransitionConfig,
+    enter,
+    leave,
+    cancelTransition,
+    recordPositions,
+    applyFlip
+} from '../renderer/transition.js';
+import {
+    resolveTeleportTarget
+} from '../renderer/teleport.js';
 
 export function dispatchDirectiveHook(directive, hookName, el, binding, extra = {}) {
     if (!directive || typeof directive !== "object") return;
@@ -47,23 +61,84 @@ export function createBuiltinDirectives(appConfig) {
     const dirs = {};
 
     dirs.ref = {
-        mounted(el, { value, ctx }) {
+        selfManaged: true,
+        mounted(el, { value, ctx, instance, trackCleanup }) {
+            if (!value) return;
+
+            // 1. Function ref passed directly (e.g. :ref="(el) => ...")
+            if (typeof value === "function") {
+                try { value(el); } catch (err) { handleError(err, "function ref mount", instance); }
+                if (trackCleanup) {
+                    trackCleanup(() => {
+                        try { value(null); } catch (err) { handleError(err, "function ref unmount", instance); }
+                    });
+                }
+                return;
+            }
+
+            // 2. useTemplateRef registry on component instance
+            if (instance && instance.templateRefs && instance.templateRefs.has(value)) {
+                const tRef = instance.templateRefs.get(value);
+                tRef.value = el;
+                if (trackCleanup) {
+                    trackCleanup(() => {
+                        if (tRef.value === el) tRef.value = null;
+                    });
+                }
+            }
+
+            // 3. Function ref on context (e.g. :ref="handleRef")
+            if (ctx && typeof ctx[value] === "function") {
+                const fn = ctx[value];
+                try { fn(el); } catch (err) { handleError(err, "context function ref mount", instance); }
+                if (trackCleanup) {
+                    trackCleanup(() => {
+                        try { fn(null); } catch (err) { handleError(err, "context function ref unmount", instance); }
+                    });
+                }
+                return;
+            }
+
+            // 4. Reactive ref or property on context
             const parts = getPathParts(value);
             const last = parts.pop();
             const parent = parts.reduce((acc, part) => acc?.[part], ctx);
-            if (parent) parent[last] = el;
+            if (parent && last !== undefined) {
+                if (isRef(parent[last])) {
+                    parent[last].value = el;
+                    if (trackCleanup) {
+                        trackCleanup(() => {
+                            if (parent[last] && parent[last].value === el) parent[last].value = null;
+                        });
+                    }
+                } else {
+                    parent[last] = el;
+                    if (trackCleanup) {
+                        trackCleanup(() => {
+                            if (parent[last] === el) parent[last] = null;
+                        });
+                    }
+                }
+            }
+
+            // 5. Legacy $refs dictionary
             if (ctx && typeof ctx === "object") {
                 if (!ctx.$refs) ctx.$refs = {};
                 ctx.$refs[value] = el;
+                if (trackCleanup) {
+                    trackCleanup(() => {
+                        if (ctx.$refs && ctx.$refs[value] === el) {
+                            delete ctx.$refs[value];
+                        }
+                    });
+                }
             }
         }
     };
 
     dirs.text = {
-        mounted(el, binding) {
-            this.updated(el, binding);
-        },
-        updated(el, { value: val, ctx, instance, trackCleanup }) {
+        selfManaged: true,
+        mounted(el, { value: val, ctx, instance, trackCleanup }) {
             el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.TEXT;
             let initialRan = false;
             const updateFn = () => {
@@ -76,15 +151,18 @@ export function createBuiltinDirectives(appConfig) {
             };
             const e = effect(updateFn, { name: `text: ${val}`, area: "directive" });
             initialRan = true;
-            trackCleanup(() => cleanup(e));
+            let isCleaned = false;
+            trackCleanup(() => {
+                if (isCleaned) return;
+                isCleaned = true;
+                cleanup(e);
+            });
         }
     };
 
     dirs.html = {
-        mounted(el, binding) {
-            this.updated(el, binding);
-        },
-        updated(el, { value: val, ctx, instance, trackCleanup }) {
+        selfManaged: true,
+        mounted(el, { value: val, ctx, instance, trackCleanup }) {
             let initialRan = false;
             const updateFn = () => {
                 const res = resolveExpression(val, ctx, { fallback: "", contextName: "hx-html" });
@@ -96,15 +174,18 @@ export function createBuiltinDirectives(appConfig) {
             };
             const e = effect(updateFn, { name: `html: ${val}`, area: "directive" });
             initialRan = true;
-            trackCleanup(() => cleanup(e));
+            let isCleaned = false;
+            trackCleanup(() => {
+                if (isCleaned) return;
+                isCleaned = true;
+                cleanup(e);
+            });
         }
     };
 
     dirs.model = {
-        mounted(el, binding) {
-            this.updated(el, binding);
-        },
-        updated(el, { value: val, modifiers = [], ctx, instance, trackCleanup }) {
+        selfManaged: true,
+        mounted(el, { value: val, modifiers = [], ctx, instance, trackCleanup }) {
             const isCheck = el.type === "checkbox";
             const isRadio = el.type === "radio";
             const isSelect = el.tagName === "SELECT";
@@ -133,17 +214,45 @@ export function createBuiltinDirectives(appConfig) {
             const evtType = isCheck || isRadio || isSelect ? "change" : (isLazy ? "change" : "input");
             let debounceTimer = null;
 
+            const toNumber = (v) => {
+                if (v === "" || v === null || v === undefined) return "";
+                const n = parseFloat(v);
+                return isNaN(n) ? v : n;
+            };
+
+            let trueVal = true;
+            let falseVal = false;
+            if (isCheck) {
+                if (el.hasAttribute("true-value")) trueVal = el.getAttribute("true-value");
+                else if (el.hasAttribute(":true-value")) trueVal = resolvePath(el.getAttribute(":true-value"), ctx);
+                else if (appConfig.prefix && el.hasAttribute(`${appConfig.prefix}bind:true-value`)) trueVal = resolvePath(el.getAttribute(`${appConfig.prefix}bind:true-value`), ctx);
+                if (el.hasAttribute("false-value")) falseVal = el.getAttribute("false-value");
+                else if (el.hasAttribute(":false-value")) falseVal = resolvePath(el.getAttribute(":false-value"), ctx);
+                else if (appConfig.prefix && el.hasAttribute(`${appConfig.prefix}bind:false-value`)) falseVal = resolvePath(el.getAttribute(`${appConfig.prefix}bind:false-value`), ctx);
+            }
+
             const updateModel = (e2) => {
                 const parts = getPathParts(val);
                 const last = parts.pop();
                 const parent = parts.reduce((acc, part) => acc?.[part], ctx);
                 if (parent) {
                     if (isCheck) {
-                        parent[last] = e2.target.checked;
+                        const current = parent[last];
+                        if (Array.isArray(current)) {
+                            const valToMatch = isNumber ? toNumber(el.value) : el.value;
+                            const idx = current.indexOf(valToMatch);
+                            if (e2.target.checked && idx === -1) {
+                                current.push(valToMatch);
+                            } else if (!e2.target.checked && idx > -1) {
+                                current.splice(idx, 1);
+                            }
+                        } else {
+                            parent[last] = e2.target.checked ? trueVal : falseVal;
+                        }
                     } else if (isRadio) {
-                        parent[last] = e2.target.value;
+                        parent[last] = isNumber ? toNumber(e2.target.value) : e2.target.value;
                     } else if (isSelectMultiple) {
-                        const selected = Array.from(e2.target.selectedOptions).map(opt => opt.value);
+                        const selected = Array.from(e2.target.selectedOptions || []).map(opt => isNumber ? toNumber(opt.value) : opt.value);
                         parent[last] = selected;
                     } else {
                         let rawValue = e2.target.value;
@@ -151,8 +260,7 @@ export function createBuiltinDirectives(appConfig) {
                             rawValue = rawValue.trim();
                         }
                         if (isNumber) {
-                            const num = rawValue === "" ? "" : Number(rawValue);
-                            parent[last] = Number.isNaN(num) ? rawValue : num;
+                            parent[last] = toNumber(rawValue);
                         } else {
                             parent[last] = rawValue;
                         }
@@ -173,20 +281,38 @@ export function createBuiltinDirectives(appConfig) {
 
             el.addEventListener(evtType, handler);
 
+            let blurHandler = null;
+            if (isTrim && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) {
+                blurHandler = () => {
+                    if (typeof el.value === "string") {
+                        const trimmed = el.value.trim();
+                        if (el.value !== trimmed) {
+                            el.value = trimmed;
+                        }
+                    }
+                };
+                el.addEventListener("blur", blurHandler);
+            }
+
             let initialRan = false;
             const updateFn = () => {
                 const current = resolvePath(val, ctx);
                 let changed = false;
                 if (isRadio) {
-                    const shouldCheck = current === el.value;
+                    const shouldCheck = String(current) === String(el.value);
                     if (el.checked !== shouldCheck) { el.checked = shouldCheck; changed = true; }
                 } else if (isCheck) {
-                    const shouldCheck = !!current;
-                    if (el.checked !== shouldCheck) { el.checked = shouldCheck; changed = true; }
+                    if (Array.isArray(current)) {
+                        const shouldCheck = current.includes(el.value) || current.includes(Number(el.value));
+                        if (el.checked !== shouldCheck) { el.checked = shouldCheck; changed = true; }
+                    } else {
+                        const shouldCheck = (current === trueVal || (trueVal === true && Boolean(current)));
+                        if (el.checked !== shouldCheck) { el.checked = shouldCheck; changed = true; }
+                    }
                 } else if (isSelectMultiple) {
-                    const selectedValues = Array.isArray(current) ? current : [];
-                    Array.from(el.options).forEach(opt => {
-                        const sel = selectedValues.includes(opt.value);
+                    const selectedValues = Array.isArray(current) ? current.map(String) : [];
+                    Array.from(el.options || []).forEach(opt => {
+                        const sel = selectedValues.includes(String(opt.value));
                         if (opt.selected !== sel) { opt.selected = sel; changed = true; }
                     });
                 } else {
@@ -198,33 +324,54 @@ export function createBuiltinDirectives(appConfig) {
 
             const e = effect(updateFn, { name: `model: ${val}`, area: "directive" });
             initialRan = true;
+            let isCleaned = false;
             trackCleanup(() => {
+                if (isCleaned) return;
+                isCleaned = true;
                 if (debounceTimer) clearTimeout(debounceTimer);
                 el.removeEventListener(evtType, handler);
+                if (blurHandler) el.removeEventListener("blur", blurHandler);
                 cleanup(e);
             });
         }
     };
 
     dirs.bind = {
-        mounted(el, binding) {
-            this.updated(el, binding);
-        },
-        updated(el, { value: val, arg, ctx, instance, trackCleanup }) {
+        selfManaged: true,
+        mounted(el, { value: val, arg, ctx, instance, trackCleanup }) {
             if (!arg) return;
-            const trimmed = val.trim();
+            const isDynamicArg = arg.startsWith("[") && arg.endsWith("]");
+            const dynamicArgExp = isDynamicArg ? arg.slice(1, -1).trim() : null;
+
+            const trimmed = val ? val.trim() : "";
             const isObjectLiteral = trimmed.startsWith("{") && trimmed.endsWith("}") && trimmed.includes(":");
             let initialRan = false;
+            let lastAppliedArg = null;
+
             const updateFn = () => {
+                const effectiveArg = isDynamicArg
+                    ? resolveExpression(dynamicArgExp, ctx, { contextName: "dynamic-arg" })
+                    : arg;
+
+                if (lastAppliedArg && lastAppliedArg !== effectiveArg) {
+                    if (lastAppliedArg === "class") el.className = "";
+                    else if (lastAppliedArg === "style") el.style.cssText = "";
+                    else el.removeAttribute(lastAppliedArg);
+                }
+                lastAppliedArg = effectiveArg;
+
+                if (!effectiveArg || typeof effectiveArg !== "string") return;
+
                 let result;
-                if (isObjectLiteral && (arg === "class" || arg === "style")) {
-                    result = resolveExpression(val, ctx, { contextName: `v-bind:${arg}`, forceExpression: true });
+                if (isObjectLiteral && (effectiveArg === "class" || effectiveArg === "style")) {
+                    result = resolveExpression(val, ctx, { contextName: `v-bind:${effectiveArg}`, forceExpression: true });
                 } else if (isObjectLiteral) {
                     result = resolveExpression(val, ctx, { contextName: "v-bind object" });
                 } else {
-                    result = resolveExpression(val, ctx, { contextName: `v-bind:${arg}`, fallback: void 0 });
+                    result = resolveExpression(val, ctx, { contextName: `v-bind:${effectiveArg}`, fallback: void 0 });
                 }
-                if (arg === "class") {
+
+                if (effectiveArg === "class") {
                     el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.CLASS;
                     if (typeof result === "object" && result !== null) {
                         Object.keys(result).forEach((k) => {
@@ -236,222 +383,123 @@ export function createBuiltinDirectives(appConfig) {
                         const newClass = result || "";
                         if (el.className !== newClass) el.className = newClass;
                     }
-                } else if (arg === "style") {
+                } else if (effectiveArg === "style") {
                     el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.STYLE;
                     if (typeof result === "object" && result !== null) Object.assign(el.style, result);
                     else {
                         const newStyle = result || "";
                         if (el.style.cssText !== newStyle) el.style.cssText = newStyle;
                     }
-                } else if (arg === "value" && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT")) {
+                } else if (effectiveArg === "value" && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT")) {
                     const newValue = result ?? "";
                     if (el.value !== newValue) el.value = newValue;
                 } else if (typeof result === "boolean") {
                     if (result) {
-                        if (!el.hasAttribute(arg)) el.setAttribute(arg, "");
+                        if (!el.hasAttribute(effectiveArg)) el.setAttribute(effectiveArg, "");
                     } else {
-                        if (el.hasAttribute(arg)) el.removeAttribute(arg);
+                        if (el.hasAttribute(effectiveArg)) el.removeAttribute(effectiveArg);
                     }
                 } else {
                     const newValue = result ?? "";
-                    if (el.getAttribute(arg) !== newValue) el.setAttribute(arg, newValue);
+                    if (el.getAttribute(effectiveArg) !== newValue) el.setAttribute(effectiveArg, newValue);
                 }
                 if (initialRan && instance) queueComponentUpdated(instance);
             };
             const e = effect(updateFn, { name: `bind: ${arg}`, area: "directive" });
             initialRan = true;
-            trackCleanup(() => cleanup(e));
+            let isCleaned = false;
+            trackCleanup(() => {
+                if (isCleaned) return;
+                isCleaned = true;
+                cleanup(e);
+                if (lastAppliedArg && isDynamicArg) {
+                    el.removeAttribute(lastAppliedArg);
+                }
+            });
         }
     };
 
     dirs.on = {
-        mounted(el, { value: val, arg, modifiers = [], ctx, trackCleanup }) {
-            const evtType = arg || "click";
-            const isWindow = modifiers.includes("window");
-            const isDocument = modifiers.includes("document");
-            const isOutside = modifiers.includes("outside");
-            const isPrevent = modifiers.includes("prevent");
-            const isStop = modifiers.includes("stop");
-            const isSelf = modifiers.includes("self");
-            const isOnce = modifiers.includes("once");
-            const isPassive = modifiers.includes("passive");
-            const isCapture = modifiers.includes("capture");
-
-            const keyModifiers = {
-                enter: ["Enter"],
-                escape: ["Escape", "Esc"],
-                esc: ["Escape", "Esc"],
-                tab: ["Tab"],
-                space: [" ", "Spacebar"],
-                up: ["ArrowUp", "Up"],
-                down: ["ArrowDown", "Down"],
-                left: ["ArrowLeft", "Left"],
-                right: ["ArrowRight", "Right"],
-                delete: ["Delete", "Backspace"]
-            };
-
-            const parseArgs = (str) => {
-                const args = [];
-                if (!str) return args;
-                let depth = 0, current = '', inQuote = false, quoteChar = '';
-                for (let i = 0; i < str.length; i++) {
-                    const ch = str[i];
-                    if (!inQuote && (ch === '"' || ch === "'")) {
-                        inQuote = true; quoteChar = ch; current += ch;
-                    } else if (inQuote && ch === quoteChar && str[i - 1] !== '\\') {
-                        inQuote = false; current += ch;
-                    } else if (!inQuote && (ch === '(' || ch === '{' || ch === '[')) {
-                        depth++; current += ch;
-                    } else if (!inQuote && (ch === ')' || ch === '}' || ch === ']')) {
-                        depth--; current += ch;
-                    } else if (!inQuote && ch === ',' && depth === 0) {
-                        args.push(current.trim()); current = '';
-                    } else {
-                        current += ch;
-                    }
-                }
-                if (current.trim()) args.push(current.trim());
-                return args;
-            };
-
-            const executeHandler = (e) => {
-                if (isPrevent) e.preventDefault();
-                if (isStop) e.stopPropagation();
-                if (isSelf && e.target !== el) return;
-
-                if (modifiers.includes("ctrl") && !e.ctrlKey) return;
-                if (modifiers.includes("alt") && !e.altKey) return;
-                if (modifiers.includes("shift") && !e.shiftKey) return;
-                if (modifiers.includes("meta") && !e.metaKey) return;
-
-                for (const keyMod in keyModifiers) {
-                    if (modifiers.includes(keyMod)) {
-                        if (!e.key || !keyModifiers[keyMod].includes(e.key)) {
-                            return;
+        selfManaged: true,
+        mounted(el, binding) {
+            const { arg, ctx, trackCleanup } = binding;
+            if (arg && arg.startsWith("[") && arg.endsWith("]")) {
+                const dynamicExp = arg.slice(1, -1).trim();
+                let currentUnbind = null;
+                let lastEvtType = null;
+                const updateEffect = effect(() => {
+                    const dynamicEvt = resolveExpression(dynamicExp, ctx, { contextName: "dynamic-event" });
+                    if (dynamicEvt !== lastEvtType) {
+                        if (currentUnbind) {
+                            currentUnbind();
+                            currentUnbind = null;
+                        }
+                        lastEvtType = dynamicEvt;
+                        if (dynamicEvt && typeof dynamicEvt === "string") {
+                            const dynBinding = { ...binding, arg: dynamicEvt };
+                            const listener = createEventListener(el, dynBinding, appConfig);
+                            currentUnbind = listener.bind();
                         }
                     }
-                }
-
-                let targetFn;
-                let thisArg = ctx;
-                let args = [e];
-                const trimmed = val ? val.trim() : "";
-                const parenIdx = trimmed.indexOf('(');
-
-                if (parenIdx > -1 && trimmed.endsWith(')')) {
-                    const fnPath = trimmed.slice(0, parenIdx).trim();
-                    const argsStr = trimmed.slice(parenIdx + 1, trimmed.length - 1).trim();
-                    targetFn = resolveRaw(fnPath, ctx);
-
-                    if (fnPath.includes('.')) {
-                        const parts = getPathParts(fnPath);
-                        if (parts.length > 1) {
-                            const rawParent = resolveRaw(parts.slice(0, -1).join('.'), ctx);
-                            const parentObj = isRef(rawParent) ? rawParent.value : rawParent;
-                            if (parentObj && (typeof parentObj === 'object' || typeof parentObj === 'function')) {
-                                thisArg = parentObj;
-                            }
-                        }
-                    }
-
-                    if (argsStr) {
-                        const rawArgs = parseArgs(argsStr);
-                        args = rawArgs.map(a => {
-                            if (a === '$event') return e;
-                            const resolved = resolvePath(a, ctx);
-                            if (resolved !== undefined) return resolved;
-                            try { return JSON.parse(a); } catch { }
-                            if ((a.startsWith('"') && a.endsWith('"')) || (a.startsWith("'") && a.endsWith("'"))) {
-                                return a.slice(1, -1);
-                            }
-                            return a;
-                        });
-                    } else {
-                        args = [];
-                    }
-                } else {
-                    targetFn = resolveRaw(trimmed, ctx);
-                    if (trimmed.includes('.')) {
-                        const parts = getPathParts(trimmed);
-                        if (parts.length > 1) {
-                            const rawParent = resolveRaw(parts.slice(0, -1).join('.'), ctx);
-                            const parentObj = isRef(rawParent) ? rawParent.value : rawParent;
-                            if (parentObj && (typeof parentObj === 'object' || typeof parentObj === 'function')) {
-                                thisArg = parentObj;
-                            }
-                        }
-                    }
-                }
-
-                if (typeof targetFn === "function") {
-                    try {
-                        targetFn.call(thisArg, ...args);
-                    } catch (err) {
-                        handleError(err, `Event @${evtType}`);
-                    }
-                } else if (appConfig.allowInlineExpressions) {
-                    try {
-                        new Function("$ctx", "$event", `with($ctx) { ${val} }`)(ctx, e);
-                    } catch (err) {
-                        handleError(err, `Event @${evtType}`);
-                    }
-                } else {
-                    try {
-                        const isCall = trimmed.endsWith(')');
-                        const fn = new Function("$ctx", "$event", `with($ctx) { return (${isCall ? trimmed : trimmed + '($event)'}); }`);
-                        fn(ctx, e);
-                    } catch (inlineErr) {
-                        warn(`Handler not found: ${val}`, "event");
-                    }
-                }
-            };
-
-            if (isOutside) {
-                const outsideHandler = (e) => {
-                    if (!el.contains(e.target) && el !== e.target) {
-                        executeHandler(e);
-                    }
-                };
-                if (typeof document !== 'undefined') {
-                    document.addEventListener("click", outsideHandler);
-                    trackCleanup(() => document.removeEventListener("click", outsideHandler));
-                }
-                return;
+                }, { name: `on:[${dynamicExp}]`, area: "directive" });
+                let isCleaned = false;
+                trackCleanup(() => {
+                    if (isCleaned) return;
+                    isCleaned = true;
+                    cleanup(updateEffect);
+                    if (currentUnbind) currentUnbind();
+                });
+            } else {
+                const listener = createEventListener(el, binding, appConfig);
+                listener.bind();
             }
-
-            const listenerTarget = isWindow && typeof window !== "undefined"
-                ? window
-                : (isDocument && typeof document !== "undefined" ? document : el);
-
-            const hasOpts = isOnce || isPassive || isCapture;
-            const listenerOpts = hasOpts ? { once: isOnce, passive: isPassive, capture: isCapture } : isCapture;
-
-            listenerTarget.addEventListener(evtType, executeHandler, listenerOpts);
-            trackCleanup(() => listenerTarget.removeEventListener(evtType, executeHandler, listenerOpts));
         }
     };
 
     dirs.show = {
-        mounted(el, binding) {
-            this.updated(el, binding);
-        },
-        updated(el, { value: val, ctx, instance, trackCleanup }) {
+        selfManaged: true,
+        mounted(el, { value: val, ctx, instance, trackCleanup }) {
             let initialRan = false;
+            let currentVisible = null;
             const updateFn = () => {
-                const shouldShow = resolveExpression(val, ctx, { asBoolean: true, fallback: false, contextName: "v-show" });
-                const newDisplay = shouldShow ? "" : "none";
-                if (el.style.display !== newDisplay) {
-                    el.style.display = newDisplay;
+                const shouldShow = resolveExpression(val, ctx, { asBoolean: true, fallback: false, contextName: `${appConfig.prefix}show` });
+                if (shouldShow === currentVisible) return;
+                currentVisible = shouldShow;
+                const transConfig = el.__hx_transition_config || resolveTransitionConfig(el, appConfig);
+
+                if (shouldShow) {
+                    el.style.display = "";
+                    if (transConfig) {
+                        enter(el, transConfig);
+                    }
+                    if (initialRan && instance) queueComponentUpdated(instance);
+                } else {
+                    if (transConfig && initialRan) {
+                        leave(el, transConfig, ({ cancelled } = {}) => {
+                            if (!cancelled && currentVisible === false) {
+                                el.style.display = "none";
+                            }
+                        });
+                    } else {
+                        el.style.display = "none";
+                    }
                     if (initialRan && instance) queueComponentUpdated(instance);
                 }
             };
             const e = effect(updateFn, { name: `show: ${val}`, area: "directive" });
             initialRan = true;
-            trackCleanup(() => cleanup(e));
+            let isCleaned = false;
+            trackCleanup(() => {
+                if (isCleaned) return;
+                isCleaned = true;
+                cancelTransition(el);
+                cleanup(e);
+            });
         }
     };
 
     dirs.if = {
+        selfManaged: true,
         mounted(el, { value: val, branches, ctx, instance, trackCleanup, bindNode: bindNode2 }) {
             const branchList = (branches && branches.length > 0) ? branches : [{ el, exp: val, type: 'if' }];
             const placeholder = document.createComment(` ${appConfig.prefix}if-chain `);
@@ -485,23 +533,41 @@ export function createBuiltinDirectives(appConfig) {
                 }
 
                 if (matchedIndex !== currentBranchIndex) {
-                    if (activeNodes.length > 0) {
-                        activeNodes.forEach((n) => destroyNode(n));
-                        activeNodes = [];
-                    }
+                    const exitingNodes = [...activeNodes];
+                    activeNodes = [];
                     currentBranchIndex = matchedIndex;
+
+                    if (exitingNodes.length > 0) {
+                        exitingNodes.forEach((n) => {
+                            const transConfig = n.__hx_transition_config || resolveTransitionConfig(n, appConfig);
+                            if (transConfig && initialRan) {
+                                leave(n, transConfig, ({ cancelled } = {}) => {
+                                    destroyNode(n);
+                                });
+                            } else {
+                                destroyNode(n);
+                            }
+                        });
+                    }
+
                     if (matchedIndex >= 0) {
                         const template = branchList[matchedIndex].el;
                         if (template.tagName === 'TEMPLATE' && template.content) {
                             const clone = template.content.cloneNode(true);
                             activeNodes = Array.from(clone.childNodes);
-                            activeNodes.forEach((n) => bindNode2(n, ctx, instance, []));
+                            activeNodes.forEach((n) => {
+                                bindNode2(n, ctx, instance, []);
+                                const transConfig = n.__hx_transition_config || resolveTransitionConfig(n, appConfig);
+                                if (transConfig) enter(n, transConfig);
+                            });
                             if (placeholder.parentNode) placeholder.parentNode.insertBefore(clone, placeholder);
                         } else {
                             const node = template.cloneNode(true);
                             bindNode2(node, ctx, instance, []);
                             if (placeholder.parentNode) placeholder.parentNode.insertBefore(node, placeholder);
                             activeNodes = [node];
+                            const transConfig = node.__hx_transition_config || resolveTransitionConfig(node, appConfig);
+                            if (transConfig) enter(node, transConfig);
                         }
                     }
                     if (initialRan && instance) queueComponentUpdated(instance);
@@ -511,7 +577,10 @@ export function createBuiltinDirectives(appConfig) {
 
             trackCleanup(() => {
                 cleanup(e);
-                activeNodes.forEach((n) => destroyNode(n));
+                activeNodes.forEach((n) => {
+                    cancelTransition(n);
+                    destroyNode(n);
+                });
                 activeNodes = [];
                 if (placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
             });
@@ -519,6 +588,7 @@ export function createBuiltinDirectives(appConfig) {
     };
 
     dirs.for = {
+        selfManaged: true,
         mounted(el, { value: val, ctx, instance, trackCleanup, bindNode: bindNode2 }) {
             const forMatch = val.match(/^\s*(?:\(([^)]+)\)|([^\s]+))\s+in\s+(.+)$/);
             if (!forMatch) return warn(`[for] Invalid syntax: ${val}`, "compiler");
@@ -686,6 +756,21 @@ export function createBuiltinDirectives(appConfig) {
                     newItems[i] = renderedItems[oldIndex];
                 }
 
+                const allOldNodes = renderedItems.flatMap((item) => item.nodes || []);
+                const oldPositions = initialRan ? recordPositions(allOldNodes) : null;
+
+                const removeRecord = (itemRecord) => {
+                    if (!itemRecord || !itemRecord.nodes) return;
+                    itemRecord.nodes.forEach((n) => {
+                        const transConfig = resolveTransitionConfig(n, appConfig);
+                        if (transConfig && initialRan) {
+                            leave(n, transConfig, () => destroyNode(n));
+                        } else {
+                            destroyNode(n);
+                        }
+                    });
+                };
+
                 if (oldStart > oldEnd) {
                     const anchor = getAnchor(newItems, newEnd + 1);
                     const parentNode = placeholder.parentNode;
@@ -695,12 +780,14 @@ export function createBuiltinDirectives(appConfig) {
                         if (parentNode) {
                             for (let k = 0; k < itemRecord.nodes.length; k++) {
                                 parentNode.insertBefore(itemRecord.nodes[k], anchor);
+                                const transConfig = resolveTransitionConfig(itemRecord.nodes[k], appConfig);
+                                if (transConfig && initialRan) enter(itemRecord.nodes[k], transConfig);
                             }
                         }
                     }
                 } else if (newStart > newEnd) {
                     for (let i = oldStart; i <= oldEnd; i++) {
-                        renderedItems[i].nodes.forEach((n) => destroyNode(n));
+                        removeRecord(renderedItems[i]);
                     }
                 } else {
                     const toBePatched = newEnd - newStart + 1;
@@ -717,12 +804,12 @@ export function createBuiltinDirectives(appConfig) {
                     for (let i = oldStart; i <= oldEnd; i++) {
                         const prevItem = renderedItems[i];
                         if (patched >= toBePatched) {
-                            prevItem.nodes.forEach((n) => destroyNode(n));
+                            removeRecord(prevItem);
                             continue;
                         }
                         const newIndex = keyToNewIndexMap.get(prevItem.key);
                         if (newIndex === undefined) {
-                            prevItem.nodes.forEach((n) => destroyNode(n));
+                            removeRecord(prevItem);
                         } else {
                             newIndexToOldIndexMap[newIndex - newStart] = i + 1;
                             updateItemScope(prevItem, list[newIndex], newIndex);
@@ -750,6 +837,8 @@ export function createBuiltinDirectives(appConfig) {
                             if (parentNode) {
                                 for (let k = 0; k < itemRecord.nodes.length; k++) {
                                     parentNode.insertBefore(itemRecord.nodes[k], anchor);
+                                    const transConfig = resolveTransitionConfig(itemRecord.nodes[k], appConfig);
+                                    if (transConfig && initialRan) enter(itemRecord.nodes[k], transConfig);
                                 }
                             }
                         } else if (moved) {
@@ -765,6 +854,11 @@ export function createBuiltinDirectives(appConfig) {
                             }
                         }
                     }
+                }
+
+                if (oldPositions && oldPositions.size > 0) {
+                    const cleanPrefix = appConfig.prefix ? (appConfig.prefix.endsWith('-') ? appConfig.prefix.slice(0, -1) : appConfig.prefix) : 'h';
+                    applyFlip(oldPositions, `${cleanPrefix}-move`);
                 }
 
                 renderedItems = newItems;
@@ -786,9 +880,90 @@ export function createBuiltinDirectives(appConfig) {
         }
     };
 
+    dirs.teleport = {
+        selfManaged: true,
+        mounted(el, { value: targetSelector, ctx, instance, trackCleanup, bindNode: bindNode2 }) {
+            const placeholder = document.createComment(` ${appConfig.prefix}teleport `);
+            const parent = el.parentNode;
+            if (parent) {
+                parent.insertBefore(placeholder, el);
+                el.remove();
+            }
+
+            let renderedNodes = [];
+            const isTemplate = el.tagName === 'TEMPLATE' && el.content;
+
+            if (isTemplate) {
+                const clone = el.content.cloneNode(true);
+                renderedNodes = Array.from(clone.childNodes);
+                renderedNodes.forEach((n) => bindNode2(n, ctx, instance, []));
+            } else {
+                bindNode2(el, ctx, instance, []);
+                renderedNodes = [el];
+            }
+
+            const updatePlacement = () => {
+                let resolvedSel = targetSelector;
+                if (typeof targetSelector === 'string' && targetSelector.trim()) {
+                    const trimmed = targetSelector.trim();
+                    if (trimmed.startsWith('#') || trimmed.startsWith('.') || trimmed.startsWith('[') || trimmed === 'body' || trimmed === 'head') {
+                        resolvedSel = trimmed;
+                    } else {
+                        try {
+                            const evalVal = resolveExpression(trimmed, ctx, { fallback: trimmed, contextName: "hx-teleport" });
+                            if (evalVal !== undefined && evalVal !== null && typeof evalVal !== 'function') {
+                                resolvedSel = evalVal;
+                            }
+                        } catch {
+                            resolvedSel = trimmed;
+                        }
+                    }
+                }
+                const target = resolveTeleportTarget(resolvedSel);
+                if (target) {
+                    renderedNodes.forEach((n) => {
+                        target.appendChild(n);
+                    });
+                } else {
+                    warn(`[Helix Teleport] Target container "${resolvedSel || targetSelector}" not found in document.`, "teleport");
+                    if (placeholder && placeholder.parentNode) {
+                        renderedNodes.forEach((n) => {
+                            placeholder.parentNode.insertBefore(n, placeholder);
+                        });
+                    }
+                }
+            };
+
+            const e = effect(updatePlacement, { name: `teleport: ${targetSelector}`, area: "directive" });
+
+            let isDestroying = false;
+            const teardown = () => {
+                if (isDestroying) return;
+                isDestroying = true;
+                cleanup(e);
+                const nodesToDestroy = [...renderedNodes];
+                renderedNodes = [];
+                nodesToDestroy.forEach((n) => {
+                    destroyNode(n);
+                });
+                if (placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
+            };
+
+            trackCleanup(teardown);
+            placeholder.__hx_cleanup = placeholder.__hx_cleanup || [];
+            placeholder.__hx_cleanup.push(teardown);
+        }
+    };
+
+    dirs.transition = {
+        mounted(el, { value, modifiers = [] }) {}
+    };
+
     dirs.ref.priority = 100;
     dirs.if.priority = 100;
+    dirs.teleport.priority = 100;
     dirs.for.priority = 90;
+    dirs.transition.priority = 80;
     dirs.model.priority = 50;
     dirs.bind.priority = 10;
     dirs.on.priority = 10;

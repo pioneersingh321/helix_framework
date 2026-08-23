@@ -42,11 +42,29 @@ export function getPathParts(path) {
     return [...parts];
 }
 
+export function getMatchedKey(obj, prop) {
+    if (obj == null || (typeof obj !== 'object' && typeof obj !== 'function')) return null;
+    if (prop in obj) return prop;
+    const lower = String(prop).toLowerCase();
+    for (const k in obj) {
+        if (k.toLowerCase() === lower) return k;
+    }
+    try {
+        const keys = Object.keys(obj);
+        for (let i = 0; i < keys.length; i++) {
+            if (keys[i].toLowerCase() === lower) return keys[i];
+        }
+    } catch {}
+    return null;
+}
+
 export function resolvePath(path, ctx) {
     try {
         const val = getPathParts(path).reduce((acc, part) => {
             const unwrapped = isRef(acc) ? acc.value : acc;
-            return unwrapped?.[part];
+            if (unwrapped == null) return void 0;
+            const matched = getMatchedKey(unwrapped, part);
+            return matched ? unwrapped[matched] : unwrapped[part];
         }, ctx);
         return isRef(val) ? val.value : val;
     } catch (err) {
@@ -59,7 +77,9 @@ export function resolveRaw(path, ctx) {
     try {
         return getPathParts(path).reduce((acc, part) => {
             const unwrapped = isRef(acc) ? acc.value : acc;
-            return unwrapped?.[part];
+            if (unwrapped == null) return void 0;
+            const matched = getMatchedKey(unwrapped, part);
+            return matched ? unwrapped[matched] : unwrapped[part];
         }, ctx);
     } catch (err) {
         warn(`Failed to resolve raw path: ${path}`, "compiler", err);
@@ -80,17 +100,32 @@ export function resolveExpression(val, ctx, { asBoolean = false, fallback = void
     let current = ctx;
     let exists = true;
     for (let i = 0; i < parts.length; i++) {
-        if (current == null || (typeof current !== "object" && typeof current !== "function") || !(parts[i] in current)) {
+        if (current == null || (typeof current !== "object" && typeof current !== "function")) {
             exists = false;
             break;
         }
-        current = current[parts[i]];
+        const unwrapped = isRef(current) ? current.value : current;
+        if (unwrapped == null || (typeof unwrapped !== "object" && typeof unwrapped !== "function")) {
+            exists = false;
+            break;
+        }
+        const matched = getMatchedKey(unwrapped, parts[i]);
+        if (matched) {
+            current = unwrapped[matched];
+        } else {
+            exists = false;
+            break;
+        }
     }
     if (exists) {
         result = isRef(current) ? current.value : current;
     } else if (isSimplePathSyntax(val)) {
         try {
-            parts.reduce((acc, part) => acc?.[part], ctx);
+            parts.reduce((acc, part) => {
+                const u = isRef(acc) ? acc.value : acc;
+                const m = getMatchedKey(u, part);
+                return m ? u[m] : u?.[part];
+            }, ctx);
         } catch (e) {}
         if (!globalConfig.allowInlineExpressions && !forceExpression) {
             warn(`Path not found: ${val}`, "compiler");

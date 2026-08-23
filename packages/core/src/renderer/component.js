@@ -35,15 +35,55 @@ export function getOrCreateAppCtxProxy(baseAppCtx, app) {
     return proxy;
 }
 
-export function createSlots(slotEls, ctx, instance, bindNode) {
+export function parseSlotAttribute(attrName, prefix = "h-") {
+    if (!attrName) return { isSlot: false, name: "" };
+
+    // 1. Shorthand # (e.g. #header, #default)
+    if (attrName.startsWith("#")) {
+        const name = attrName.slice(1) || "default";
+        return { isSlot: true, name };
+    }
+
+    // 2. Prefix-defined slot (e.g. h-slot:header, hx-slot:header, custom-slot:header, h-slot)
+    const slotPrefix = `${prefix}slot`;
+    if (attrName === slotPrefix) {
+        return { isSlot: true, name: "default" };
+    }
+    if (attrName.startsWith(`${slotPrefix}:`)) {
+        const name = attrName.slice(slotPrefix.length + 1) || "default";
+        return { isSlot: true, name };
+    }
+    if (attrName.startsWith(`${slotPrefix}.`)) {
+        const name = attrName.slice(slotPrefix.length + 1) || "default";
+        return { isSlot: true, name };
+    }
+
+    // 3. Standard v-slot (e.g. v-slot:header, v-slot)
+    if (attrName === "v-slot") {
+        return { isSlot: true, name: "default" };
+    }
+    if (attrName.startsWith("v-slot:")) {
+        const name = attrName.slice("v-slot:".length) || "default";
+        return { isSlot: true, name };
+    }
+    if (attrName.startsWith("v-slot.")) {
+        const name = attrName.slice("v-slot.".length) || "default";
+        return { isSlot: true, name };
+    }
+
+    return { isSlot: false, name: "" };
+}
+
+export function createSlots(slotEls, ctx, instance, bindNode, prefix = "h-") {
     const slots = {};
     slotEls.forEach((el) => {
         if (el.nodeType !== 1) return;
         let slotName = "default";
         let slotProps = null;
         Array.from(el.attributes || []).forEach((attr) => {
-            if (attr.name.startsWith("v-slot:") || attr.name.startsWith("#")) {
-                slotName = attr.name.replace(/^(v-slot:|#)/, "") || "default";
+            const parsed = parseSlotAttribute(attr.name, prefix);
+            if (parsed.isSlot) {
+                slotName = parsed.name || "default";
                 const attrVal = attr.value.trim();
                 if (attrVal) slotProps = attrVal;
             }
@@ -71,7 +111,8 @@ export function createSlots(slotEls, ctx, instance, bindNode) {
                     bindNode(clone, ctx, instance);
                 }
                 Array.from(clone.attributes || []).forEach((attr) => {
-                    if (attr.name.startsWith("v-slot:") || attr.name.startsWith("#")) {
+                    const parsed = parseSlotAttribute(attr.name, prefix);
+                    if (parsed.isSlot) {
                         clone.removeAttribute(attr.name);
                     }
                 });

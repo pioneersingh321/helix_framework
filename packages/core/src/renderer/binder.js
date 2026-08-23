@@ -62,10 +62,11 @@ import {
     onMount,
     onDestroy
 } from '../app/lifecycle.js';
-import { resolvePath, resolveRaw } from '../compiler/compiler.js';
+import { resolvePath, resolveRaw, resolveExpression } from '../compiler/compiler.js';
 import { bindTextInterpolation } from '../compiler/delimiter.js';
 import { createBuiltinDirectives } from '../directives/index.js';
-import { createSlots, renderSlots, getOrCreateAppCtxProxy } from './component.js';
+import { createSlots, renderSlots, getOrCreateAppCtxProxy, parseSlotAttribute } from './component.js';
+import { destroyNode } from './node.js';
 
 export function normalizeDirective(definition) {
     if (typeof definition === "function") {
@@ -216,6 +217,11 @@ export function makeBindNode(appContext) {
 
         if (node.nodeType !== 1 || node[BOUND]) return;
         const tagName = node.tagName.toLowerCase();
+        if (tagName === "component" || node.hasAttribute(":is") || node.hasAttribute(`${appConfig.prefix}is`) || (tagName === "component" && node.hasAttribute("is"))) {
+            bindDynamicComponentNode(node, ctx, instance, cleanupTarget, force);
+            return;
+        }
+
         const compDef = resolveComponent(tagName);
         if (compDef) {
             bindComponentNode(node, compDef, tagName, ctx, instance, cleanupTarget, force);
@@ -223,6 +229,98 @@ export function makeBindNode(appContext) {
         }
 
         bindElementNode(node, ctx, instance, cleanupTarget, force);
+    }
+
+    function bindDynamicComponentNode(node, ctx, instance, cleanupTarget, force) {
+        node[BOUND] = true;
+        const isAttr = node.getAttribute(":is") || node.getAttribute(`${appConfig.prefix}is`) || node.getAttribute("is");
+        node.removeAttribute(":is");
+        node.removeAttribute(`${appConfig.prefix}is`);
+        node.removeAttribute("is");
+
+        const parent = node.parentNode;
+        if (!parent) return;
+
+        const doc = node.ownerDocument || (typeof document !== "undefined" ? document : null);
+        const placeholder = doc ? doc.createComment(" component-anchor ") : { nodeType: 8, textContent: " component-anchor " };
+        parent.insertBefore(placeholder, node);
+        parent.removeChild(node);
+
+        const slotChildren = Array.from(node.childNodes || []).map((c) => c.cloneNode(true));
+        const originalAttrs = Array.from(node.attributes || []).map((a) => ({ name: a.name, value: a.value }));
+
+        let currentMountedNode = null;
+        let currentCleanups = [];
+
+        const teardownCurrent = () => {
+            currentCleanups.forEach((fn) => {
+                try { fn(); } catch (e) { handleError(e, "dynamic component cleanup", instance); }
+            });
+            currentCleanups = [];
+            if (currentMountedNode) {
+                const p = currentMountedNode.parentNode;
+                destroyNode(currentMountedNode);
+                if (p && currentMountedNode.parentNode === p) {
+                    p.removeChild(currentMountedNode);
+                }
+                currentMountedNode = null;
+            }
+        };
+
+        if (cleanupTarget) {
+            cleanupTarget.push(teardownCurrent);
+        }
+
+        const e = effect(() => {
+            let target = resolveExpression(isAttr, ctx);
+            if (isRef(target)) target = target.value;
+
+            teardownCurrent();
+
+            if (!target) return;
+
+            let targetDef = null;
+            let targetTagName = "div";
+
+            if (typeof target === "string") {
+                const resolved = resolveComponent(target.toLowerCase());
+                if (resolved) {
+                    targetDef = resolved;
+                    targetTagName = target.toLowerCase();
+                } else {
+                    targetTagName = target.toLowerCase();
+                }
+            } else if (typeof target === "object" && target !== null) {
+                targetDef = target;
+                targetTagName = (target.name || "anonymous-component").toLowerCase();
+            } else if (typeof target === "function") {
+                targetDef = { setup: target };
+                targetTagName = "function-component";
+            }
+
+            const instanceNode = doc ? doc.createElement(targetTagName) : { nodeType: 1, tagName: targetTagName.toUpperCase() };
+            originalAttrs.forEach((attr) => {
+                instanceNode.setAttribute(attr.name, attr.value);
+            });
+            slotChildren.forEach((child) => {
+                instanceNode.appendChild(child.cloneNode(true));
+            });
+
+            if (placeholder.parentNode) {
+                placeholder.parentNode.insertBefore(instanceNode, placeholder);
+            }
+            currentMountedNode = instanceNode;
+
+            if (targetDef) {
+                bindComponentNode(instanceNode, targetDef, targetTagName, ctx, instance, currentCleanups, true);
+            } else {
+                bindElementNode(instanceNode, ctx, instance, currentCleanups, true);
+            }
+        }, { name: `dynamic component: ${isAttr}`, area: "component" });
+
+        if (cleanupTarget) {
+            cleanupTarget.push(() => cleanup(e));
+        }
     }
 
     function bindComponentNode(node, compDef, tagName, ctx, instance, cleanupTarget, force) {
@@ -250,28 +348,37 @@ export function makeBindNode(appContext) {
         const scope = new EffectScope();
         const childInst = {
             id: incrementGlobalInstanceId(),
-            name: compDefNormalized.name || tagName,
+            name: tagName,
             root: node,
-            scope,
-            hooks: { beforeMount: [], mount: [], updated: [], beforeUnmount: [], destroy: [], unmounted: [] },
-            cleanups: [],
             parent: instance,
-            provides: instance ? Object.create(instance.provides || null) : Object.create(null)
+            provides: instance ? instance.provides : null,
+            hooks: {
+                mount: [],
+                beforeMount: [],
+                destroy: [],
+                beforeUnmount: [],
+                updated: []
+            },
+            cleanups: [],
+            scope
         };
 
         const childNodes = Array.from(node.childNodes);
         const slotTemplates = [];
         childNodes.forEach((child) => {
             if (child.nodeType === 1) {
-                const hasSlotDirective = Array.from(child.attributes || []).some(
-                    (attr) => attr.name.startsWith("v-slot:") || attr.name.startsWith("#")
+                const hasSlotAttr = Array.from(child.attributes || []).some(
+                    (attr) => parseSlotAttribute(attr.name, appConfig.prefix).isSlot
                 );
-                if (hasSlotDirective || child.tagName.toLowerCase() === "template") {
+                if (hasSlotAttr) {
                     slotTemplates.push(child);
                 }
             }
         });
-        const slots = createSlots(slotTemplates, ctx, childInst, bindNode);
+        while (node.firstChild) {
+            node.removeChild(node.firstChild);
+        }
+        const slots = createSlots(slotTemplates, ctx, childInst, bindNode, appConfig.prefix);
         const defaultSlotEls = childNodes.filter((child) => {
             if (child.nodeType !== 1) return true;
             return !slotTemplates.includes(child);
@@ -298,22 +405,21 @@ export function makeBindNode(appContext) {
                         .replace(/^@/, "")
                         .replace(new RegExp(`^${appConfig.prefix}on:`), "")
                 );
-                if (!listeners[evtName]) listeners[evtName] = [];
-                listeners[evtName].push((...args) => {
-                    const targetFn = resolveRaw(attr.value, ctx);
-                    if (typeof targetFn === "function") targetFn.call(ctx, ...args);
-                    else if (appConfig.allowInlineExpressions) {
-                        try {
-                            new Function("$ctx", "$event", `with($ctx) { ${attr.value} }`)(ctx, args[0]);
-                        } catch (err) {
-                            handleError(err, `emit handler: ${evtName}`);
-                        }
-                    } else warn(`Inline expressions disabled. Cannot execute handler: ${attr.value}`, "compiler");
-                });
+                const handler = resolvePath(attr.value, ctx);
+                if (typeof handler === "function") {
+                    if (!listeners[evtName]) listeners[evtName] = [];
+                    listeners[evtName].push(handler);
+                }
             } else {
-                const isBind = attr.name.startsWith(appConfig.prefix + "bind:") || attr.name.startsWith(":");
-                let rawPropName = isBind ? attr.name.split(":")[1] || attr.name.slice(1) : attr.name;
-                const propName = rawPropName.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+                let propName = attr.name;
+                let isBind = false;
+                if (propName.startsWith(":")) {
+                    isBind = true;
+                    propName = propName.slice(1);
+                } else if (propName.startsWith(`${appConfig.prefix}bind:`)) {
+                    isBind = true;
+                    propName = propName.slice(`${appConfig.prefix}bind:`.length);
+                }
                 if (isBind) {
                     const e = effect(() => {
                         const rawValue = resolvePath(attr.value, ctx);
@@ -347,7 +453,6 @@ export function makeBindNode(appContext) {
             });
             scope.stop();
             childInst.hooks.destroy.forEach((fn) => fn());
-            childInst.hooks.unmounted.forEach((fn) => fn());
         });
         const prevInstance = currentInstance;
         setCurrentInstance(childInst);
@@ -357,48 +462,56 @@ export function makeBindNode(appContext) {
                 ...globalAPI,
                 props,
                 emit,
-                slots
+                slots,
+                attrs: {},
+                root: node,
+                app: appConfig
             };
-            const setupCtx = getOrCreateAppCtxProxy(baseSetupCtx, appContext.app);
-            childCtx = scope.run(() => compDefNormalized.setup(setupCtx));
+            const setupCtx = getOrCreateAppCtxProxy(baseSetupCtx, appConfig);
+            if (typeof compDefNormalized.setup === "function") {
+                childCtx = scope.run(() => compDefNormalized.setup(setupCtx));
+            } else {
+                childCtx = baseSetupCtx;
+            }
         } catch (err) {
             handleError(err, `<${tagName}> setup`, childInst);
+        } finally {
             setCurrentInstance(prevInstance);
-            scope.stop();
-            return;
         }
-        const finishMount = (resolvedCtx) => {
-            if (!isComponentActive || hasMounted) return;
-            setCurrentInstance(prevInstance);
-            if (resolvedCtx && resolvedCtx.template) {
-                node.innerHTML = resolvedCtx.template;
-                renderSlots(slots, node, resolvedCtx, childInst, bindNode);
-                node.childNodes.forEach((child) => {
-                    if (child.nodeType === 1 && child.tagName.toLowerCase() !== "slot") {
-                        bindNode(child, resolvedCtx, childInst, undefined, force);
-                    }
-                });
+
+        const finishMount = () => {
+            childInst.hooks.beforeMount.forEach((fn) => fn(node));
+            if (compDefNormalized.template) {
+                node.innerHTML = compDefNormalized.template;
+                renderSlots(slots, node, ctx, childInst, bindNode);
+                Array.from(node.childNodes).forEach((child) => bindNode(child, childCtx, childInst, undefined, true));
+            } else if (compDefNormalized.render) {
+                const renderResult = compDefNormalized.render(childCtx);
+                if (typeof renderResult === "string") {
+                    node.innerHTML = renderResult;
+                    renderSlots(slots, node, ctx, childInst, bindNode);
+                    Array.from(node.childNodes).forEach((child) => bindNode(child, childCtx, childInst, undefined, true));
+                }
             } else {
                 if (slots.default) {
                     const defaultContent = slots.default();
                     node.appendChild(defaultContent);
                 }
             }
-            childInst.hooks.beforeMount.forEach((fn) => fn());
-            childInst.hooks.mount.forEach((fn) => fn());
+            childInst.hooks.mount.forEach((fn) => fn(node));
             hasMounted = true;
         };
-        if (childCtx instanceof Promise) {
-            childCtx.then((resolvedCtx) => {
-                if (isComponentActive) finishMount(resolvedCtx);
-            }).catch((err) => {
-                handleError(err, `<${tagName}> async setup`, childInst);
-                setCurrentInstance(prevInstance);
-            });
-        } else finishMount(childCtx);
+
+        if (compDefNormalized.async) {
+            compDefNormalized.async().then(() => finishMount());
+        } else {
+            finishMount();
+        }
     }
 
     function bindElementNode(node, ctx, instance, cleanupTarget, force) {
+        if (node[BOUND] && !force) return;
+
         const binding = node.__hx_binding ??= {
             cleanups: []
         };
@@ -408,10 +521,22 @@ export function makeBindNode(appContext) {
         binding.cleanups.length = 0;
 
         const trackCleanup = (fn) => {
+            if (cleanupTarget) {
+                cleanupTarget.push(fn);
+            }
             if (node.__hx_binding) {
                 node.__hx_binding.cleanups.push(fn);
             }
+            (node.__hx_cleanup = node.__hx_cleanup || []).push(fn);
         };
+
+        // prefix-pre directive: skip compilation for element and entire subtree
+        if (node.hasAttribute(`${appConfig.prefix}pre`)) {
+            node.removeAttribute(`${appConfig.prefix}pre`);
+            node[BOUND] = true;
+            node.__hx_static = true;
+            return;
+        }
 
         // prefix-ignore / prefix-static directive: skip binding children for third-party widgets
         if (node.hasAttribute(`${appConfig.prefix}ignore`) || node.hasAttribute(`${appConfig.prefix}static`)) {
@@ -419,6 +544,82 @@ export function makeBindNode(appContext) {
             node.removeAttribute(`${appConfig.prefix}static`);
             node[BOUND] = true;
             node.__hx_static = true;
+            return;
+        }
+
+        // prefix-once directive: evaluate once on mount and freeze reactive subscriptions
+        if (node.hasAttribute(`${appConfig.prefix}once`)) {
+            node.removeAttribute(`${appConfig.prefix}once`);
+            const onceScope = new EffectScope();
+            onceScope.run(() => {
+                bindElementDirectivesAndChildren(node, ctx, instance, cleanupTarget, force);
+            });
+            onceScope.stop();
+            node[BOUND] = true;
+            node.__hx_static = true;
+            return;
+        }
+
+        // prefix-memo directive: subtree memoization
+        if (node.hasAttribute(`${appConfig.prefix}memo`)) {
+            const memoExp = node.getAttribute(`${appConfig.prefix}memo`);
+            node.removeAttribute(`${appConfig.prefix}memo`);
+            const templateNodes = Array.from(node.childNodes).map((c) => c.cloneNode(true));
+            let prevDeps = null;
+            let currentScope = null;
+            const updateMemo = () => {
+                const currentDeps = resolveExpression(memoExp, ctx, { contextName: "hx-memo" });
+                if (Array.isArray(prevDeps) && Array.isArray(currentDeps) &&
+                    prevDeps.length === currentDeps.length &&
+                    prevDeps.every((dep, idx) => Object.is(dep, currentDeps[idx]))) {
+                    return;
+                }
+                prevDeps = Array.isArray(currentDeps) ? [...currentDeps] : currentDeps;
+                if (currentScope) currentScope.stop();
+                currentScope = new EffectScope();
+                currentScope.run(() => {
+                    while (node.firstChild) {
+                        node.removeChild(node.firstChild);
+                    }
+                    templateNodes.forEach((tplNode) => {
+                        const cloned = tplNode.cloneNode(true);
+                        node.appendChild(cloned);
+                        bindNode(cloned, ctx, instance, cleanupTarget, true);
+                    });
+                });
+                currentScope.stop();
+            };
+            const memoEffect = effect(updateMemo, { name: `memo: ${memoExp}`, area: "directive" });
+            trackCleanup(() => {
+                cleanup(memoEffect);
+                if (currentScope) currentScope.stop();
+            });
+            return;
+        }
+
+        bindElementDirectivesAndChildren(node, ctx, instance, cleanupTarget, force);
+    }
+
+    function bindElementDirectivesAndChildren(node, ctx, instance, cleanupTarget, force) {
+        const trackCleanup = (fn) => {
+            if (cleanupTarget) {
+                cleanupTarget.push(fn);
+            }
+            if (node.__hx_binding) {
+                node.__hx_binding.cleanups.push(fn);
+            }
+            (node.__hx_cleanup = node.__hx_cleanup || []).push(fn);
+        };
+
+        if (node.hasAttribute(`${appConfig.prefix}teleport`)) {
+            const val = node.getAttribute(`${appConfig.prefix}teleport`);
+            node.removeAttribute(`${appConfig.prefix}teleport`);
+            const dir = resolveDirective("teleport");
+            if (dir) {
+                const bindingObj = { value: val, ctx, instance, trackCleanup, bindNode };
+                const hook = createDirectiveHook("teleport", "mounted", node, bindingObj, instance, normalizeDirective(dir));
+                if (hook) hook();
+            }
             return;
         }
 
@@ -434,8 +635,34 @@ export function makeBindNode(appContext) {
             return;
         }
 
-        // Conditional branch chains: prefix-if, prefix-else-if, prefix-else
+        // Custom Directive Logic
+        const dynamicDirectives = node.getAttribute(`${appConfig.prefix}directive`);
+        if (dynamicDirectives) {
+            const dirExpressions = dynamicDirectives.split(";").map(d => d.trim()).filter(Boolean);
+            dirExpressions.forEach(expr => {
+                const [dirName, bindingValueExpr] = expr.split(":").map(s => s.trim());
+                if (dirName && bindingValueExpr) {
+                    const dir = resolveDirective(dirName);
+                    if (dir) {
+                        const val = resolveExpression(bindingValueExpr, ctx);
+                        const bindingObj = {
+                            name: dirName,
+                            value: val,
+                            ctx,
+                            instance,
+                            trackCleanup,
+                            bindNode
+                        };
+                        const hook = createDirectiveHook(dirName, "mounted", node, bindingObj, instance, normalizeDirective(dir));
+                        if (hook) hook();
+                    }
+                }
+            });
+        }
+
+        // Structural directive: prefix-if
         if (node.hasAttribute(`${appConfig.prefix}if`)) {
+            node[BOUND] = true;
             const ifVal = node.getAttribute(`${appConfig.prefix}if`);
             node.removeAttribute(`${appConfig.prefix}if`);
 
@@ -494,7 +721,7 @@ export function makeBindNode(appContext) {
         if (attrs) {
             for (let i = 0; i < attrs.length; i++) {
                 const name = attrs[i].name;
-                if (name.startsWith(appConfig.prefix) || name.startsWith(":") || name.startsWith("@")) {
+                if (name.startsWith(appConfig.prefix) || name.startsWith(":") || name.startsWith("@") || name === "ref" || name.startsWith("ref:") || name.startsWith("ref.")) {
                     hasDynamicAttr = true;
                     break;
                 }
@@ -517,21 +744,88 @@ export function makeBindNode(appContext) {
 
         attrsBond.forEach((attr) => {
             let isDir = false, dirName = "", arg = null, modifiers = [];
-            if (attr.name.startsWith(appConfig.prefix)) {
+            const attrName = attr.name;
+            if (attrName === "ref" || attrName.startsWith("ref:") || attrName.startsWith("ref.")) {
                 isDir = true;
-                const [base, ...mods] = attr.name.slice(appConfig.prefix.length).toLowerCase().split(".");
-                [dirName, arg] = base.split(":");
-                modifiers = mods;
-            } else if (attr.name.startsWith(":")) {
+                dirName = "ref";
+                const rest = attrName.replace(/^ref:?/, "");
+                const [base, ...mods] = rest.split(".");
+                arg = base || null;
+                modifiers = mods.map(m => m.toLowerCase());
+            } else if (attrName.startsWith(appConfig.prefix)) {
                 isDir = true;
-                dirName = "bind";
-                arg = attr.name.slice(1);
-            } else if (attr.name.startsWith("@")) {
+                const rawRest = attrName.slice(appConfig.prefix.length);
+                const colonIdx = rawRest.indexOf(":");
+                let rest;
+                if (colonIdx > -1) {
+                    dirName = rawRest.slice(0, colonIdx).toLowerCase();
+                    rest = rawRest.slice(colonIdx + 1);
+                    if (rest.startsWith("[")) {
+                        const closingIdx = rest.lastIndexOf("]");
+                        if (closingIdx > -1) {
+                            arg = rest.slice(0, closingIdx + 1);
+                            const modsRest = rest.slice(closingIdx + 1);
+                            modifiers = modsRest.startsWith(".") ? modsRest.slice(1).split(".").filter(Boolean).map(m => m.toLowerCase()) : [];
+                        } else {
+                            arg = rest;
+                            modifiers = [];
+                        }
+                    } else {
+                        const [base, ...mods] = rest.split(".");
+                        arg = base || null;
+                        modifiers = mods.map(m => m.toLowerCase());
+                    }
+                } else {
+                    const [base, ...mods] = rawRest.split(".");
+                    dirName = base.toLowerCase();
+                    arg = null;
+                    modifiers = mods.map(m => m.toLowerCase());
+                }
+            } else if (attrName.startsWith(":")) {
+                isDir = true;
+                const rest = attrName.slice(1);
+                if (rest === "ref" || rest.startsWith("ref:") || rest.startsWith("ref.")) {
+                    dirName = "ref";
+                    const [base, ...mods] = rest.replace(/^ref:?/, "").split(".");
+                    arg = base || null;
+                    modifiers = mods.map(m => m.toLowerCase());
+                } else {
+                    dirName = "bind";
+                    if (rest.startsWith("[")) {
+                        const closingIdx = rest.lastIndexOf("]");
+                        if (closingIdx > -1) {
+                            arg = rest.slice(0, closingIdx + 1);
+                            const modsRest = rest.slice(closingIdx + 1);
+                            modifiers = modsRest.startsWith(".") ? modsRest.slice(1).split(".").filter(Boolean).map(m => m.toLowerCase()) : [];
+                        } else {
+                            arg = rest;
+                            modifiers = [];
+                        }
+                    } else {
+                        const [base, ...mods] = rest.split(".");
+                        arg = base || null;
+                        modifiers = mods.map(m => m.toLowerCase());
+                    }
+                }
+            } else if (attrName.startsWith("@")) {
                 isDir = true;
                 dirName = "on";
-                const [evt, ...mods] = attr.name.slice(1).split(".");
-                arg = evt;
-                modifiers = mods;
+                const rest = attrName.slice(1);
+                if (rest.startsWith("[")) {
+                    const closingIdx = rest.lastIndexOf("]");
+                    if (closingIdx > -1) {
+                        arg = rest.slice(0, closingIdx + 1);
+                        const modsRest = rest.slice(closingIdx + 1);
+                        modifiers = modsRest.startsWith(".") ? modsRest.slice(1).split(".").filter(Boolean).map(m => m.toLowerCase()) : [];
+                    } else {
+                        arg = rest;
+                        modifiers = [];
+                    }
+                } else {
+                    const [base, ...mods] = rest.split(".");
+                    arg = base || null;
+                    modifiers = mods.map(m => m.toLowerCase());
+                }
             }
             if (isDir) {
                 const dirDef = resolveDirective(dirName);
@@ -594,7 +888,7 @@ export function makeBindNode(appContext) {
             }
         });
         directiveBindings.forEach(({ dirName, node: el, binding: bindingObj, normalized }) => {
-            if (normalized.beforeUpdate || normalized.updated) {
+            if (!normalized.selfManaged && (normalized.beforeUpdate || normalized.updated)) {
                 const updateEffect = effect(() => {
                     if (bindingObj.arg) resolvePath(bindingObj.value, bindingObj.ctx);
                 }, {

@@ -1,5 +1,6 @@
 import { reactive } from '../reactivity/reactive.js';
 import { provide } from '../app/lifecycle.js';
+import { globalConfig } from '../app/config.js';
 
 export const Suspense = {
     name: "Suspense",
@@ -18,17 +19,19 @@ export const Suspense = {
                 });
         });
 
+        const p = globalConfig.prefix || 'h-';
+
         return {
             state,
             template: `
                 <div class="helix-suspense">
-                    <template hx-if="state.pending">
+                    <template ${p}if="state.pending">
                         <slot name="fallback"><div class="suspense-loading">Loading...</div></slot>
                     </template>
-                    <template hx-else-if="state.error">
+                    <template ${p}else-if="state.error">
                         <slot name="error"><div class="suspense-error">{{ state.error.message || state.error }}</div></slot>
                     </template>
-                    <template hx-else>
+                    <template ${p}else>
                         <slot></slot>
                     </template>
                 </div>

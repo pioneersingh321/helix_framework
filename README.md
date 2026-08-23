@@ -1,7 +1,7 @@
 # 🧬 Helix.js Framework
 
-[![Version](https://img.shields.io/badge/version-11.1.20-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
-[![Bundle Size](https://img.shields.io/badge/bundle-109KB--uncompressed-teal.svg?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-11.1.21-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
+[![Bundle Size](https://img.shields.io/badge/bundle-115KB--uncompressed-teal.svg?style=flat-square)](#)
 [![Reactivity](https://img.shields.io/badge/reactivity-signal--native-blue.svg?style=flat-square)](#)
 [![Build Step](https://img.shields.io/badge/build-zero--build--step-orange.svg?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](LICENSE)
@@ -22,7 +22,14 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 - [🏁 Quick Start](#-quick-start)
 - [🧠 Core Reactivity API](#-core-reactivity-api)
 - [🔌 Directive Bindings Reference](#-directive-bindings-reference)
+- [🎬 Transition & Animation Engine](#-transition--animation-engine)
+- [🚪 Built-in Teleport Engine](#-built-in-teleport-engine)
 - [📦 Component Architecture](#-component-architecture)
+- [🧲 Template References & useTemplateRef](#-template-references--usetemplateref)
+- [🛡️ Error Boundaries & onErrorCaptured](#-error-boundaries--onerrorcaptured)
+- [🌐 W3C Web Components (defineCustomElement)](#-w3c-web-components-definecustomelement)
+- [🔀 Dynamic Components (component :is)](#-dynamic-components-component-is)
+- [🏷️ Prefix-Defined Slots](#-prefix-defined-slots)
 - [🔏 Dependency Injection](#-dependency-injection)
 - [📢 Event Bus](#-event-bus)
 - [🧩 Plugins & namespaces](#-plugins--namespaces)
@@ -40,15 +47,21 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 *   🗺️ **Reactive Collections (`Map`, `Set`, `Date`):** Deep reactivity for `Map`, `Set`, and `Date` instances with tracked mutations, getters, iterations, and `readonly()` guards.
 *   🛡️ **Anti-FOUC Cloaking (`hx-cloak`):** Auto-injects CSS rules and cleans up cloak attributes on mount to eliminate flash-of-unmounted-content.
 *   🎨 **Declarative HTML Directives:** Bind data with `hx-if`, `hx-else-if`, `hx-else`, `hx-for`, `hx-model`, `hx-bind`, and `hx-on` (with `:` and `@` shorthands).
+*   🎬 **Built-in Transition & Animation Engine:** CSS enter/leave transition phases (`enter-from`, `enter-active`, `enter-to`, `leave-from`, `leave-active`, `leave-to`) on `hx-show` & `hx-if`, custom hooks (`@before-enter`, `@enter`, `@after-enter`), and auto-move FLIP animations on `hx-for` list reordering via `<Transition>` and `<TransitionGroup>`.
+*   🚪 **Built-in Teleport Engine (`hx-teleport` / `<Teleport>`):** Transports DOM subtrees into external portal targets (e.g. `body`, `#modal-target`) while retaining complete reactive scope and event bubbling.
+*   🧲 **Vue 3.5 `useTemplateRef()` & Function Refs:** Modern template ref resolution via `useTemplateRef(key)` and function refs `:ref="(el) => ..."` with unmount `null` reset and cleanup.
+*   🛡️ **Component Error Boundaries (`onErrorCaptured`):** Hierarchical error boundaries catching errors across descendant `setup()`, lifecycle hooks, watchers, directives, and event handlers.
+*   🌐 **W3C Standard Web Components (`defineCustomElement`):** Convert any Helix component into a native Custom Element with open Shadow DOM, encapsulated CSS, reactive props proxy (C-01), and mount generation-token lifecycle management (C-02).
+*   🔀 **Dynamic Components (`<component :is="...">`):** Dynamically switch and mount components at runtime via string names, component objects, or reactive refs.
+*   🏷️ **Prefix-Defined Slots (`h-slot`, `hx-slot`, `custom-slot`, `#`):** Dynamically honor custom app prefixes on `<template hx-slot:header="props">`, shorthand `#header`, and `v-slot`.
 *   ⚙️ **Rich Form & Event Modifiers:** `.lazy`, `.debounce.<ms>`, `.trim`, and `.number` on `hx-model`; `.outside`, `.window`, `.document`, and key filters (`.enter`, `.escape`, `.tab`) on `@event`.
 *   🌲 **Subtree Skip (`hx-ignore` / `hx-static`):** Skip Helix DOM compilation on third-party widgets (Chart.js, TinyMCE, Leaflet).
 *   💾 **Server State Hydration (`hx-data`):** Auto-hydrates JSON state embedded in server-rendered HTML into the root reactive context.
 *   🔄 **HTMX Auto-Rebind Integration (`Helix.enableHtmx`):** Automatically re-mounts reactive bindings on `htmx:afterSwap` / `htmx:load` and cleans up stale event listeners.
 *   🏢 **Multi-App Registry (`Helix.$apps`):** Cross-app registry tracking all active apps by selector, element, and instance ID.
-*   🔌 **Single-Execution Plugin Engine (v11.1.20):** `Helix.use()` & `app.use()` featuring automated single-execution deduplication (`_executed` lifecycle tracking), semver validation, and teardown cleanup.
+*   🔌 **Single-Execution Plugin Engine (v11.1.21):** `Helix.use()` & `app.use()` featuring automated single-execution deduplication (`_executed` lifecycle tracking), semver validation, and teardown cleanup.
 *   🧱 **Composable Scoped Components:** Define elements with `setup()`, props, custom emits, slots, and an effect-scope cleanup model (`onScopeDispose`).
 *   ⏳ **Async Components & Suspense:** Lazy-load components with `defineAsyncComponent`, fallback loaders, preloading (`Helix.preload`), and built-in `<Suspense>` UI state management.
-*   🛡️ **Error Boundaries & Resilience:** Catch descendant component errors with `createErrorBoundary()` and `onErrorCaptured()`, plus global `Helix.onError()`.
 *   🛠️ **DevTools & Memory Profiler:** Dynamic component tree inspection (`inspectTree()`), active dependency tracking (`inspectDeps()`), render performance profiling (`profile()`), and memory diagnostics (`checkMemoryLeaks()`).
 *   ⚡ **Priority Batch Transactions:** Group mutations with `Helix.batch()`, `Helix.batch.high()`, `Helix.batch.low()`, and priority effects (`"high"`, `"normal"`, `"low"`).
 *   🌐 **Unified ScopeScheduler:** Single timer tick loop driving dirty scope refreshes with microtask batch deduplication.
@@ -336,21 +349,87 @@ Binds reactive state to standard element attributes (e.g., `:href`, `:src`, `:di
     ```
 
 ### 4. Event Handling (`hx-on` / `@`)
-Listens to native DOM events. Supports inline invocations, custom arguments, and event parameter references (`$event`).
+Listens to native DOM events. Supports method handlers, inline expression invocations, custom arguments, and the special `$event` parameter.
+
 ```html
+<!-- Method binding -->
 <button @click="increment">Click</button>
+
+<!-- Inline invocation with arguments and $event -->
 <button @click="deleteItem(item.id, $event)">Delete</button>
+
+<!-- Dynamic Event Names -->
+<button @[dynamicEvent]="handleDynamic">Dynamic Trigger</button>
 ```
 
-#### Rich Event Modifiers:
-*   `@submit.prevent`: Invokes `event.preventDefault()`.
-*   `@click.stop`: Invokes `event.stopPropagation()`.
-*   `@click.outside="closeModal"`: Detects clicks outside the element (dropdowns, modals).
-*   `@keydown.window.escape="close"`: Attaches key listener directly to `window`.
-*   `@keydown.document.tab="onTab"`: Attaches key listener directly to `document`.
-*   Key Filters: `.enter`, `.escape`, `.tab`, `.space`, `.up`, `.down`, `.left`, `.right`, `.delete`.
-*   System Modifiers: `.ctrl`, `.alt`, `.shift`, `.meta`.
-*   Event Options: `.self`, `.once`, `.passive`, `.capture`.
+#### 🖱️ Mouse Event Modifiers
+Restrict event listeners to specific mouse buttons or detect clicks outside elements:
+
+| Modifier | Target Event | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `.left` | `@click`, `@mousedown`, `@mouseup` | Fires only for primary left-click. | `@click.left="onLeftClick"` |
+| `.right` | `@click`, `@contextmenu`, `@mouseup` | Fires only for right-click (context menu). | `@contextmenu.prevent.right="openMenu"` |
+| `.middle` | `@click`, `@mousedown`, `@mouseup` | Fires only for mouse wheel/middle click. | `@mousedown.middle="openTab"` |
+| `.outside` | `@click` | Detects clicks outside the host element (ideal for dropdowns, modals, popovers). | `<div class="dropdown" @click.outside="closeDropdown">` |
+
+#### ⌨️ Keyboard Event Modifiers
+Filter keyboard events (`@keydown`, `@keyup`, `@keypress`) by key aliases or single characters:
+
+```html
+<!-- Key Aliases -->
+<input @keydown.enter="submitForm" />
+<input @keydown.esc="cancelEdit" />
+<input @keydown.tab="focusNext" />
+<input @keydown.space="togglePlayback" />
+<input @keydown.delete="removeItem" />
+<input @keydown.up="moveUp" @keydown.down="moveDown" />
+<input @keydown.page-down="nextPage" @keydown.page-up="prevPage" />
+
+<!-- Alphanumeric Characters & Single Keys -->
+<input @keydown.k="triggerCommandPalette" />
+<input @keydown.q="quit" />
+```
+
+| Key Alias | Matching Key Values |
+| :--- | :--- |
+| `.enter` | `'Enter'` |
+| `.esc` / `.escape` | `'Escape'`, `'Esc'` |
+| `.tab` | `'Tab'` |
+| `.space` | `' '`, `'Spacebar'`, `'Space'` |
+| `.delete` | `'Backspace'`, `'Delete'` |
+| `.up` / `.down` / `.left` / `.right` | Arrow navigation keys |
+| `.page-down` / `.page-up` | `'PageDown'`, `'PageUp'` |
+| `.[a-z0-9]` | Any single character or digit (`.a`-`.z`, `.0`-`.9`) |
+
+#### ⚡ System Modifiers & `.exact`
+Trigger events only when specific system keys are held:
+
+```html
+<!-- Modifier Combinations -->
+<button @click.ctrl="openInNewTab">Ctrl + Click</button>
+<button @click.shift="selectRange">Shift + Click</button>
+<button @click.alt="debugInfo">Alt + Click</button>
+<button @click.meta="cmdAction">Cmd / Windows + Click</button>
+
+<!-- Global Hotkeys attached to Window/Document -->
+<div @keydown.window.ctrl.k.prevent="openSearchModal">Global Ctrl+K Search</div>
+
+<!-- .exact: Fires ONLY if strictly the declared modifier is pressed -->
+<button @click.ctrl.exact="strictCtrlOnly">Ctrl Only (fails if Shift or Alt are also pressed)</button>
+<button @click.exact="noSystemKeys">Click without any system modifiers held</button>
+```
+
+#### 🌊 Event Flow & Listener Options
+Control propagation, default behavior, and target dispatch:
+
+*   `@submit.prevent`: Calls `event.preventDefault()`.
+*   `@click.stop`: Calls `event.stopPropagation()`.
+*   `@click.self`: Triggers only if `event.target === event.currentTarget` (not from child elements).
+*   `@click.once`: Listener runs at most once and automatically detaches.
+*   `@scroll.passive`: Enables passive scrolling performance (does not call `preventDefault()`).
+*   `@click.capture`: Uses capture phase event dispatch.
+*   `@keydown.window.escape`: Attaches listener directly to `window`.
+*   `@keydown.document.click`: Attaches listener directly to `document`.
 
 ### 5. Two-Way Model Bindings (`hx-model`)
 Synchronizes state with inputs, textareas, checkboxes, radio inputs, and select dropdowns.
@@ -462,6 +541,94 @@ Provide fallback values for keys that are missing or `undefined` on the resolved
 
 ---
 
+## 🎬 Transition & Animation Engine
+
+Helix provides a built-in transition system for applying smooth CSS animations to elements entering and leaving the DOM, alongside automatic FLIP list reordering animations.
+
+### 1. Directive Transitions (`hx-transition`)
+Apply enter and leave transitions to `hx-show` or `hx-if` elements:
+
+```html
+<!-- Named Transition (default prefix: fade-*) -->
+<div hx-show="isOpen" hx-transition="fade">
+  Smoothly animated content
+</div>
+
+<!-- Custom Utility Classes -->
+<div hx-show="isOpen" 
+     hx-transition:enter-active="transition ease-out duration-300"
+     hx-transition:enter-from="opacity-0 scale-95"
+     hx-transition:enter-to="opacity-100 scale-100"
+     hx-transition:leave-active="transition ease-in duration-200"
+     hx-transition:leave-from="opacity-100 scale-100"
+     hx-transition:leave-to="opacity-0 scale-95">
+  Tailwind-styled transition
+</div>
+```
+
+#### CSS Transition Class Lifecycle:
+*   `[name]-enter-from` $\rightarrow$ `[name]-enter-active` $\rightarrow$ `[name]-enter-to`
+*   `[name]-leave-from` $\rightarrow$ `[name]-leave-active` $\rightarrow$ `[name]-leave-to`
+
+#### Transition Hook Events:
+*   `@before-enter`, `@enter`, `@after-enter`
+*   `@before-leave`, `@leave`, `@after-leave`
+
+### 2. Transition Components (`<Transition>` & `<TransitionGroup>`)
+```html
+<!-- Single Element / Branch Transition -->
+<Transition name="slide" mode="out-in">
+  <div hx-if="tab === 'a'">Tab A Content</div>
+  <div hx-else>Tab B Content</div>
+</Transition>
+
+<!-- FLIP List Animation with Auto-Move -->
+<TransitionGroup name="list" moveClass="list-move" tag="ul">
+  <li hx-for="item in items" :key="item.id">
+    {{ item.name }}
+  </li>
+</TransitionGroup>
+```
+```css
+/* FLIP Moving Elements */
+.list-move {
+  transition: transform 0.4s cubic-bezier(0.2, 0, 0, 1);
+}
+```
+
+---
+
+## 🚪 Built-in Teleport Engine
+
+Transport any DOM subtree into an external DOM container (e.g. `body`, `#modal-target`) while preserving its complete reactive scope, event handlers, and lifecycle cleanups.
+
+### 1. `hx-teleport` Directive
+```html
+<button @click="isModalOpen = true">Open Modal</button>
+
+<div hx-teleport="#modal-portal-target" hx-show="isModalOpen" hx-transition="fade">
+  <div class="modal-dialog">
+    <h3>Teleported Modal</h3>
+    <p>Rendered outside the main app, but fully bound to local state!</p>
+    <button @click="isModalOpen = false">Close</button>
+  </div>
+</div>
+```
+
+### 2. `<Teleport>` Component
+```html
+<Teleport to="body" :disabled="isInline">
+  <div class="floating-toast">
+    <span>Notification Message</span>
+  </div>
+</Teleport>
+```
+*   **Dynamic Target**: Reactively moves content when the target container changes.
+*   **Disabled State**: When `:disabled="true"`, seamlessly returns content to its original placeholder anchor in the host template.
+*   **Recursive Teardown**: Automatically removes transported DOM nodes when the parent component unmounts.
+
+---
+
 ## 📦 Component Architecture
 
 You can register components globally on the main Helix constructor or isolate them inside specific app scope setups.
@@ -501,6 +668,174 @@ Register hooks inside the `setup()` block to capture state events:
 | `onUpdated(fn)` | Fired after reactive DOM updates are flushed. |
 | `onBeforeUnmount(fn)` | Fired before a component is torn down and destroyed. |
 | `onUnmounted(fn)` / `onDestroy(fn)` | Fired after component elements, watchers, and listeners are removed. |
+| `onErrorCaptured(fn)` | Intercepts errors captured in descendant components. |
+
+---
+
+## 🧲 Template References & `useTemplateRef`
+
+Helix provides modern Vue 3.5-style `useTemplateRef()` alongside function refs and legacy `$refs`.
+
+### 1. `useTemplateRef(key)`
+Exposes a `shallowRef(null)` that automatically synchronizes with the matching template ref:
+```javascript
+import { createApp, useTemplateRef, onMounted } from 'helix-core';
+
+createApp({
+  setup() {
+    const inputRef = useTemplateRef('myInput');
+
+    onMounted(() => {
+      inputRef.value?.focus(); // DOM element reference
+    });
+
+    return { inputRef };
+  },
+  template: `<input ref="myInput" placeholder="Focused automatically" />`
+}).mount('#app');
+```
+*Automatically resets `inputRef.value = null` when the element unmounts.*
+
+### 2. Function Refs (`:ref`)
+Pass a function directly to receive the element on mount and `null` on unmount:
+```html
+<input :ref="(el) => customInitializer(el)" />
+```
+
+---
+
+## 🛡️ Error Boundaries & `onErrorCaptured`
+
+Catch descendant component errors and prevent runtime crashes from propagating to the entire application tree:
+
+```javascript
+import { createApp, onErrorCaptured, ref } from 'helix-core';
+
+createApp({
+  setup() {
+    const hasError = ref(false);
+    const errorDetails = ref(null);
+
+    onErrorCaptured((err, instance, info) => {
+      console.warn(`[Error Boundary] Caught error in ${info}:`, err);
+      hasError.value = true;
+      errorDetails.value = err.message;
+      return false; // Return false to stop upward error propagation
+    });
+
+    return { hasError, errorDetails };
+  },
+  template: `
+    <div hx-if="hasError" class="alert alert-danger">
+      <h4>Widget Crashed</h4>
+      <p>{{ errorDetails }}</p>
+    </div>
+    <div hx-else>
+      <fragile-child-widget></fragile-child-widget>
+    </div>
+  `
+}).mount('#app');
+```
+
+---
+
+## 🌐 W3C Web Components (`defineCustomElement`)
+
+Convert any standard Helix component into a native W3C Custom Element (`class extends HTMLElement`) that works seamlessly in plain HTML, React, Angular, or any other framework.
+
+```javascript
+import { defineCustomElement } from 'helix-core';
+
+const HelloElement = defineCustomElement({
+  props: {
+    name: { type: String, default: 'World' }
+  },
+  styles: `
+    .badge { font-family: sans-serif; padding: 4px 8px; background: #2563eb; color: #fff; border-radius: 4px; }
+  `,
+  setup({ props, emit }) {
+    const clickCount = ref(0);
+    const onClick = () => {
+      clickCount.value++;
+      emit('custom-click', { clicks: clickCount.value });
+    };
+    return { clickCount, onClick };
+  },
+  template: `
+    <span class="badge" @click="onClick">
+      Hello, {{ name }}! (Clicks: {{ clickCount }})
+    </span>
+  `
+});
+
+// Register as a native browser custom element
+customElements.define('hello-element', HelloElement);
+```
+
+```html
+<!-- Use in plain HTML anywhere -->
+<hello-element name="Helix Developer"></hello-element>
+```
+
+#### Architecture Features:
+*   **Shadow DOM Encapsulation**: Encapsulated styles with optional Light DOM fallback.
+*   **Reactive Props Proxy (C-01)**: Attribute mutations (`setAttribute('name', '...')`) and property assignments (`el.name = '...'`) automatically update the reactive template.
+*   **Mount Generation Tokens (C-02)**: Prevents async mount/disconnect race conditions by validating tokens across connected and disconnected cycles.
+*   **Native Custom Events**: Calls to `emit('eventName', detail)` dispatch bubbling native DOM `CustomEvent` objects.
+
+---
+
+## 🔀 Dynamic Components (`<component :is="...">`)
+
+Mount and dynamically switch components at runtime based on reactive state:
+
+```javascript
+import { createApp, ref } from 'helix-core';
+
+const TabA = { template: `<div>Tab A Content</div>` };
+const TabB = { template: `<div>Tab B Content</div>` };
+
+createApp({
+  setup() {
+    const currentTab = ref('tab-a');
+    return { currentTab };
+  },
+  template: `
+    <button @click="currentTab = 'tab-a'">Show A</button>
+    <button @click="currentTab = 'tab-b'">Show B</button>
+
+    <component :is="currentTab"></component>
+  `
+})
+.component('tab-a', TabA)
+.component('tab-b', TabB)
+.mount('#app');
+```
+
+---
+
+## 🏷️ Prefix-Defined Slots
+
+Helix slot definitions dynamically honor your application's configured prefix alongside `#` shorthand and `v-slot`:
+
+```html
+<card-layout>
+  <!-- Prefix-Defined Named Slot (h-slot, hx-slot, custom-slot) -->
+  <template hx-slot:header="props">
+    <h2>{{ props.title }}</h2>
+  </template>
+
+  <!-- Default Slot -->
+  <template hx-slot>
+    <p>Card body content</p>
+  </template>
+
+  <!-- Shorthand Syntax -->
+  <template #footer>
+    <button>Confirm</button>
+  </template>
+</card-layout>
+```
 
 ---
 
@@ -545,7 +880,7 @@ Helix.$bus.off("notify-user", handler);
 
 ## 🧩 Plugins & Namespaces
 
-Extend Helix with global namespaces, custom components, and custom directives using `Helix.use()` or `app.use()`. The system features semver dependency resolution and a **Single-Execution Plugin Engine (v11.1.20)** with automated `_executed` state tracking so `install()` runs **exactly once**.
+Extend Helix with global namespaces, custom components, and custom directives using `Helix.use()` or `app.use()`. The system features semver dependency resolution and a **Single-Execution Plugin Engine (v11.1.21)** with automated `_executed` state tracking so `install()` runs **exactly once**.
 
 ```javascript
 const NetworkPlugin = {
@@ -1026,10 +1361,10 @@ If you are hosting the workspace under a local web server like MAMP, access them
 
 ---
 
-## 🚀 Releases & Downloads (v11.1.20)
+## 🚀 Releases & Downloads (v11.1.21)
 
-- 📦 **Release Archive**: [helix-v11.1.20.zip](file:///d:/mamp/htdocs/helix_framework/dist/helix-v11.1.20.zip)
+- 📦 **Release Archive**: [helix-v11.1.21.zip](file:///d:/mamp/htdocs/helix_framework/dist/helix-v11.1.21.zip)
 - 📄 **Development Bundle**: [dist/helix.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.js) (154 KB)
 - ⚡ **Production Minified**: [dist/helix.min.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.min.js) (68 KB)
 - 📋 **Full Changelog**: [dist/Changelog.md](file:///d:/mamp/htdocs/helix_framework/dist/Changelog.md)
-- 🏷️ **GitHub Tag & Release**: [v11.1.20](https://github.com/pioneersingh321/helix_framework/releases/tag/v11.1.20)
+- 🏷️ **GitHub Tag & Release**: [v11.1.21](https://github.com/pioneersingh321/helix_framework/releases/tag/v11.1.21)

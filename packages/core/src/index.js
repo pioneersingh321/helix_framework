@@ -90,13 +90,39 @@ import { effectScope, getCurrentScope, onScopeDispose } from './reactivity/scope
 import { definePlugin, triggerPluginLifecycle, validatePluginDependencies } from './app/plugin.js';
 import { defineAsyncComponent, preload, preloadAll } from './app/asyncComponent.js';
 import { createErrorBoundary, onErrorCaptured } from './app/errorBoundary.js';
+import { useTemplateRef } from './app/templateRef.js';
 import { inspectComponent } from './app/inspector.js';
 import { checkMemoryLeaks } from './shared/memory.js';
 import { Suspense } from './renderer/suspense.js';
+import { Transition, TransitionGroup } from './renderer/transitionComponent.js';
+import { Teleport, resolveTeleportTarget } from './renderer/teleport.js';
+import { defineCustomElement } from './renderer/customElement.js';
+import {
+    enter,
+    leave,
+    cancelTransition,
+    cancelFlip,
+    getTransitionDurations,
+    fireTransitionHook,
+    nextFrame,
+    resolveTransitionConfig,
+    recordPositions,
+    applyFlip
+} from './renderer/transition.js';
 import { initDevtools, inspectTree, devtoolsAPI } from './devtools/devtools.js';
 import { profile, getProfileData } from './shared/profiler.js';
 import { memo } from './reactivity/memo.js';
 import { initHtmxIntegration, enableHtmxIntegration } from './app/htmx.js';
+import {
+    createEventListener,
+    matchesKey,
+    KEY_ALIASES
+} from './events/index.js';
+
+globalComponents["transition"] = Transition;
+globalComponents["transitiongroup"] = TransitionGroup;
+globalComponents["transition-group"] = TransitionGroup;
+globalComponents["teleport"] = Teleport;
 
 const globalNamespaces = Object.create(null);
 const globalProvides = Object.create(null);
@@ -461,6 +487,8 @@ const globalAPI = {
     preloadAll,
     createErrorBoundary,
     onErrorCaptured,
+    useTemplateRef,
+    defineCustomElement,
     inspectComponent,
     onError: onErrorGlobal,
     ScopeScheduler,
@@ -470,6 +498,20 @@ const globalAPI = {
     getCurrentScope,
     onScopeDispose,
     Suspense,
+    Transition,
+    TransitionGroup,
+    Teleport,
+    resolveTeleportTarget,
+    enter,
+    leave,
+    cancelTransition,
+    cancelFlip,
+    getTransitionDurations,
+    fireTransitionHook,
+    nextFrame,
+    resolveTransitionConfig,
+    recordPositions,
+    applyFlip,
     inspectTree,
     validatePluginDependencies,
     profile,
@@ -558,6 +600,20 @@ export {
     getCurrentScope,
     onScopeDispose,
     Suspense,
+    Transition,
+    TransitionGroup,
+    Teleport,
+    resolveTeleportTarget,
+    enter,
+    leave,
+    cancelTransition,
+    cancelFlip,
+    getTransitionDurations,
+    fireTransitionHook,
+    nextFrame,
+    resolveTransitionConfig,
+    recordPositions,
+    applyFlip,
     simpleEffect,
     markTrace,
     measureTrace,
@@ -577,6 +633,8 @@ export {
     preloadAll,
     createErrorBoundary,
     onErrorCaptured,
+    useTemplateRef,
+    defineCustomElement,
     inspectComponent,
     inspectTree,
     validatePluginDependencies,
@@ -595,6 +653,9 @@ export {
     untrack,
     enableHtmxIntegration as enableHtmx,
     initHtmxIntegration as initHtmx,
+    createEventListener,
+    matchesKey,
+    KEY_ALIASES,
     globalApps as $apps,
     globalRegistry as registry,
     globalBus as $bus,

@@ -183,6 +183,27 @@
     [hx-trace] {
       transition: outline 0.3s ease;
     }
+
+    /* 🎬 Transitions & Animation CSS System */
+    .fade-enter-active, .fade-leave-active {
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .fade-enter-from, .fade-leave-to {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.98);
+    }
+
+    .slide-enter-active, .slide-leave-active {
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .slide-enter-from, .slide-leave-to {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    .hx-move {
+      transition: transform 0.4s cubic-bezier(0.2, 0, 0, 1);
+    }
   </style>
 </head>
 
@@ -206,6 +227,10 @@
       <li class="nav-item"><a class="nav-link" href="#directives">🧩 Custom Directives</a></li>
       <li class="nav-item"><a class="nav-link" href="#fallbacks">🛡️ Directive Fallbacks</a></li>
       <li class="nav-item"><a class="nav-link" href="#v11-features">🚀 v11.1.16 Features</a></li>
+      <li class="nav-item"><a class="nav-link" href="#dom-events">🎯 DOM Event Modifiers</a></li>
+      <li class="nav-item"><a class="nav-link" href="#phase3-directives">📜 Template Directives (Phase 3)</a></li>
+      <li class="nav-item"><a class="nav-link" href="#transitions">🎬 Transitions & FLIP (Phase 4)</a></li>
+      <li class="nav-item"><a class="nav-link" href="#teleport">🚪 Teleport Engine (Phase 5)</a></li>
     </ul>
   </div>
 
@@ -502,6 +527,51 @@ const state = reactive({
 
               <p class="text-success mt-2 small" hx-if="state.successMessage" hx-text="state.successMessage"></p>
               <p class="text-danger mt-2 small" hx-if="state.errorMessage" hx-text="state.errorMessage"></p>
+            </div>
+
+            <!-- Phase 2: hx-model Modifiers -->
+            <div class="sandbox-box">
+              <h4>4. Model Modifiers (.lazy, .trim, .number, & Arrays)</h4>
+              <p class="text-muted-custom">Vue-style modifiers for two-way data bindings.</p>
+
+              <!-- .lazy -->
+              <div class="mb-3">
+                <label class="form-label small fw-bold">.lazy (syncs on blur/change instead of typing):</label>
+                <input class="form-control form-control-sm" hx-model.lazy="state.lazyText" placeholder="Type and click away...">
+                <div class="small text-muted mt-1">Bound value: <strong hx-text="state.lazyText"></strong></div>
+              </div>
+
+              <!-- .trim -->
+              <div class="mb-3">
+                <label class="form-label small fw-bold">.trim (strips leading & trailing whitespace):</label>
+                <input class="form-control form-control-sm" hx-model.trim="state.trimmedText" placeholder="   spaces before/after   ">
+                <div class="small text-muted mt-1">Trimmed: <code>'<span hx-text="state.trimmedText"></span>'</code></div>
+              </div>
+
+              <!-- .number -->
+              <div class="mb-3">
+                <label class="form-label small fw-bold">.number (typecasts to numeric value):</label>
+                <input class="form-control form-control-sm" hx-model.number="state.numericScore" placeholder="Enter number...">
+                <div class="small text-muted mt-1">Value: <strong hx-text="state.numericScore"></strong> (typeof: <code hx-text="typeof state.numericScore"></code>)</div>
+              </div>
+
+              <!-- Array Checkboxes -->
+              <div class="mb-2">
+                <label class="form-label small fw-bold d-block">Multi-Checkbox Array Binding:</label>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox" id="fruitApple" value="Apple" hx-model="state.selectedHobbies">
+                  <label class="form-check-label small" for="fruitApple">Apple</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox" id="fruitBanana" value="Banana" hx-model="state.selectedHobbies">
+                  <label class="form-check-label small" for="fruitBanana">Banana</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox" id="fruitOrange" value="Orange" hx-model="state.selectedHobbies">
+                  <label class="form-check-label small" for="fruitOrange">Orange</label>
+                </div>
+                <div class="small text-muted mt-1">Selected: <code hx-text="JSON.stringify(state.selectedHobbies)"></code></div>
+              </div>
             </div>
 
           </div>
@@ -998,8 +1068,426 @@ Helix.watch([refA, refB], ([a, b]) => {
         </div>
       </div>
     </section>
+ 
+    <!-- 🎯 Section 10: DOM Events & Modifiers (Phase 1) -->
+    <section id="dom-events" class="mb-5">
+      <div class="glass-card">
+        <h2>🎯 Section 10: DOM Events & Modifiers (Phase 1)</h2>
+        <p class="text-muted-custom">
+          Helix Core provides Vue-style DOM event modifiers with a unified event handling pipeline. Modifiers filter events by key, mouse button, system keys, exact match, self-target, and configure native listener lifecycle options.
+        </p>
+
+        <div class="row">
+          <div class="col-lg-6">
+
+            <!-- 1. Keyboard Modifiers -->
+            <div class="sandbox-box">
+              <h4>1. Keyboard Modifiers</h4>
+              <p class="text-muted-custom">
+                Filters key events by specific keys (e.g. <code>.enter</code>, <code>.tab</code>, <code>.delete</code>, <code>.esc</code>, <code>.space</code>, <code>.up</code>/<code>.down</code>/<code>.left</code>/<code>.right</code>) or dynamic kebab-case keys (<code>.page-down</code>).
+              </p>
+              <input type="text" class="form-control mb-2" placeholder="Focus here and press Enter, Tab, Delete, Esc, Space, Arrows, PageDown..."
+                @keydown.enter="eventDemo.onKey('enter')"
+                @keydown.tab="eventDemo.onKey('tab')"
+                @keydown.delete="eventDemo.onKey('delete (Delete or Backspace)')"
+                @keydown.esc="eventDemo.onKey('esc / escape')"
+                @keydown.space="eventDemo.onKey('space')"
+                @keydown.up="eventDemo.onKey('up')"
+                @keydown.down="eventDemo.onKey('down')"
+                @keydown.left="eventDemo.onKey('left (ArrowLeft)')"
+                @keydown.right="eventDemo.onKey('right (ArrowRight)')"
+                @keydown.page-down="eventDemo.onKey('page-down (Dynamic Kebab Key)')">
+              <div class="p-2 border rounded bg-white text-primary small">
+                <span hx-text="eventDemo.keyLog"></span>
+              </div>
+            </div>
+
+            <!-- 2. Mouse Modifiers -->
+            <div class="sandbox-box">
+              <h4>2. Mouse Modifiers</h4>
+              <p class="text-muted-custom">
+                Filter mouse clicks by button: <code>.left</code> (primary), <code>.middle</code> (auxiliary / scroll wheel), <code>.right</code> (secondary with <code>.prevent</code>).
+              </p>
+              <div class="d-flex gap-2 mb-2 flex-wrap">
+                <button class="btn btn-sm btn-outline-primary" @click.left="eventDemo.onMouse('left')">Left Click Only</button>
+                <button class="btn btn-sm btn-outline-warning text-dark" @click.middle="eventDemo.onMouse('middle')">Middle Click (Wheel)</button>
+                <button class="btn btn-sm btn-outline-danger" @click.right.prevent="eventDemo.onMouse('right (contextmenu prevented)')">Right Click (Prevented)</button>
+              </div>
+              <div class="p-2 border rounded bg-white text-info small">
+                <span hx-text="eventDemo.mouseLog"></span>
+              </div>
+            </div>
+
+            <!-- 3. System Modifiers & .exact -->
+            <div class="sandbox-box">
+              <h4>3. System Modifiers & .exact</h4>
+              <p class="text-muted-custom">
+                Enforce modifier keys: <code>.ctrl</code>, <code>.alt</code>, <code>.shift</code>, <code>.meta</code>, and <code>.exact</code>. Note that <code>.prevent</code> & <code>.stop</code> only trigger if the filter succeeds!
+              </p>
+              <div class="d-flex gap-2 mb-2 flex-wrap">
+                <button class="btn btn-sm btn-outline-success" @click.ctrl.prevent="eventDemo.onSystem('Ctrl + Click (Prevented)')">Ctrl + Click</button>
+                <button class="btn btn-sm btn-outline-info text-dark" @click.ctrl.exact="eventDemo.onSystem('Exact Ctrl Only (Shift/Alt Disallowed)')">Exact Ctrl Only</button>
+                <button class="btn btn-sm btn-outline-secondary" @click.exact="eventDemo.onSystem('Exact Plain Click (No Modifiers Held)')">Exact Plain Click</button>
+              </div>
+              <div class="p-2 border rounded bg-white text-success small">
+                <span hx-text="eventDemo.systemLog"></span>
+              </div>
+            </div>
+
+            <!-- 4. Event Flow & Options -->
+            <div class="sandbox-box">
+              <h4>4. Event Flow & Native Options (.self, .once, .stop, .prevent)</h4>
+              <p class="text-muted-custom">
+                <code>.self</code> prevents triggers from child clicks; <code>.once</code> registers with native listener option to execute only once.
+              </p>
+              <div class="p-3 border rounded bg-light mb-2 text-center" @click.self="eventDemo.onFlow('.self clicked on outer box directly')" style="cursor: pointer;">
+                <strong class="d-block mb-1">Outer Box (has @click.self)</strong>
+                <button class="btn btn-sm btn-secondary" @click="eventDemo.onFlow('Inner Child Button clicked')">Inner Button (No .stop)</button>
+                <button class="btn btn-sm btn-danger ms-2" @click.stop="eventDemo.onFlow('Inner Button clicked with .stop (Bubbling Halted)')">Inner Button (with .stop)</button>
+              </div>
+              <button class="btn btn-sm btn-dark mb-2" @click.once="eventDemo.onOnce">Run Once Button (@click.once)</button>
+              <div class="p-2 border rounded bg-white text-dark small">
+                <span hx-text="eventDemo.flowLog"></span>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="col-lg-6">
+            <h4>Event Directives Cheat Sheet</h4>
+            <pre><code>&lt;!-- 1. Keyboard Modifiers --&gt;
+&lt;input @keydown.enter="submit" /&gt;
+&lt;input @keydown.tab="onTab" /&gt;
+&lt;input @keydown.delete="onDeleteOrBackspace" /&gt;
+&lt;input @keydown.esc="closeModal" /&gt;
+&lt;input @keydown.space="onSpace" /&gt;
+&lt;input @keydown.up="navigateUp" /&gt;
+&lt;input @keydown.down="navigateDown" /&gt;
+&lt;!-- Dynamic Kebab-Case Keys --&gt;
+&lt;input @keydown.page-down="nextPage" /&gt;
+
+&lt;!-- 2. Mouse Modifiers --&gt;
+&lt;button @click.left="primaryAction"&gt;Left&lt;/button&gt;
+&lt;button @click.middle="auxAction"&gt;Middle&lt;/button&gt;
+&lt;button @click.right.prevent="contextMenu"&gt;Right&lt;/button&gt;
+
+&lt;!-- 3. System Modifier Keys & .exact --&gt;
+&lt;!-- Only prevents default if Ctrl is actually held --&gt;
+&lt;button @click.ctrl.prevent="save"&gt;Save&lt;/button&gt;
+&lt;!-- Only triggers if ONLY Ctrl is pressed (no Shift/Alt) --&gt;
+&lt;button @click.ctrl.exact="doSomething"&gt;Ctrl Only&lt;/button&gt;
+&lt;!-- Only triggers when NO system modifier is pressed --&gt;
+&lt;button @click.exact="plainClick"&gt;No Keys&lt;/button&gt;
+
+&lt;!-- 4. Event Flow & Native Options --&gt;
+&lt;!-- Only triggers if event.target === el --&gt;
+&lt;div @click.self="onBackdropClick"&gt;...&lt;/div&gt;
+&lt;!-- Native options passed to addEventListener --&gt;
+&lt;button @click.once="initOnce"&gt;Init&lt;/button&gt;
+&lt;div @scroll.passive="onScroll"&gt;...&lt;/div&gt;
+&lt;div @click.capture="onCapture"&gt;...&lt;/div&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+    <!-- 📜 Template Directives & Dynamic Compilation (Phase 3) -->
+    <section id="phase3-directives" class="mb-5">
+      <div class="glass-card">
+        <h2>📜 Section 11: Template Directives & Compilation (Phase 3)</h2>
+        <p class="text-muted-custom">Demonstrating Vue-style Dynamic Arguments (<code>:[attr]</code> & <code>@[event]</code>), Static Subtree Optimization (<code>hx-once</code>), Raw Escape (<code>hx-pre</code>), and Checkbox Custom Values.</p>
+
+        <div class="row">
+          <div class="col-lg-6">
+
+            <!-- 1. Dynamic Directive Arguments -->
+            <div class="sandbox-box">
+              <h4>1. Dynamic Directive Arguments (<code>:[attr]</code> & <code>@[event]</code>)</h4>
+              <p class="text-muted-custom">Compute attribute names and event listener types dynamically at runtime.</p>
+              
+              <div class="d-flex gap-2 align-items-center mb-2">
+                <label class="small fw-bold mb-0">Target Attribute:</label>
+                <select class="form-select form-select-sm w-auto" hx-model="state.dynAttr">
+                  <option value="title">title</option>
+                  <option value="data-tooltip">data-tooltip</option>
+                  <option value="aria-label">aria-label</option>
+                </select>
+                <input class="form-control form-control-sm w-50" hx-model="state.dynAttrVal" placeholder="Attribute value...">
+              </div>
+
+              <div class="p-2 bg-light rounded border border-light-subtle mb-3">
+                <button class="btn btn-outline-primary btn-sm" :[state.dynAttr]="state.dynAttrVal">
+                  Inspect Bound Element (<code hx-text="state.dynAttr"></code> = "<span hx-text="state.dynAttrVal"></span>")
+                </button>
+              </div>
+
+              <div class="d-flex gap-2 align-items-center mb-2">
+                <label class="small fw-bold mb-0">Dynamic Event:</label>
+                <select class="form-select form-select-sm w-auto" hx-model="state.dynEvt">
+                  <option value="click">click</option>
+                  <option value="mouseenter">mouseenter</option>
+                  <option value="dblclick">dblclick</option>
+                </select>
+                <button class="btn btn-warning btn-sm text-dark" @[state.dynEvt]="state.triggerDynEvt">
+                  Trigger Event (<span hx-text="state.dynEvt"></span>)
+                </button>
+              </div>
+              <p class="small text-muted mb-1">Event Trigger Count: <strong hx-text="state.dynEvtCount"></strong></p>
+              <div class="p-2 bg-light rounded border border-light-subtle small font-monospace text-success">
+                <span hx-text="state.dynEvtLog"></span>
+              </div>
+            </div>
+
+            <!-- 2. hx-pre vs hx-once -->
+            <div class="sandbox-box">
+              <h4>2. Raw Escape (<code>hx-pre</code>) & Static Freeze (<code>hx-once</code>)</h4>
+              <p class="text-muted-custom">Bypass compiler interpolation or freeze subtree after first render.</p>
+
+              <div class="mb-3">
+                <span class="small fw-bold d-block">Raw Code Block (hx-pre):</span>
+                <div class="p-2 bg-dark text-white rounded font-monospace small" hx-pre>
+                  &lt;span hx-text="count"&gt;{{ count }}&lt;/span&gt; &lt;!-- Raw uncompiled snippet --&gt;
+                </div>
+              </div>
+
+              <div class="mb-2">
+                <span class="small fw-bold d-block">Static Freeze (hx-once):</span>
+                <div class="p-2 bg-light rounded border border-light-subtle small">
+                  Initial Render: <strong hx-once hx-text="state.count"></strong> (Will NOT re-render on count changes)
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Checkbox true-value / false-value -->
+            <div class="sandbox-box">
+              <h4>3. Checkbox Custom Values (<code>true-value</code> / <code>false-value</code>)</h4>
+              <p class="text-muted-custom">Bind custom strings, numbers, or objects instead of raw booleans.</p>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="customAgree" hx-model="state.customAgreement" true-value="ACCEPTED" false-value="REJECTED">
+                <label class="form-check-label small" for="customAgree">Terms of Service Agreement</label>
+              </div>
+              <p class="small text-muted mb-0">Agreement State: <strong class="text-primary" hx-text="state.customAgreement"></strong></p>
+            </div>
+
+          </div>
+
+          <div class="col-lg-6">
+            <h4>Code Snippet & Cheat Sheet</h4>
+            <pre><code>&lt;!-- 1. Dynamic Attribute & Event Arguments --&gt;
+&lt;button :[dynamicAttr]="attrValue"&gt;Dynamic Attribute&lt;/button&gt;
+&lt;button @[dynamicEvent]="handleEvent"&gt;Dynamic Listener&lt;/button&gt;
+
+&lt;!-- 2. Raw Code Display (hx-pre) --&gt;
+&lt;div hx-pre&gt;
+  {{ uncompiledMustache }} &lt;!-- Skipped by compiler --&gt;
+&lt;/div&gt;
+
+&lt;!-- 3. Static Freeze (hx-once) --&gt;
+&lt;div hx-once&gt;
+  &lt;h1 hx-text="staticTitle"&gt;&lt;/h1&gt; &lt;!-- Evaluates once, stops tracking --&gt;
+&lt;/div&gt;
+
+&lt;!-- 4. Checkbox true-value / false-value --&gt;
+&lt;input type="checkbox"
+       hx-model="status"
+       true-value="ACCEPTED"
+       false-value="REJECTED" /&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 🎬 Section 12: Built-in Transition & Animation Engine -->
+    <section id="transitions" class="mb-5">
+      <div class="glass-card">
+        <h2>🎬 Section 12: Built-in Transition & FLIP Animation Engine</h2>
+        <div class="row">
+          <div class="col-lg-6">
+
+            <!-- 1. CSS Transition with hx-show -->
+            <div class="sandbox-box">
+              <h4>1. Directive Transitions (<code>hx-show</code> + <code>hx-transition</code>)</h4>
+              <p class="text-muted-custom">Automatic leave delay, CSS class pipelines (<code>fade-enter-from</code> &rarr; <code>fade-enter-to</code>), and smooth GPU transitions.</p>
+              <button class="btn btn-sm btn-primary mb-3" @click="state.toggleTransShow">
+                Toggle Alert Box (Current: <span hx-text="state.transShow ? 'Visible' : 'Hidden'"></span>)
+              </button>
+              
+              <div hx-show="state.transShow" hx-transition="fade" class="alert alert-primary shadow-sm mb-0">
+                <h5 class="alert-heading mb-1">🚀 Seamless Microtask Transitions</h5>
+                <p class="mb-0 small">This card smoothly fades and translates. Leave transitions delay <code>display: none</code> until animations conclude.</p>
+              </div>
+            </div>
+
+            <!-- 2. Conditional Branch Transitions with hx-if -->
+            <div class="sandbox-box">
+              <h4>2. Conditional Branch Transitions (<code>hx-if</code> / <code>hx-else-if</code>)</h4>
+              <p class="text-muted-custom">Outgoing branches animate out before being detached from the DOM tree.</p>
+              <div class="btn-group btn-group-sm mb-3">
+                <button class="btn btn-outline-secondary" :class="{'active': state.transTab === 'overview'}" @click="state.setTransTab('overview')">Overview</button>
+                <button class="btn btn-outline-secondary" :class="{'active': state.transTab === 'specs'}" @click="state.setTransTab('specs')">Specifications</button>
+                <button class="btn btn-outline-secondary" :class="{'active': state.transTab === 'reviews'}" @click="state.setTransTab('reviews')">Reviews</button>
+              </div>
+
+              <div class="p-3 bg-white rounded border border-light-subtle min-h-100">
+                <div hx-if="state.transTab === 'overview'" hx-transition="slide">
+                  <h6 class="text-primary mb-1">📋 Overview Panel</h6>
+                  <p class="small text-muted mb-0">Reactive UI primitives built on transparent ES2020 Proxy traps.</p>
+                </div>
+                <div hx-else-if="state.transTab === 'specs'" hx-transition="slide">
+                  <h6 class="text-success mb-1">⚙️ Technical Specifications</h6>
+                  <p class="small text-muted mb-0">Under 45KB gzip, zero external runtime dependencies, 100% standards compliant.</p>
+                </div>
+                <div hx-else hx-transition="slide">
+                  <h6 class="text-warning mb-1">⭐ User Reviews & Ratings</h6>
+                  <p class="small text-muted mb-0">Ranked 5/5 stars by developer productivity benchmarks.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. FLIP List Reordering Transitions -->
+            <div class="sandbox-box">
+              <h4>3. FLIP List Reordering (<code>hx-for</code> + <code>hx-key</code>)</h4>
+              <p class="text-muted-custom">First-Last-Invert-Play technique calculates transform deltas for silky-smooth item moves.</p>
+              <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-sm btn-outline-primary" @click="state.shuffleTransList">🎲 Shuffle List</button>
+                <button class="btn btn-sm btn-outline-success" @click="state.addTransItem">➕ Add Item</button>
+              </div>
+
+              <ul class="list-group">
+                <li hx-for="item in state.transList" hx-key="item.id" hx-transition="fade" class="list-group-item d-flex justify-content-between align-items-center bg-white">
+                  <span hx-text="item.text"></span>
+                  <button class="btn btn-sm btn-outline-danger py-0 px-2" @click="state.removeTransItem(item.id)">&times;</button>
+                </li>
+              </ul>
+            </div>
+
+          </div>
+
+          <div class="col-lg-6">
+            <h4>Code Snippet & Cheat Sheet</h4>
+            <pre><code>&lt;!-- 1. Directive Transition on Show --&gt;
+&lt;div hx-show="isOpen" hx-transition="fade"&gt;
+  Smoothly animated content
+&lt;/div&gt;
+
+&lt;!-- 2. Conditional Transitions on If --&gt;
+&lt;div hx-if="tab === 'a'" hx-transition="slide"&gt;
+  Tab A Content
+&lt;/div&gt;
+&lt;div hx-else hx-transition="slide"&gt;
+  Tab B Content
+&lt;/div&gt;
+
+&lt;!-- 3. FLIP List Reordering with Auto-Move --&gt;
+&lt;ul&gt;
+  &lt;li hx-for="item in items" 
+      hx-key="item.id" 
+      hx-transition="fade"&gt;
+    &lt;span hx-text="item.name"&gt;&lt;/span&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+/* 4. CSS Class System */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.hx-move {
+  transition: transform 0.4s cubic-bezier(0.2, 0, 0, 1);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 🚪 Section 13: Built-in Teleport Engine -->
+    <section id="teleport" class="mb-5 pt-4">
+      <div class="glass-card">
+        <h2>🚪 Section 13: Built-in Teleport Engine (Phase 5)</h2>
+        <p class="text-secondary">
+          Render and transport DOM subtrees into external portal targets (e.g. <code>body</code>, <code>#modal-portal-target</code>) 
+          while preserving complete reactive context, event bubbling, and lifecycle-bound cleanup.
+        </p>
+
+        <div class="row g-4 mt-2">
+          <!-- Live Interactive Portal Demo -->
+          <div class="col-lg-6">
+            <div class="p-4 rounded-3" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);">
+              <h5 class="text-info mb-3">🎮 Interactive Modal & Portal Showcase</h5>
+
+              <div class="mb-3">
+                <button class="btn btn-primary" @click="state.teleportDemo.isModalOpen = true">
+                  🚀 Launch Teleported Modal
+                </button>
+                <button class="btn btn-outline-secondary ms-2" @click="state.teleportDemo.isInline = !state.teleportDemo.isInline">
+                  Toggle Teleport Disabled: <span class="badge bg-secondary" hx-text="state.teleportDemo.isInline ? 'Inline (Disabled)' : 'Teleported'"></span>
+                </button>
+              </div>
+
+              <div class="p-3 mb-3 rounded-2" style="background: rgba(0,0,0,0.3); border: 1px dashed rgba(255,255,255,0.15);">
+                <small class="text-muted d-block mb-1">Host Component Container Content:</small>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-info">Live Input:</span>
+                  <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" hx-model="state.teleportDemo.modalTitle" style="max-width: 250px;" />
+                </div>
+              </div>
+
+              <!-- Teleport Directive -->
+              <div hx-teleport="#modal-portal-target" hx-show="state.teleportDemo.isModalOpen" hx-transition="fade">
+                <div class="modal-backdrop-custom d-flex align-items-center justify-content-center" 
+                     style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 9999;">
+                  <div class="p-4 rounded-4 shadow-lg text-light" 
+                       style="background: #1e1e2e; border: 1px solid rgba(255,255,255,0.15); max-width: 480px; width: 90%;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                      <h4 class="m-0 text-info" hx-text="state.teleportDemo.modalTitle"></h4>
+                      <button class="btn btn-sm btn-outline-light" @click="state.teleportDemo.isModalOpen = false">✕</button>
+                    </div>
+                    <p class="text-secondary" hx-text="state.teleportDemo.message"></p>
+                    <div class="p-2 mb-3 rounded" style="background: rgba(0,0,0,0.4);">
+                      <small class="text-muted">Target Layer: <code>#modal-portal-target</code> (rendered outside root app container)</small>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                      <button class="btn btn-secondary btn-sm" @click="state.teleportDemo.isModalOpen = false">Close</button>
+                      <button class="btn btn-success btn-sm" @click="state.teleportDemo.clickCount++; state.teleportDemo.modalTitle = 'Clicked ' + state.teleportDemo.clickCount + ' times!'">
+                        Interactive Action (<span hx-text="state.teleportDemo.clickCount"></span>)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Code Snippet -->
+          <div class="col-lg-6">
+            <pre class="bg-dark text-light p-3 rounded-3" style="font-size: 0.85rem;"><code>&lt;!-- 1. Directive Syntax --&gt;
+&lt;div hx-teleport="#modal-portal-target" 
+     hx-show="isModalOpen" 
+     hx-transition="fade"&gt;
+  &lt;div class="modal"&gt;
+    &lt;h4 hx-text="modalTitle"&gt;&lt;/h4&gt;
+    &lt;button @click="isModalOpen = false"&gt;Close&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+
+&lt;!-- 2. Component API --&gt;
+&lt;Teleport to="body" :disabled="isInline"&gt;
+  &lt;div class="toast-notification"&gt;
+    &lt;span hx-text="toastMessage"&gt;&lt;/span&gt;
+  &lt;/div&gt;
+&lt;/Teleport&gt;</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
 
   </div>
+
+  <!-- Dedicated Modal Portal Target Container outside the main app content -->
+  <div id="modal-portal-target"></div>
 
   <script>
     // Smooth scrolling & active links highlight
@@ -1356,6 +1844,60 @@ Helix.watch([refA, refB], ([a, b]) => {
           if (str === 'Medium') return 'text-warning';
           return 'text-success';
         },
+
+        // --- PHASE 2: MODEL MODIFIERS STATE ---
+        lazyText: 'Initial text (lazy)',
+        trimmedText: 'Initial text (trimmed)',
+        numericScore: 42,
+        selectedHobbies: ['Apple', 'Orange'],
+
+        // --- PHASE 3: TEMPLATE DIRECTIVES STATE ---
+        dynAttr: 'title',
+        dynAttrVal: 'Dynamic Tooltip Message',
+        dynEvt: 'click',
+        dynEvtCount: 0,
+        dynEvtLog: "Ready. Click the trigger button or change event type above.",
+        triggerDynEvt(e) {
+          this.dynEvtCount++;
+          const time = new Date().toLocaleTimeString();
+          const evtType = e && e.type ? e.type : this.dynEvt;
+          this.dynEvtLog = `Triggered @[${this.dynEvt}] (${evtType}) at ${time} | Count: ${this.dynEvtCount}`;
+          console.log(`[Dynamic Directive Event] Triggered @[${this.dynEvt}] -> ${evtType} at ${time}, Total Count: ${this.dynEvtCount}`, e);
+        },
+        customAgreement: 'ACCEPTED',
+        // --- 🎬 SECTION 12: TRANSITIONS & FLIP DEMO STATE ---
+        transShow: true,
+        transTab: 'overview',
+        transList: [
+          { id: 1, text: '🧬 Fine-grained Reactivity' },
+          { id: 2, text: '⚡ Microtask Batching' },
+          { id: 3, text: '🎬 FLIP List Transitions' },
+          { id: 4, text: '🛡️ Type-safe Custom Directives' }
+        ],
+        toggleTransShow() {
+          this.transShow = !this.transShow;
+        },
+        setTransTab(tab) {
+          this.transTab = tab;
+        },
+        shuffleTransList() {
+          this.transList = [...this.transList].sort(() => Math.random() - 0.5);
+        },
+        addTransItem() {
+          const nextId = Math.max(0, ...this.transList.map(i => i.id)) + 1;
+          this.transList.push({ id: nextId, text: `✨ Dynamic Item ${nextId}` });
+        },
+        removeTransItem(id) {
+          this.transList = this.transList.filter(i => i.id !== id);
+        },
+        // --- 🚪 SECTION 13: TELEPORT DEMO STATE ---
+        teleportDemo: {
+          isModalOpen: false,
+          modalTitle: '🧬 Helix Portal Modal',
+          message: 'This modal DOM subtree was defined inside the component template, but dynamically teleported to #modal-portal-target (rendered outside the app container)! It retains full reactive bindings, events, and transitions.',
+          isInline: false,
+          clickCount: 0
+        },
         // --- v11.1.16 CORE FEATURES DEMO STATE ---
         v11State: reactive({
           batchCounter: 0,
@@ -1475,6 +2017,30 @@ Helix.watch([refA, refB], ([a, b]) => {
             this.watchRefA.value++;
             this.watchRefB.value += 5;
           }
+        }),
+        // --- DOM EVENTS & MODIFIERS (PHASE 1) DEMO STATE ---
+        eventDemo: reactive({
+          keyLog: "Press keys in the input above (Enter, Tab, Delete, Esc, Space, Arrows, PageDown)...",
+          mouseLog: "Click one of the mouse buttons above (Left, Middle, Right)...",
+          systemLog: "Click the buttons with or without modifier keys (Ctrl / Alt / Shift)...",
+          flowLog: "Interact with the boxes or button above (.self, .stop, .once)...",
+          onceCount: 0,
+          onKey(name) {
+            this.keyLog = `Triggered: @keydown.${name} at ${new Date().toLocaleTimeString()}`;
+          },
+          onMouse(btn) {
+            this.mouseLog = `Triggered: @click.${btn} at ${new Date().toLocaleTimeString()}`;
+          },
+          onSystem(action) {
+            this.systemLog = `Triggered: ${action} at ${new Date().toLocaleTimeString()}`;
+          },
+          onFlow(msg) {
+            this.flowLog = `Triggered: ${msg} at ${new Date().toLocaleTimeString()}`;
+          },
+          onOnce() {
+            this.onceCount++;
+            this.flowLog = `Triggered: @click.once (Fired ${this.onceCount} time - cannot fire again)`;
+          }
         })
       });
 
@@ -1519,7 +2085,9 @@ Helix.watch([refA, refB], ([a, b]) => {
         addUser,
         store: AppStore,
         toggle: state.toggle,
-        v11State: state.v11State
+        v11State: state.v11State,
+        eventDemo: state.eventDemo,
+        teleportDemo: state.teleportDemo
       };
     });
 
@@ -1529,7 +2097,9 @@ Helix.watch([refA, refB], ([a, b]) => {
     }
 
     Helix.$bus.on('system:log_message', (msg) => {
-      document.getElementById('bus-log').textContent = msg;
+      const logEl = document.getElementById('bus-log');
+      if (logEl) logEl.textContent = msg;
+      console.log(`[Helix Bus] ${msg}`);
     });
   </script>
 

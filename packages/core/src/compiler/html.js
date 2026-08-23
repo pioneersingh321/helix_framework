@@ -22,6 +22,8 @@ export function sanitizeHtml(html) {
     }
     const tpl = document.createElement("template");
     tpl.innerHTML = sanitized.trim();
+    const content = tpl.content || tpl;
+    if (typeof content.querySelectorAll !== "function") return sanitized;
     const dangerousSelectors = [
         "script",
         "iframe",
@@ -35,12 +37,13 @@ export function sanitizeHtml(html) {
         "link[rel='stylesheet']"
     ];
     dangerousSelectors.forEach((selector) => {
-        tpl.content.querySelectorAll(selector).forEach((el) => el.remove());
+        content.querySelectorAll(selector).forEach((el) => el.remove());
     });
-    tpl.content.querySelectorAll("svg script, svg *[onload]").forEach((el) => el.remove());
+    content.querySelectorAll("svg script, svg *[onload]").forEach((el) => el.remove());
     const walk = (node) => {
         if (node.nodeType === 1) {
-            Array.from(node.attributes).forEach((attr) => {
+            const attrs = node.attributes ? Array.from(node.attributes) : [];
+            attrs.forEach((attr) => {
                 const name = attr.name.toLowerCase();
                 const value = attr.value.toLowerCase();
                 if (name.startsWith("on")) {
@@ -56,9 +59,10 @@ export function sanitizeHtml(html) {
                     return;
                 }
             });
-            Array.from(node.children).forEach(walk);
+            const children = node.children || node.childNodes || [];
+            Array.from(children).forEach(walk);
         }
     };
-    Array.from(tpl.content.children).forEach(walk);
-    return tpl.innerHTML;
+    walk(content);
+    return tpl.innerHTML || sanitized;
 }

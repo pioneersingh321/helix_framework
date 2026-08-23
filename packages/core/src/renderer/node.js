@@ -32,26 +32,32 @@ export function fastUpdateNode(node, ctx, instance) {
 }
 
 export function destroyNode(node) {
+    if (!node || node.__hx_destroying) return;
+    node.__hx_destroying = true;
     const runCleanups = (n) => {
+        if (!n || n.__hx_cleaned) return;
+        n.__hx_cleaned = true;
         if (n.__hx_cleanup) {
-            n.__hx_cleanup.forEach((fn) => {
+            const cleanups = n.__hx_cleanup;
+            n.__hx_cleanup = null;
+            cleanups.forEach((fn) => {
                 try {
                     fn();
                 } catch (e) {
                     handleError(e, "destroyNode cleanup");
                 }
             });
-            n.__hx_cleanup = null;
         }
         if (n.__hx_binding && n.__hx_binding.cleanups) {
-            n.__hx_binding.cleanups.forEach((fn) => {
+            const cleanups = n.__hx_binding.cleanups;
+            n.__hx_binding.cleanups = [];
+            cleanups.forEach((fn) => {
                 try {
                     fn();
                 } catch (e) {
                     handleError(e, "destroyNode binding cleanup");
                 }
             });
-            n.__hx_binding.cleanups = [];
         }
         if (n.__hx_scope) {
             if (n.__hx_scope.stop && typeof n.__hx_scope.stop === "function") {
@@ -71,4 +77,5 @@ export function destroyNode(node) {
     runCleanups(node);
     if (node.parentNode) node.remove();
     node[BOUND] = false;
+    node.__hx_destroying = false;
 }

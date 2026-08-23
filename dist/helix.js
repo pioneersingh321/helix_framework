@@ -500,7 +500,7 @@
       cleanup(effectFn);
     }
   }
-  const VERSION = "11.1.20";
+  const VERSION = "11.1.21";
   const RAW = Symbol("__hx_raw");
   const IS_REF = Symbol("__hx_is_ref");
   const IS_REACTIVE = Symbol("__hx_is_reactive");
@@ -1859,11 +1859,34 @@
     pathCache.set(path, parts);
     return [...parts];
   }
+  function getMatchedKey(obj, prop) {
+    if (obj == null || typeof obj !== "object" && typeof obj !== "function")
+      return null;
+    if (prop in obj)
+      return prop;
+    const lower = String(prop).toLowerCase();
+    for (const k in obj) {
+      if (k.toLowerCase() === lower)
+        return k;
+    }
+    try {
+      const keys = Object.keys(obj);
+      for (let i = 0; i < keys.length; i++) {
+        if (keys[i].toLowerCase() === lower)
+          return keys[i];
+      }
+    } catch {
+    }
+    return null;
+  }
   function resolvePath(path, ctx) {
     try {
       const val = getPathParts(path).reduce((acc, part) => {
         const unwrapped = isRef(acc) ? acc.value : acc;
-        return unwrapped == null ? void 0 : unwrapped[part];
+        if (unwrapped == null)
+          return void 0;
+        const matched = getMatchedKey(unwrapped, part);
+        return matched ? unwrapped[matched] : unwrapped[part];
       }, ctx);
       return isRef(val) ? val.value : val;
     } catch (err) {
@@ -1875,7 +1898,10 @@
     try {
       return getPathParts(path).reduce((acc, part) => {
         const unwrapped = isRef(acc) ? acc.value : acc;
-        return unwrapped == null ? void 0 : unwrapped[part];
+        if (unwrapped == null)
+          return void 0;
+        const matched = getMatchedKey(unwrapped, part);
+        return matched ? unwrapped[matched] : unwrapped[part];
       }, ctx);
     } catch (err) {
       warn(`Failed to resolve raw path: ${path}`, "compiler", err);
@@ -1893,17 +1919,32 @@
     let current = ctx;
     let exists = true;
     for (let i = 0; i < parts.length; i++) {
-      if (current == null || typeof current !== "object" && typeof current !== "function" || !(parts[i] in current)) {
+      if (current == null || typeof current !== "object" && typeof current !== "function") {
         exists = false;
         break;
       }
-      current = current[parts[i]];
+      const unwrapped = isRef(current) ? current.value : current;
+      if (unwrapped == null || typeof unwrapped !== "object" && typeof unwrapped !== "function") {
+        exists = false;
+        break;
+      }
+      const matched = getMatchedKey(unwrapped, parts[i]);
+      if (matched) {
+        current = unwrapped[matched];
+      } else {
+        exists = false;
+        break;
+      }
     }
     if (exists) {
       result = isRef(current) ? current.value : current;
     } else if (isSimplePathSyntax(val)) {
       try {
-        parts.reduce((acc, part) => acc == null ? void 0 : acc[part], ctx);
+        parts.reduce((acc, part) => {
+          const u = isRef(acc) ? acc.value : acc;
+          const m = getMatchedKey(u, part);
+          return m ? u[m] : u == null ? void 0 : u[part];
+        }, ctx);
       } catch (e) {
       }
       if (!globalConfig.allowInlineExpressions && !forceExpression) {
@@ -1974,7 +2015,39 @@
     }
     return proxy;
   }
-  function createSlots(slotEls, ctx, instance, bindNode) {
+  function parseSlotAttribute(attrName, prefix = "h-") {
+    if (!attrName)
+      return { isSlot: false, name: "" };
+    if (attrName.startsWith("#")) {
+      const name = attrName.slice(1) || "default";
+      return { isSlot: true, name };
+    }
+    const slotPrefix = `${prefix}slot`;
+    if (attrName === slotPrefix) {
+      return { isSlot: true, name: "default" };
+    }
+    if (attrName.startsWith(`${slotPrefix}:`)) {
+      const name = attrName.slice(slotPrefix.length + 1) || "default";
+      return { isSlot: true, name };
+    }
+    if (attrName.startsWith(`${slotPrefix}.`)) {
+      const name = attrName.slice(slotPrefix.length + 1) || "default";
+      return { isSlot: true, name };
+    }
+    if (attrName === "v-slot") {
+      return { isSlot: true, name: "default" };
+    }
+    if (attrName.startsWith("v-slot:")) {
+      const name = attrName.slice("v-slot:".length) || "default";
+      return { isSlot: true, name };
+    }
+    if (attrName.startsWith("v-slot.")) {
+      const name = attrName.slice("v-slot.".length) || "default";
+      return { isSlot: true, name };
+    }
+    return { isSlot: false, name: "" };
+  }
+  function createSlots(slotEls, ctx, instance, bindNode, prefix = "h-") {
     const slots = {};
     slotEls.forEach((el) => {
       if (el.nodeType !== 1)
@@ -1982,8 +2055,9 @@
       let slotName = "default";
       let slotProps = null;
       Array.from(el.attributes || []).forEach((attr) => {
-        if (attr.name.startsWith("v-slot:") || attr.name.startsWith("#")) {
-          slotName = attr.name.replace(/^(v-slot:|#)/, "") || "default";
+        const parsed = parseSlotAttribute(attr.name, prefix);
+        if (parsed.isSlot) {
+          slotName = parsed.name || "default";
           const attrVal = attr.value.trim();
           if (attrVal)
             slotProps = attrVal;
@@ -2013,7 +2087,8 @@
             bindNode(clone, ctx, instance);
           }
           Array.from(clone.attributes || []).forEach((attr) => {
-            if (attr.name.startsWith("v-slot:") || attr.name.startsWith("#")) {
+            const parsed = parseSlotAttribute(attr.name, prefix);
+            if (parsed.isSlot) {
               clone.removeAttribute(attr.name);
             }
           });
@@ -2479,6 +2554,9 @@
     }
     const tpl = document.createElement("template");
     tpl.innerHTML = sanitized.trim();
+    const content = tpl.content || tpl;
+    if (typeof content.querySelectorAll !== "function")
+      return sanitized;
     const dangerousSelectors = [
       "script",
       "iframe",
@@ -2492,12 +2570,13 @@
       "link[rel='stylesheet']"
     ];
     dangerousSelectors.forEach((selector) => {
-      tpl.content.querySelectorAll(selector).forEach((el) => el.remove());
+      content.querySelectorAll(selector).forEach((el) => el.remove());
     });
-    tpl.content.querySelectorAll("svg script, svg *[onload]").forEach((el) => el.remove());
+    content.querySelectorAll("svg script, svg *[onload]").forEach((el) => el.remove());
     const walk = (node) => {
       if (node.nodeType === 1) {
-        Array.from(node.attributes).forEach((attr) => {
+        const attrs = node.attributes ? Array.from(node.attributes) : [];
+        attrs.forEach((attr) => {
           const name = attr.name.toLowerCase();
           const value = attr.value.toLowerCase();
           if (name.startsWith("on")) {
@@ -2513,33 +2592,42 @@
             return;
           }
         });
-        Array.from(node.children).forEach(walk);
+        const children = node.children || node.childNodes || [];
+        Array.from(children).forEach(walk);
       }
     };
-    Array.from(tpl.content.children).forEach(walk);
-    return tpl.innerHTML;
+    walk(content);
+    return tpl.innerHTML || sanitized;
   }
   function destroyNode(node) {
+    if (!node || node.__hx_destroying)
+      return;
+    node.__hx_destroying = true;
     const runCleanups = (n) => {
+      if (!n || n.__hx_cleaned)
+        return;
+      n.__hx_cleaned = true;
       if (n.__hx_cleanup) {
-        n.__hx_cleanup.forEach((fn) => {
+        const cleanups = n.__hx_cleanup;
+        n.__hx_cleanup = null;
+        cleanups.forEach((fn) => {
           try {
             fn();
           } catch (e) {
             handleError(e, "destroyNode cleanup");
           }
         });
-        n.__hx_cleanup = null;
       }
       if (n.__hx_binding && n.__hx_binding.cleanups) {
-        n.__hx_binding.cleanups.forEach((fn) => {
+        const cleanups = n.__hx_binding.cleanups;
+        n.__hx_binding.cleanups = [];
+        cleanups.forEach((fn) => {
           try {
             fn();
           } catch (e) {
             handleError(e, "destroyNode binding cleanup");
           }
         });
-        n.__hx_binding.cleanups = [];
       }
       if (n.__hx_scope) {
         if (n.__hx_scope.stop && typeof n.__hx_scope.stop === "function") {
@@ -2561,28 +2649,1103 @@
     if (node.parentNode)
       node.remove();
     node[BOUND] = false;
+    node.__hx_destroying = false;
   }
+  const KEYBOARD_EVENTS = /* @__PURE__ */ new Set([
+    "keydown",
+    "keyup",
+    "keypress"
+  ]);
+  const KEY_ALIASES = {
+    enter: ["Enter"],
+    tab: ["Tab"],
+    delete: ["Delete", "Backspace"],
+    esc: ["Escape", "Esc"],
+    escape: ["Escape", "Esc"],
+    space: [" ", "Space", "Spacebar"],
+    up: ["ArrowUp", "Up"],
+    down: ["ArrowDown", "Down"],
+    left: ["ArrowLeft", "Left"],
+    right: ["ArrowRight", "Right"],
+    home: ["Home"],
+    end: ["End"],
+    "page-up": ["PageUp"],
+    pageup: ["PageUp"],
+    "page-down": ["PageDown"],
+    pagedown: ["PageDown"],
+    insert: ["Insert"],
+    "caps-lock": ["CapsLock"],
+    capslock: ["CapsLock"],
+    "num-lock": ["NumLock"],
+    numlock: ["NumLock"],
+    "scroll-lock": ["ScrollLock"],
+    scrolllock: ["ScrollLock"],
+    f1: ["F1"],
+    f2: ["F2"],
+    f3: ["F3"],
+    f4: ["F4"],
+    f5: ["F5"],
+    f6: ["F6"],
+    f7: ["F7"],
+    f8: ["F8"],
+    f9: ["F9"],
+    f10: ["F10"],
+    f11: ["F11"],
+    f12: ["F12"]
+  };
+  const NON_KEY_MODIFIERS = /* @__PURE__ */ new Set([
+    "capture",
+    "once",
+    "passive",
+    "window",
+    "document",
+    "outside",
+    "stop",
+    "prevent",
+    "self",
+    "ctrl",
+    "alt",
+    "shift",
+    "meta",
+    "exact"
+  ]);
+  function isValidKeyModifier(mod) {
+    if (!mod || typeof mod !== "string")
+      return false;
+    const lower = mod.toLowerCase();
+    if (KEY_ALIASES[lower])
+      return true;
+    if (lower.length === 1)
+      return true;
+    return false;
+  }
+  function matchesKey(keyMod, eventKey) {
+    if (!eventKey)
+      return false;
+    const lowerKey = eventKey.toLowerCase();
+    const lowerMod = keyMod.toLowerCase();
+    if (KEY_ALIASES[lowerMod]) {
+      return KEY_ALIASES[lowerMod].some((alias) => alias.toLowerCase() === lowerKey || alias === eventKey);
+    }
+    if (lowerKey === lowerMod)
+      return true;
+    const hyp = eventKey.replace(/\B([A-Z])/g, "-$1").toLowerCase();
+    if (hyp === lowerMod)
+      return true;
+    return false;
+  }
+  function isKeyboardEvent(e, evtType) {
+    return typeof evtType === "string" && KEYBOARD_EVENTS.has(evtType);
+  }
+  function filterKeyModifiers(modifiers, isKeyboard, evtType = "keydown") {
+    if (!isKeyboard)
+      return [];
+    return modifiers.filter((m) => {
+      if (NON_KEY_MODIFIERS.has(m))
+        return false;
+      if (isValidKeyModifier(m))
+        return true;
+      warn(`Unknown keyboard modifier '.${m}' on @${evtType}. Allowed modifiers are key aliases (enter, esc, etc.), single characters (a-z, 0-9), or standard event modifiers.`, "event");
+      return false;
+    });
+  }
+  const MOUSE_EVENTS = /* @__PURE__ */ new Set([
+    "click",
+    "dblclick",
+    "mousedown",
+    "mouseup",
+    "contextmenu",
+    "auxclick",
+    "pointerdown",
+    "pointerup"
+  ]);
+  const MOUSE_BUTTONS = {
+    left: 0,
+    middle: 1,
+    right: 2
+  };
+  function isMouseEvent(e, evtType) {
+    return typeof evtType === "string" && MOUSE_EVENTS.has(evtType);
+  }
+  function checkMouseModifiers(modifiers, e) {
+    if (modifiers.includes("left") && e.button !== MOUSE_BUTTONS.left)
+      return false;
+    if (modifiers.includes("middle") && e.button !== MOUSE_BUTTONS.middle)
+      return false;
+    if (modifiers.includes("right") && e.button !== MOUSE_BUTTONS.right)
+      return false;
+    return true;
+  }
+  function checkSystemModifiers(modifiers, e) {
+    if (modifiers.includes("ctrl") && !e.ctrlKey)
+      return false;
+    if (modifiers.includes("alt") && !e.altKey)
+      return false;
+    if (modifiers.includes("shift") && !e.shiftKey)
+      return false;
+    if (modifiers.includes("meta") && !e.metaKey)
+      return false;
+    return true;
+  }
+  function checkExact(modifiers, e) {
+    if (!modifiers.includes("exact"))
+      return true;
+    const hasCtrl = modifiers.includes("ctrl");
+    const hasAlt = modifiers.includes("alt");
+    const hasShift = modifiers.includes("shift");
+    const hasMeta = modifiers.includes("meta");
+    if (!hasCtrl && e.ctrlKey)
+      return false;
+    if (!hasAlt && e.altKey)
+      return false;
+    if (!hasShift && e.shiftKey)
+      return false;
+    if (!hasMeta && e.metaKey)
+      return false;
+    return true;
+  }
+  function getListenerOptions(modifiers) {
+    const isCapture = modifiers.includes("capture");
+    const isOnce = modifiers.includes("once");
+    const isPassive = modifiers.includes("passive");
+    const hasNativeOpts = isCapture || isOnce || isPassive;
+    return hasNativeOpts ? { capture: isCapture, once: isOnce, passive: isPassive } : false;
+  }
+  function getListenerTarget(el, modifiers) {
+    if (modifiers.includes("window") && typeof window !== "undefined")
+      return window;
+    if (modifiers.includes("document") && typeof document !== "undefined")
+      return document;
+    return el;
+  }
+  function parseEventArgs(str) {
+    const args = [];
+    if (!str)
+      return args;
+    let depth = 0, current = "", inQuote = false, quoteChar = "";
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i];
+      if (!inQuote && (ch === '"' || ch === "'")) {
+        inQuote = true;
+        quoteChar = ch;
+        current += ch;
+      } else if (inQuote && ch === quoteChar && str[i - 1] !== "\\") {
+        inQuote = false;
+        current += ch;
+      } else if (!inQuote && (ch === "(" || ch === "{" || ch === "[")) {
+        depth++;
+        current += ch;
+      } else if (!inQuote && (ch === ")" || ch === "}" || ch === "]")) {
+        depth--;
+        current += ch;
+      } else if (!inQuote && ch === "," && depth === 0) {
+        args.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    if (current.trim())
+      args.push(current.trim());
+    return args;
+  }
+  function createEventListener(el, binding, appConfig = {}) {
+    const { value: val, arg, modifiers = [], ctx, trackCleanup } = binding;
+    const evtType = arg || "click";
+    const isStop = modifiers.includes("stop");
+    const isPrevent = modifiers.includes("prevent");
+    const isPassive = modifiers.includes("passive");
+    const isSelf = modifiers.includes("self");
+    const isOutside = modifiers.includes("outside");
+    const isOnce = modifiers.includes("once");
+    if (isPassive && isPrevent) {
+      warn(`@${evtType}.passive.prevent cannot call preventDefault() because passive listeners cannot preventDefault().`, "event");
+    }
+    const executeHandler = (e) => {
+      const isKeyboard = isKeyboardEvent(e, evtType);
+      const isMouse = isMouseEvent(e, evtType);
+      const keyMods = filterKeyModifiers(modifiers, isKeyboard, evtType);
+      if (keyMods.length > 0) {
+        if (!e.key || !keyMods.some((mod) => matchesKey(mod, e.key))) {
+          return false;
+        }
+      }
+      if (isMouse && !isKeyboard && !checkMouseModifiers(modifiers, e)) {
+        return false;
+      }
+      if (!checkSystemModifiers(modifiers, e)) {
+        return false;
+      }
+      if (!checkExact(modifiers, e)) {
+        return false;
+      }
+      if (isSelf && e.target !== el) {
+        return false;
+      }
+      if (isStop)
+        e.stopPropagation();
+      if (isPrevent && !isPassive)
+        e.preventDefault();
+      let targetFn;
+      let thisArg = ctx;
+      let args = [e];
+      const trimmed = val ? val.trim() : "";
+      const parenIdx = trimmed.indexOf("(");
+      if (parenIdx > -1 && trimmed.endsWith(")")) {
+        const fnPath = trimmed.slice(0, parenIdx).trim();
+        const argsStr = trimmed.slice(parenIdx + 1, trimmed.length - 1).trim();
+        targetFn = resolveRaw(fnPath, ctx);
+        if (fnPath.includes(".")) {
+          const parts = getPathParts(fnPath);
+          if (parts.length > 1) {
+            const rawParent = resolveRaw(parts.slice(0, -1).join("."), ctx);
+            const parentObj = isRef(rawParent) ? rawParent.value : rawParent;
+            if (parentObj && (typeof parentObj === "object" || typeof parentObj === "function")) {
+              thisArg = parentObj;
+            }
+          }
+        }
+        if (argsStr) {
+          const rawArgs = parseEventArgs(argsStr);
+          args = rawArgs.map((a) => {
+            if (a === "$event")
+              return e;
+            const resolved = resolvePath(a, ctx);
+            if (resolved !== void 0)
+              return resolved;
+            try {
+              return JSON.parse(a);
+            } catch {
+            }
+            if (a.startsWith('"') && a.endsWith('"') || a.startsWith("'") && a.endsWith("'")) {
+              return a.slice(1, -1);
+            }
+            return a;
+          });
+        } else {
+          args = [];
+        }
+      } else {
+        targetFn = resolveRaw(trimmed, ctx);
+        if (trimmed.includes(".")) {
+          const parts = getPathParts(trimmed);
+          if (parts.length > 1) {
+            const rawParent = resolveRaw(parts.slice(0, -1).join("."), ctx);
+            const parentObj = isRef(rawParent) ? rawParent.value : rawParent;
+            if (parentObj && (typeof parentObj === "object" || typeof parentObj === "function")) {
+              thisArg = parentObj;
+            }
+          }
+        }
+      }
+      if (typeof targetFn === "function") {
+        try {
+          targetFn.call(thisArg, ...args);
+        } catch (err) {
+          handleError(err, `Event @${evtType}`);
+        }
+      } else if (appConfig.allowInlineExpressions) {
+        try {
+          new Function("$ctx", "$event", `with($ctx) { ${val} }`)(ctx, e);
+        } catch (err) {
+          console.log("DEBUG listener error: val=", val, "ctx=", ctx);
+          handleError(err, `Event @${evtType}`);
+        }
+      } else {
+        warn(`Handler not found: ${val}. Inline expressions are disabled. Set allowInlineExpressions: true in config to enable inline JavaScript.`, "event");
+      }
+      return true;
+    };
+    const target = getListenerTarget(el, modifiers);
+    const options = getListenerOptions(modifiers);
+    const bind2 = () => {
+      let isCleaned = false;
+      if (isOutside) {
+        const outsideOptions = typeof options === "object" ? { ...options, once: false } : false;
+        let unbindOutside = null;
+        const outsideHandler = (e) => {
+          const isContained = typeof e.composedPath === "function" ? e.composedPath().includes(el) : el.contains(e.target);
+          if (!isContained && el !== e.target) {
+            const executed = executeHandler(e);
+            if (executed && isOnce && unbindOutside) {
+              unbindOutside();
+            }
+          }
+        };
+        if (typeof document !== "undefined") {
+          document.addEventListener(evtType, outsideHandler, outsideOptions);
+          unbindOutside = () => {
+            if (isCleaned)
+              return;
+            isCleaned = true;
+            document.removeEventListener(evtType, outsideHandler, outsideOptions);
+          };
+          if (trackCleanup)
+            trackCleanup(unbindOutside);
+          return unbindOutside;
+        }
+        return () => {
+        };
+      }
+      target.addEventListener(evtType, executeHandler, options);
+      const unbind = () => {
+        if (isCleaned)
+          return;
+        isCleaned = true;
+        target.removeEventListener(evtType, executeHandler, options);
+      };
+      if (trackCleanup)
+        trackCleanup(unbind);
+      return unbind;
+    };
+    return {
+      target,
+      eventName: evtType,
+      handler: executeHandler,
+      options,
+      isOutside,
+      bind: bind2
+    };
+  }
+  function nextFrame(fn) {
+    if (typeof requestAnimationFrame === "function") {
+      let handle2 = null;
+      let cancelled = false;
+      const handle1 = requestAnimationFrame(() => {
+        if (cancelled)
+          return;
+        handle2 = requestAnimationFrame(() => {
+          if (cancelled)
+            return;
+          fn();
+        });
+      });
+      return () => {
+        cancelled = true;
+        if (typeof cancelAnimationFrame === "function") {
+          cancelAnimationFrame(handle1);
+          if (handle2 !== null)
+            cancelAnimationFrame(handle2);
+        }
+      };
+    } else {
+      let cancelled = false;
+      const timer = setTimeout(() => {
+        if (!cancelled)
+          fn();
+      }, 16);
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+      };
+    }
+  }
+  function parseClasses(classStr) {
+    if (!classStr)
+      return [];
+    if (Array.isArray(classStr))
+      return classStr;
+    return String(classStr).trim().split(/\s+/).filter(Boolean);
+  }
+  function addClasses(el, classes) {
+    if (!el || !classes)
+      return;
+    const list = Array.isArray(classes) ? classes : parseClasses(classes);
+    if (el.classList && typeof el.classList.add === "function") {
+      list.forEach((cls) => {
+        if (cls)
+          el.classList.add(cls);
+      });
+    } else if (el.className !== void 0) {
+      const existing = new Set(parseClasses(el.className));
+      list.forEach((cls) => {
+        if (cls)
+          existing.add(cls);
+      });
+      el.className = Array.from(existing).join(" ");
+    }
+  }
+  function removeClasses(el, classes) {
+    if (!el || !classes)
+      return;
+    const list = Array.isArray(classes) ? classes : parseClasses(classes);
+    if (el.classList && typeof el.classList.remove === "function") {
+      list.forEach((cls) => {
+        if (cls)
+          el.classList.remove(cls);
+      });
+    } else if (el.className !== void 0) {
+      const existing = new Set(parseClasses(el.className));
+      list.forEach((cls) => {
+        existing.delete(cls);
+      });
+      el.className = Array.from(existing).join(" ");
+    }
+  }
+  function getTransitionDurations(el) {
+    if (typeof window === "undefined" || !window.getComputedStyle || !el || el.nodeType !== 1) {
+      return { duration: 0, delay: 0, total: 0, longestProperties: [], allProperties: [], longestAnimationNames: [] };
+    }
+    try {
+      const styles = window.getComputedStyle(el);
+      const rawTransDur = styles.transitionDuration || "0s";
+      const rawTransDelay = styles.transitionDelay || "0s";
+      const rawTransProp = styles.transitionProperty || "all";
+      const transDurParts = rawTransDur.split(",").map((s) => s.trim());
+      const transDelayParts = rawTransDelay.split(",").map((s) => s.trim());
+      const transPropParts = rawTransProp.split(",").map((s) => s.trim());
+      const numTrans = Math.max(transDurParts.length, transDelayParts.length, transPropParts.length);
+      let maxTransTotal = 0;
+      let maxTransDur = 0;
+      let maxTransDelay = 0;
+      let longestTransProps = [];
+      let allTransProps = [];
+      for (let i = 0; i < numTrans; i++) {
+        const durStr = transDurParts[i % transDurParts.length] || "0s";
+        const delayStr = transDelayParts[i % transDelayParts.length] || "0s";
+        const propName = transPropParts[i % transPropParts.length] || "all";
+        const durMs = parseFloat(durStr) * (durStr.endsWith("ms") ? 1 : 1e3) || 0;
+        const delayMs = parseFloat(delayStr) * (delayStr.endsWith("ms") ? 1 : 1e3) || 0;
+        const total = durMs + delayMs;
+        if (total > 0) {
+          allTransProps.push(propName);
+        }
+        if (total > maxTransTotal) {
+          maxTransTotal = total;
+          maxTransDur = durMs;
+          maxTransDelay = delayMs;
+          longestTransProps = [propName];
+        } else if (total === maxTransTotal && total > 0) {
+          longestTransProps.push(propName);
+        }
+      }
+      const rawAnimDur = styles.animationDuration || "0s";
+      const rawAnimDelay = styles.animationDelay || "0s";
+      const rawAnimName = styles.animationName || "none";
+      const animDurParts = rawAnimDur.split(",").map((s) => s.trim());
+      const animDelayParts = rawAnimDelay.split(",").map((s) => s.trim());
+      const animNameParts = rawAnimName.split(",").map((s) => s.trim());
+      const numAnim = Math.max(animDurParts.length, animDelayParts.length, animNameParts.length);
+      let maxAnimTotal = 0;
+      let maxAnimDur = 0;
+      let maxAnimDelay = 0;
+      let longestAnimNames = [];
+      for (let i = 0; i < numAnim; i++) {
+        const durStr = animDurParts[i % animDurParts.length] || "0s";
+        const delayStr = animDelayParts[i % animDelayParts.length] || "0s";
+        const name = animNameParts[i % animNameParts.length] || "none";
+        const durMs = parseFloat(durStr) * (durStr.endsWith("ms") ? 1 : 1e3) || 0;
+        const delayMs = parseFloat(delayStr) * (delayStr.endsWith("ms") ? 1 : 1e3) || 0;
+        const total = durMs + delayMs;
+        if (total > maxAnimTotal) {
+          maxAnimTotal = total;
+          maxAnimDur = durMs;
+          maxAnimDelay = delayMs;
+          longestAnimNames = [name];
+        } else if (total === maxAnimTotal && total > 0) {
+          longestAnimNames.push(name);
+        }
+      }
+      if (maxTransTotal >= maxAnimTotal) {
+        return {
+          duration: maxTransDur,
+          delay: maxTransDelay,
+          total: maxTransTotal,
+          longestProperties: longestTransProps,
+          allProperties: allTransProps,
+          longestAnimationNames: [],
+          type: "transition"
+        };
+      } else {
+        return {
+          duration: maxAnimDur,
+          delay: maxAnimDelay,
+          total: maxAnimTotal,
+          longestProperties: [],
+          allProperties: [],
+          longestAnimationNames: longestAnimNames,
+          type: "animation"
+        };
+      }
+    } catch {
+      return { duration: 0, delay: 0, total: 0, longestProperties: [], allProperties: [], longestAnimationNames: [] };
+    }
+  }
+  function resolveTransitionConfig(el, appConfig = {}) {
+    if (!el || el.nodeType !== 1)
+      return null;
+    const prefix = appConfig.prefix || globalConfig && globalConfig.prefix || "h-";
+    const cleanPrefix = prefix.endsWith("-") ? prefix.slice(0, -1) : prefix;
+    const hasTransitionAttr = el.hasAttribute(`${prefix}transition`) || el.hasAttribute(`data-${prefix}transition`) || el.hasAttribute("h-transition") || el.hasAttribute("hx-transition") || el.hasAttribute("data-h-transition") || el.hasAttribute("data-hx-transition");
+    const explicitName = el.getAttribute(`${prefix}transition`) || el.getAttribute(`data-${prefix}transition`) || el.getAttribute("h-transition") || el.getAttribute("hx-transition") || el.getAttribute("data-h-transition") || el.getAttribute("data-hx-transition") || el.getAttribute("name");
+    if (!hasTransitionAttr && !explicitName && !el.hasAttribute("enter-active-class") && !el.hasAttribute(`${prefix}transition:enter`)) {
+      return null;
+    }
+    const name = explicitName && explicitName.trim() && explicitName !== "true" ? explicitName.trim() : cleanPrefix;
+    const getAttr = (attrList) => {
+      for (const a of attrList) {
+        if (el.hasAttribute(a))
+          return el.getAttribute(a);
+      }
+      return null;
+    };
+    const enterFromClass = getAttr([
+      `${prefix}transition:enter-start`,
+      `${prefix}transition:enter-from`,
+      "enter-from-class",
+      "enter-start-class"
+    ]) || `${name}-enter-from`;
+    const enterActiveClass = getAttr([
+      `${prefix}transition:enter`,
+      `${prefix}transition:enter-active`,
+      "enter-active-class"
+    ]) || `${name}-enter-active`;
+    const enterToClass = getAttr([
+      `${prefix}transition:enter-end`,
+      `${prefix}transition:enter-to`,
+      "enter-to-class",
+      "enter-end-class"
+    ]) || `${name}-enter-to`;
+    const leaveFromClass = getAttr([
+      `${prefix}transition:leave-start`,
+      `${prefix}transition:leave-from`,
+      "leave-from-class",
+      "leave-start-class"
+    ]) || `${name}-leave-from`;
+    const leaveActiveClass = getAttr([
+      `${prefix}transition:leave`,
+      `${prefix}transition:leave-active`,
+      "leave-active-class"
+    ]) || `${name}-leave-active`;
+    const leaveToClass = getAttr([
+      `${prefix}transition:leave-end`,
+      `${prefix}transition:leave-to`,
+      "leave-to-class",
+      "leave-end-class"
+    ]) || `${name}-leave-to`;
+    const moveClass = getAttr([
+      `${prefix}transition:move`,
+      "move-class"
+    ]) || `${name}-move`;
+    return {
+      name,
+      enterFromClass,
+      enterActiveClass,
+      enterToClass,
+      leaveFromClass,
+      leaveActiveClass,
+      leaveToClass,
+      moveClass
+    };
+  }
+  function fireTransitionHook(el, hookName, eventData = {}) {
+    if (!el || typeof el.dispatchEvent !== "function")
+      return;
+    try {
+      const evt = typeof CustomEvent === "function" ? new CustomEvent(hookName, { bubbles: false, cancelable: true, detail: eventData }) : { type: hookName, detail: eventData, target: el };
+      el.dispatchEvent(evt);
+    } catch {
+    }
+  }
+  function cancelFlip(node) {
+    if (!node || node.nodeType !== 1)
+      return;
+    if (node.__hx_flip && typeof node.__hx_flip.cancel === "function") {
+      node.__hx_flip.cancel();
+      node.__hx_flip = null;
+    }
+  }
+  function cancelTransition(el) {
+    if (!el || el.nodeType !== 1)
+      return;
+    if (el.__hx_current_transition && typeof el.__hx_current_transition.cancel === "function") {
+      el.__hx_current_transition.cancel();
+      el.__hx_current_transition = null;
+    }
+    cancelFlip(el);
+    if (el.__hx_enter_cancel) {
+      try {
+        el.__hx_enter_cancel();
+      } catch {
+      }
+      el.__hx_enter_cancel = null;
+    }
+    if (el.__hx_leave_cancel) {
+      try {
+        el.__hx_leave_cancel();
+      } catch {
+      }
+      el.__hx_leave_cancel = null;
+    }
+  }
+  function enter(el, config, onDone) {
+    if (!el || el.nodeType !== 1) {
+      if (onDone)
+        onDone({ cancelled: false, el });
+      return;
+    }
+    if (!config) {
+      if (onDone)
+        onDone({ cancelled: false, el });
+      return;
+    }
+    cancelTransition(el);
+    fireTransitionHook(el, "before-enter");
+    const { enterFromClass, enterActiveClass, enterToClass } = config;
+    addClasses(el, enterFromClass);
+    addClasses(el, enterActiveClass);
+    let isDone = false;
+    let fallbackTimer = null;
+    let cancelNextFrame = null;
+    let durations = null;
+    const cleanupClasses = () => {
+      removeClasses(el, enterToClass);
+      removeClasses(el, enterActiveClass);
+      removeClasses(el, enterFromClass);
+    };
+    const finish = (cancelled = false) => {
+      if (isDone)
+        return;
+      isDone = true;
+      if (cancelNextFrame)
+        cancelNextFrame();
+      if (fallbackTimer)
+        clearTimeout(fallbackTimer);
+      el.removeEventListener("transitionend", onEnd);
+      el.removeEventListener("animationend", onEnd);
+      cleanupClasses();
+      if (Array.isArray(el.__hx_cleanup)) {
+        const idx = el.__hx_cleanup.indexOf(nodeCleanupFn);
+        if (idx !== -1)
+          el.__hx_cleanup.splice(idx, 1);
+      }
+      if (el.__hx_current_transition && el.__hx_current_transition.cancel === cancelRunner) {
+        el.__hx_current_transition = null;
+      }
+      el.__hx_enter_cancel = null;
+      fireTransitionHook(el, cancelled ? "enter-cancelled" : "after-enter");
+      if (onDone)
+        onDone({ cancelled, el });
+    };
+    const onEnd = (e) => {
+      if (!e || e.target !== el)
+        return;
+      if (e.type === "transitionend") {
+        if (durations && durations.longestProperties && durations.longestProperties.length > 0) {
+          const prop = e.propertyName;
+          const isAll = durations.longestProperties.includes("all");
+          const isMatch = isAll || prop && durations.longestProperties.includes(prop);
+          if (!isMatch)
+            return;
+        }
+        finish(false);
+      } else if (e.type === "animationend") {
+        if (durations && durations.longestAnimationNames && durations.longestAnimationNames.length > 0) {
+          const animName = e.animationName;
+          const isMatch = animName && durations.longestAnimationNames.includes(animName);
+          if (!isMatch)
+            return;
+        }
+        finish(false);
+      }
+    };
+    const cancelRunner = () => {
+      finish(true);
+    };
+    const nodeCleanupFn = () => {
+      if (!isDone) {
+        finish(true);
+      }
+    };
+    el.__hx_cleanup = el.__hx_cleanup || [];
+    el.__hx_cleanup.push(nodeCleanupFn);
+    el.__hx_current_transition = { type: "enter", cancel: cancelRunner };
+    el.__hx_enter_cancel = cancelRunner;
+    cancelNextFrame = nextFrame(() => {
+      if (isDone)
+        return;
+      removeClasses(el, enterFromClass);
+      addClasses(el, enterToClass);
+      fireTransitionHook(el, "enter");
+      el.addEventListener("transitionend", onEnd);
+      el.addEventListener("animationend", onEnd);
+      durations = getTransitionDurations(el);
+      const timeoutMs = durations.total > 0 ? durations.total + 50 : 20;
+      fallbackTimer = setTimeout(() => finish(false), timeoutMs);
+    });
+  }
+  function leave(el, config, onDone) {
+    if (!el || el.nodeType !== 1) {
+      if (onDone)
+        onDone({ cancelled: false, el });
+      return;
+    }
+    if (!config) {
+      if (onDone)
+        onDone({ cancelled: false, el });
+      return;
+    }
+    cancelTransition(el);
+    fireTransitionHook(el, "before-leave");
+    const { leaveFromClass, leaveActiveClass, leaveToClass } = config;
+    addClasses(el, leaveFromClass);
+    addClasses(el, leaveActiveClass);
+    let isDone = false;
+    let fallbackTimer = null;
+    let cancelNextFrame = null;
+    let durations = null;
+    const cleanupClasses = () => {
+      removeClasses(el, leaveToClass);
+      removeClasses(el, leaveActiveClass);
+      removeClasses(el, leaveFromClass);
+    };
+    const finish = (cancelled = false) => {
+      if (isDone)
+        return;
+      isDone = true;
+      if (cancelNextFrame)
+        cancelNextFrame();
+      if (fallbackTimer)
+        clearTimeout(fallbackTimer);
+      el.removeEventListener("transitionend", onEnd);
+      el.removeEventListener("animationend", onEnd);
+      cleanupClasses();
+      if (Array.isArray(el.__hx_cleanup)) {
+        const idx = el.__hx_cleanup.indexOf(nodeCleanupFn);
+        if (idx !== -1)
+          el.__hx_cleanup.splice(idx, 1);
+      }
+      if (el.__hx_current_transition && el.__hx_current_transition.cancel === cancelRunner) {
+        el.__hx_current_transition = null;
+      }
+      el.__hx_leave_cancel = null;
+      fireTransitionHook(el, cancelled ? "leave-cancelled" : "after-leave");
+      if (onDone)
+        onDone({ cancelled, el });
+    };
+    const onEnd = (e) => {
+      if (!e || e.target !== el)
+        return;
+      if (e.type === "transitionend") {
+        if (durations && durations.longestProperties && durations.longestProperties.length > 0) {
+          const prop = e.propertyName;
+          const isAll = durations.longestProperties.includes("all");
+          const isMatch = isAll || prop && durations.longestProperties.includes(prop);
+          if (!isMatch)
+            return;
+        }
+        finish(false);
+      } else if (e.type === "animationend") {
+        if (durations && durations.longestAnimationNames && durations.longestAnimationNames.length > 0) {
+          const animName = e.animationName;
+          const isMatch = animName && durations.longestAnimationNames.includes(animName);
+          if (!isMatch)
+            return;
+        }
+        finish(false);
+      }
+    };
+    const cancelRunner = () => {
+      finish(true);
+    };
+    const nodeCleanupFn = () => {
+      if (!isDone) {
+        finish(true);
+      }
+    };
+    el.__hx_cleanup = el.__hx_cleanup || [];
+    el.__hx_cleanup.push(nodeCleanupFn);
+    el.__hx_current_transition = { type: "leave", cancel: cancelRunner };
+    el.__hx_leave_cancel = cancelRunner;
+    cancelNextFrame = nextFrame(() => {
+      if (isDone)
+        return;
+      removeClasses(el, leaveFromClass);
+      addClasses(el, leaveToClass);
+      fireTransitionHook(el, "leave");
+      el.addEventListener("transitionend", onEnd);
+      el.addEventListener("animationend", onEnd);
+      durations = getTransitionDurations(el);
+      const timeoutMs = durations.total > 0 ? durations.total + 50 : 20;
+      fallbackTimer = setTimeout(() => finish(false), timeoutMs);
+    });
+  }
+  function recordPositions(nodes) {
+    const map = /* @__PURE__ */ new Map();
+    if (!nodes)
+      return map;
+    nodes.forEach((node) => {
+      if (node && node.nodeType === 1 && typeof node.getBoundingClientRect === "function") {
+        map.set(node, node.getBoundingClientRect());
+      }
+    });
+    return map;
+  }
+  function applyFlip(oldPositions, moveClass = "h-move") {
+    if (!oldPositions || oldPositions.size === 0)
+      return;
+    const movedNodes = [];
+    oldPositions.forEach((oldRect, node) => {
+      if (!node.parentNode || typeof node.getBoundingClientRect !== "function")
+        return;
+      const newRect = node.getBoundingClientRect();
+      const dx = oldRect.left - newRect.left;
+      const dy = oldRect.top - newRect.top;
+      if (dx !== 0 || dy !== 0) {
+        cancelFlip(node);
+        movedNodes.push({ node, dx, dy });
+        node.style.transform = `translate(${dx}px, ${dy}px)`;
+        node.style.transitionDuration = "0s";
+      }
+    });
+    if (movedNodes.length === 0)
+      return;
+    movedNodes.forEach(({ node }) => {
+      let isDone = false;
+      let fallbackTimer = null;
+      let cancelNextFrame = null;
+      const cleanupFlip = () => {
+        if (isDone)
+          return;
+        isDone = true;
+        if (cancelNextFrame)
+          cancelNextFrame();
+        if (fallbackTimer)
+          clearTimeout(fallbackTimer);
+        node.removeEventListener("transitionend", onEnd);
+        removeClasses(node, moveClass);
+        node.style.transform = "";
+        node.style.transitionDuration = "";
+        if (node.__hx_flip && node.__hx_flip.cancel === cancelRunner) {
+          node.__hx_flip = null;
+        }
+        if (Array.isArray(node.__hx_cleanup)) {
+          const idx = node.__hx_cleanup.indexOf(nodeCleanupFn);
+          if (idx !== -1)
+            node.__hx_cleanup.splice(idx, 1);
+        }
+      };
+      const onEnd = (e) => {
+        if (e && e.target !== node)
+          return;
+        cleanupFlip();
+      };
+      const cancelRunner = () => {
+        cleanupFlip();
+      };
+      const nodeCleanupFn = () => {
+        cleanupFlip();
+      };
+      node.__hx_cleanup = node.__hx_cleanup || [];
+      node.__hx_cleanup.push(nodeCleanupFn);
+      node.__hx_flip = { cancel: cancelRunner };
+      cancelNextFrame = nextFrame(() => {
+        if (isDone)
+          return;
+        addClasses(node, moveClass);
+        node.style.transform = "";
+        node.style.transitionDuration = "";
+        node.addEventListener("transitionend", onEnd);
+        const durations = getTransitionDurations(node);
+        const timeoutMs = durations.total > 0 ? durations.total + 50 : 500;
+        fallbackTimer = setTimeout(() => {
+          cleanupFlip();
+        }, timeoutMs);
+      });
+    });
+  }
+  function resolveTeleportTarget(to) {
+    if (!to)
+      return null;
+    if (typeof to === "object" && to.nodeType === 1)
+      return to;
+    if (typeof to === "string") {
+      if (typeof document !== "undefined") {
+        if (to === "body")
+          return document.body;
+        if (to === "head")
+          return document.head;
+        return document.querySelector(to);
+      }
+    }
+    return null;
+  }
+  const Teleport = {
+    name: "Teleport",
+    props: {
+      to: { default: "body" },
+      disabled: { default: false }
+    },
+    setup(ctx) {
+      let placeholder = null;
+      let movedNodes = [];
+      let placementEffect = null;
+      let isTornDown = false;
+      const teardown = () => {
+        if (isTornDown)
+          return;
+        isTornDown = true;
+        if (placementEffect) {
+          cleanup(placementEffect);
+          placementEffect = null;
+        }
+        const nodesToDestroy = [...movedNodes];
+        movedNodes = [];
+        nodesToDestroy.forEach((node) => destroyNode(node));
+        if (placeholder && placeholder.parentNode) {
+          placeholder.parentNode.removeChild(placeholder);
+        }
+        placeholder = null;
+      };
+      const inst = currentInstance;
+      onMounted((el) => {
+        const container = el || (inst == null ? void 0 : inst.root);
+        if (!container || isTornDown)
+          return;
+        const doc = container.ownerDocument || (typeof document !== "undefined" ? document : null);
+        placeholder = doc ? doc.createComment(" teleport-anchor ") : { nodeType: 8, textContent: " teleport-anchor " };
+        const parent = container.parentNode;
+        if (!parent)
+          return;
+        parent.insertBefore(placeholder, container);
+        movedNodes = Array.from(container.childNodes || []);
+        movedNodes.forEach((node) => {
+          if (node.parentNode === container) {
+            container.removeChild(node);
+          }
+        });
+        parent.removeChild(container);
+        const updatePlacement = () => {
+          if (isTornDown)
+            return;
+          const props = ctx.props || ctx;
+          const isDisabled = Boolean(typeof props.disabled === "function" ? props.disabled() : props.disabled);
+          const targetSelector = typeof props.to === "function" ? props.to() : props.to;
+          if (isDisabled) {
+            if (placeholder && placeholder.parentNode) {
+              movedNodes.forEach((node) => {
+                placeholder.parentNode.insertBefore(node, placeholder);
+              });
+            }
+          } else {
+            const targetEl = resolveTeleportTarget(targetSelector);
+            if (targetEl) {
+              movedNodes.forEach((node) => {
+                targetEl.appendChild(node);
+              });
+            } else {
+              warn(`[Helix Teleport] Target container "${targetSelector}" not found in document.`, "teleport");
+              if (placeholder && placeholder.parentNode) {
+                movedNodes.forEach((node) => {
+                  placeholder.parentNode.insertBefore(node, placeholder);
+                });
+              }
+            }
+          }
+        };
+        placementEffect = effect(updatePlacement, { name: "teleport-placement" });
+        container.__hx_cleanup = container.__hx_cleanup || [];
+        container.__hx_cleanup.push(teardown);
+        placeholder.__hx_cleanup = placeholder.__hx_cleanup || [];
+        placeholder.__hx_cleanup.push(teardown);
+      });
+      onUnmounted(() => {
+        teardown();
+      });
+      return {};
+    }
+  };
   function createBuiltinDirectives(appConfig) {
     const dirs = {};
     dirs.ref = {
-      mounted(el, { value, ctx }) {
+      selfManaged: true,
+      mounted(el, { value, ctx, instance, trackCleanup }) {
+        if (!value)
+          return;
+        if (typeof value === "function") {
+          try {
+            value(el);
+          } catch (err) {
+            handleError(err, "function ref mount", instance);
+          }
+          if (trackCleanup) {
+            trackCleanup(() => {
+              try {
+                value(null);
+              } catch (err) {
+                handleError(err, "function ref unmount", instance);
+              }
+            });
+          }
+          return;
+        }
+        if (instance && instance.templateRefs && instance.templateRefs.has(value)) {
+          const tRef = instance.templateRefs.get(value);
+          tRef.value = el;
+          if (trackCleanup) {
+            trackCleanup(() => {
+              if (tRef.value === el)
+                tRef.value = null;
+            });
+          }
+        }
+        if (ctx && typeof ctx[value] === "function") {
+          const fn = ctx[value];
+          try {
+            fn(el);
+          } catch (err) {
+            handleError(err, "context function ref mount", instance);
+          }
+          if (trackCleanup) {
+            trackCleanup(() => {
+              try {
+                fn(null);
+              } catch (err) {
+                handleError(err, "context function ref unmount", instance);
+              }
+            });
+          }
+          return;
+        }
         const parts = getPathParts(value);
         const last = parts.pop();
         const parent = parts.reduce((acc, part) => acc == null ? void 0 : acc[part], ctx);
-        if (parent)
-          parent[last] = el;
+        if (parent && last !== void 0) {
+          if (isRef(parent[last])) {
+            parent[last].value = el;
+            if (trackCleanup) {
+              trackCleanup(() => {
+                if (parent[last] && parent[last].value === el)
+                  parent[last].value = null;
+              });
+            }
+          } else {
+            parent[last] = el;
+            if (trackCleanup) {
+              trackCleanup(() => {
+                if (parent[last] === el)
+                  parent[last] = null;
+              });
+            }
+          }
+        }
         if (ctx && typeof ctx === "object") {
           if (!ctx.$refs)
             ctx.$refs = {};
           ctx.$refs[value] = el;
+          if (trackCleanup) {
+            trackCleanup(() => {
+              if (ctx.$refs && ctx.$refs[value] === el) {
+                delete ctx.$refs[value];
+              }
+            });
+          }
         }
       }
     };
     dirs.text = {
-      mounted(el, binding) {
-        this.updated(el, binding);
-      },
-      updated(el, { value: val, ctx, instance, trackCleanup }) {
+      selfManaged: true,
+      mounted(el, { value: val, ctx, instance, trackCleanup }) {
         el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.TEXT;
         let initialRan = false;
         const updateFn = () => {
@@ -2596,14 +3759,18 @@
         };
         const e = effect(updateFn, { name: `text: ${val}`, area: "directive" });
         initialRan = true;
-        trackCleanup(() => cleanup(e));
+        let isCleaned = false;
+        trackCleanup(() => {
+          if (isCleaned)
+            return;
+          isCleaned = true;
+          cleanup(e);
+        });
       }
     };
     dirs.html = {
-      mounted(el, binding) {
-        this.updated(el, binding);
-      },
-      updated(el, { value: val, ctx, instance, trackCleanup }) {
+      selfManaged: true,
+      mounted(el, { value: val, ctx, instance, trackCleanup }) {
         let initialRan = false;
         const updateFn = () => {
           const res = resolveExpression(val, ctx, { fallback: "", contextName: "hx-html" });
@@ -2616,14 +3783,18 @@
         };
         const e = effect(updateFn, { name: `html: ${val}`, area: "directive" });
         initialRan = true;
-        trackCleanup(() => cleanup(e));
+        let isCleaned = false;
+        trackCleanup(() => {
+          if (isCleaned)
+            return;
+          isCleaned = true;
+          cleanup(e);
+        });
       }
     };
     dirs.model = {
-      mounted(el, binding) {
-        this.updated(el, binding);
-      },
-      updated(el, { value: val, modifiers = [], ctx, instance, trackCleanup }) {
+      selfManaged: true,
+      mounted(el, { value: val, modifiers = [], ctx, instance, trackCleanup }) {
         const isCheck = el.type === "checkbox";
         const isRadio = el.type === "radio";
         const isSelect = el.tagName === "SELECT";
@@ -2649,17 +3820,50 @@
         }
         const evtType = isCheck || isRadio || isSelect ? "change" : isLazy ? "change" : "input";
         let debounceTimer = null;
+        const toNumber = (v) => {
+          if (v === "" || v === null || v === void 0)
+            return "";
+          const n = parseFloat(v);
+          return isNaN(n) ? v : n;
+        };
+        let trueVal = true;
+        let falseVal = false;
+        if (isCheck) {
+          if (el.hasAttribute("true-value"))
+            trueVal = el.getAttribute("true-value");
+          else if (el.hasAttribute(":true-value"))
+            trueVal = resolvePath(el.getAttribute(":true-value"), ctx);
+          else if (appConfig.prefix && el.hasAttribute(`${appConfig.prefix}bind:true-value`))
+            trueVal = resolvePath(el.getAttribute(`${appConfig.prefix}bind:true-value`), ctx);
+          if (el.hasAttribute("false-value"))
+            falseVal = el.getAttribute("false-value");
+          else if (el.hasAttribute(":false-value"))
+            falseVal = resolvePath(el.getAttribute(":false-value"), ctx);
+          else if (appConfig.prefix && el.hasAttribute(`${appConfig.prefix}bind:false-value`))
+            falseVal = resolvePath(el.getAttribute(`${appConfig.prefix}bind:false-value`), ctx);
+        }
         const updateModel = (e2) => {
           const parts = getPathParts(val);
           const last = parts.pop();
           const parent = parts.reduce((acc, part) => acc == null ? void 0 : acc[part], ctx);
           if (parent) {
             if (isCheck) {
-              parent[last] = e2.target.checked;
+              const current = parent[last];
+              if (Array.isArray(current)) {
+                const valToMatch = isNumber ? toNumber(el.value) : el.value;
+                const idx = current.indexOf(valToMatch);
+                if (e2.target.checked && idx === -1) {
+                  current.push(valToMatch);
+                } else if (!e2.target.checked && idx > -1) {
+                  current.splice(idx, 1);
+                }
+              } else {
+                parent[last] = e2.target.checked ? trueVal : falseVal;
+              }
             } else if (isRadio) {
-              parent[last] = e2.target.value;
+              parent[last] = isNumber ? toNumber(e2.target.value) : e2.target.value;
             } else if (isSelectMultiple) {
-              const selected = Array.from(e2.target.selectedOptions).map((opt) => opt.value);
+              const selected = Array.from(e2.target.selectedOptions || []).map((opt) => isNumber ? toNumber(opt.value) : opt.value);
               parent[last] = selected;
             } else {
               let rawValue = e2.target.value;
@@ -2667,8 +3871,7 @@
                 rawValue = rawValue.trim();
               }
               if (isNumber) {
-                const num = rawValue === "" ? "" : Number(rawValue);
-                parent[last] = Number.isNaN(num) ? rawValue : num;
+                parent[last] = toNumber(rawValue);
               } else {
                 parent[last] = rawValue;
               }
@@ -2687,26 +3890,46 @@
           }
         };
         el.addEventListener(evtType, handler);
+        let blurHandler = null;
+        if (isTrim && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) {
+          blurHandler = () => {
+            if (typeof el.value === "string") {
+              const trimmed = el.value.trim();
+              if (el.value !== trimmed) {
+                el.value = trimmed;
+              }
+            }
+          };
+          el.addEventListener("blur", blurHandler);
+        }
         let initialRan = false;
         const updateFn = () => {
           const current = resolvePath(val, ctx);
           let changed = false;
           if (isRadio) {
-            const shouldCheck = current === el.value;
+            const shouldCheck = String(current) === String(el.value);
             if (el.checked !== shouldCheck) {
               el.checked = shouldCheck;
               changed = true;
             }
           } else if (isCheck) {
-            const shouldCheck = !!current;
-            if (el.checked !== shouldCheck) {
-              el.checked = shouldCheck;
-              changed = true;
+            if (Array.isArray(current)) {
+              const shouldCheck = current.includes(el.value) || current.includes(Number(el.value));
+              if (el.checked !== shouldCheck) {
+                el.checked = shouldCheck;
+                changed = true;
+              }
+            } else {
+              const shouldCheck = current === trueVal || trueVal === true && Boolean(current);
+              if (el.checked !== shouldCheck) {
+                el.checked = shouldCheck;
+                changed = true;
+              }
             }
           } else if (isSelectMultiple) {
-            const selectedValues = Array.isArray(current) ? current : [];
-            Array.from(el.options).forEach((opt) => {
-              const sel = selectedValues.includes(opt.value);
+            const selectedValues = Array.isArray(current) ? current.map(String) : [];
+            Array.from(el.options || []).forEach((opt) => {
+              const sel = selectedValues.includes(String(opt.value));
               if (opt.selected !== sel) {
                 opt.selected = sel;
                 changed = true;
@@ -2724,34 +3947,53 @@
         };
         const e = effect(updateFn, { name: `model: ${val}`, area: "directive" });
         initialRan = true;
+        let isCleaned = false;
         trackCleanup(() => {
+          if (isCleaned)
+            return;
+          isCleaned = true;
           if (debounceTimer)
             clearTimeout(debounceTimer);
           el.removeEventListener(evtType, handler);
+          if (blurHandler)
+            el.removeEventListener("blur", blurHandler);
           cleanup(e);
         });
       }
     };
     dirs.bind = {
-      mounted(el, binding) {
-        this.updated(el, binding);
-      },
-      updated(el, { value: val, arg, ctx, instance, trackCleanup }) {
+      selfManaged: true,
+      mounted(el, { value: val, arg, ctx, instance, trackCleanup }) {
         if (!arg)
           return;
-        const trimmed = val.trim();
+        const isDynamicArg = arg.startsWith("[") && arg.endsWith("]");
+        const dynamicArgExp = isDynamicArg ? arg.slice(1, -1).trim() : null;
+        const trimmed = val ? val.trim() : "";
         const isObjectLiteral = trimmed.startsWith("{") && trimmed.endsWith("}") && trimmed.includes(":");
         let initialRan = false;
+        let lastAppliedArg = null;
         const updateFn = () => {
+          const effectiveArg = isDynamicArg ? resolveExpression(dynamicArgExp, ctx, { contextName: "dynamic-arg" }) : arg;
+          if (lastAppliedArg && lastAppliedArg !== effectiveArg) {
+            if (lastAppliedArg === "class")
+              el.className = "";
+            else if (lastAppliedArg === "style")
+              el.style.cssText = "";
+            else
+              el.removeAttribute(lastAppliedArg);
+          }
+          lastAppliedArg = effectiveArg;
+          if (!effectiveArg || typeof effectiveArg !== "string")
+            return;
           let result;
-          if (isObjectLiteral && (arg === "class" || arg === "style")) {
-            result = resolveExpression(val, ctx, { contextName: `v-bind:${arg}`, forceExpression: true });
+          if (isObjectLiteral && (effectiveArg === "class" || effectiveArg === "style")) {
+            result = resolveExpression(val, ctx, { contextName: `v-bind:${effectiveArg}`, forceExpression: true });
           } else if (isObjectLiteral) {
             result = resolveExpression(val, ctx, { contextName: "v-bind object" });
           } else {
-            result = resolveExpression(val, ctx, { contextName: `v-bind:${arg}`, fallback: void 0 });
+            result = resolveExpression(val, ctx, { contextName: `v-bind:${effectiveArg}`, fallback: void 0 });
           }
-          if (arg === "class") {
+          if (effectiveArg === "class") {
             el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.CLASS;
             if (typeof result === "object" && result !== null) {
               Object.keys(result).forEach((k) => {
@@ -2764,7 +4006,7 @@
               if (el.className !== newClass)
                 el.className = newClass;
             }
-          } else if (arg === "style") {
+          } else if (effectiveArg === "style") {
             el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.STYLE;
             if (typeof result === "object" && result !== null)
               Object.assign(el.style, result);
@@ -2773,222 +4015,124 @@
               if (el.style.cssText !== newStyle)
                 el.style.cssText = newStyle;
             }
-          } else if (arg === "value" && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT")) {
+          } else if (effectiveArg === "value" && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT")) {
             const newValue = result ?? "";
             if (el.value !== newValue)
               el.value = newValue;
           } else if (typeof result === "boolean") {
             if (result) {
-              if (!el.hasAttribute(arg))
-                el.setAttribute(arg, "");
+              if (!el.hasAttribute(effectiveArg))
+                el.setAttribute(effectiveArg, "");
             } else {
-              if (el.hasAttribute(arg))
-                el.removeAttribute(arg);
+              if (el.hasAttribute(effectiveArg))
+                el.removeAttribute(effectiveArg);
             }
           } else {
             const newValue = result ?? "";
-            if (el.getAttribute(arg) !== newValue)
-              el.setAttribute(arg, newValue);
+            if (el.getAttribute(effectiveArg) !== newValue)
+              el.setAttribute(effectiveArg, newValue);
           }
           if (initialRan && instance)
             queueComponentUpdated(instance);
         };
         const e = effect(updateFn, { name: `bind: ${arg}`, area: "directive" });
         initialRan = true;
-        trackCleanup(() => cleanup(e));
+        let isCleaned = false;
+        trackCleanup(() => {
+          if (isCleaned)
+            return;
+          isCleaned = true;
+          cleanup(e);
+          if (lastAppliedArg && isDynamicArg) {
+            el.removeAttribute(lastAppliedArg);
+          }
+        });
       }
     };
     dirs.on = {
-      mounted(el, { value: val, arg, modifiers = [], ctx, trackCleanup }) {
-        const evtType = arg || "click";
-        const isWindow = modifiers.includes("window");
-        const isDocument = modifiers.includes("document");
-        const isOutside = modifiers.includes("outside");
-        const isPrevent = modifiers.includes("prevent");
-        const isStop = modifiers.includes("stop");
-        const isSelf = modifiers.includes("self");
-        const isOnce = modifiers.includes("once");
-        const isPassive = modifiers.includes("passive");
-        const isCapture = modifiers.includes("capture");
-        const keyModifiers = {
-          enter: ["Enter"],
-          escape: ["Escape", "Esc"],
-          esc: ["Escape", "Esc"],
-          tab: ["Tab"],
-          space: [" ", "Spacebar"],
-          up: ["ArrowUp", "Up"],
-          down: ["ArrowDown", "Down"],
-          left: ["ArrowLeft", "Left"],
-          right: ["ArrowRight", "Right"],
-          delete: ["Delete", "Backspace"]
-        };
-        const parseArgs = (str) => {
-          const args = [];
-          if (!str)
-            return args;
-          let depth = 0, current = "", inQuote = false, quoteChar = "";
-          for (let i = 0; i < str.length; i++) {
-            const ch = str[i];
-            if (!inQuote && (ch === '"' || ch === "'")) {
-              inQuote = true;
-              quoteChar = ch;
-              current += ch;
-            } else if (inQuote && ch === quoteChar && str[i - 1] !== "\\") {
-              inQuote = false;
-              current += ch;
-            } else if (!inQuote && (ch === "(" || ch === "{" || ch === "[")) {
-              depth++;
-              current += ch;
-            } else if (!inQuote && (ch === ")" || ch === "}" || ch === "]")) {
-              depth--;
-              current += ch;
-            } else if (!inQuote && ch === "," && depth === 0) {
-              args.push(current.trim());
-              current = "";
-            } else {
-              current += ch;
-            }
-          }
-          if (current.trim())
-            args.push(current.trim());
-          return args;
-        };
-        const executeHandler = (e) => {
-          if (isPrevent)
-            e.preventDefault();
-          if (isStop)
-            e.stopPropagation();
-          if (isSelf && e.target !== el)
-            return;
-          if (modifiers.includes("ctrl") && !e.ctrlKey)
-            return;
-          if (modifiers.includes("alt") && !e.altKey)
-            return;
-          if (modifiers.includes("shift") && !e.shiftKey)
-            return;
-          if (modifiers.includes("meta") && !e.metaKey)
-            return;
-          for (const keyMod in keyModifiers) {
-            if (modifiers.includes(keyMod)) {
-              if (!e.key || !keyModifiers[keyMod].includes(e.key)) {
-                return;
+      selfManaged: true,
+      mounted(el, binding) {
+        const { arg, ctx, trackCleanup } = binding;
+        if (arg && arg.startsWith("[") && arg.endsWith("]")) {
+          const dynamicExp = arg.slice(1, -1).trim();
+          let currentUnbind = null;
+          let lastEvtType = null;
+          const updateEffect = effect(() => {
+            const dynamicEvt = resolveExpression(dynamicExp, ctx, { contextName: "dynamic-event" });
+            if (dynamicEvt !== lastEvtType) {
+              if (currentUnbind) {
+                currentUnbind();
+                currentUnbind = null;
+              }
+              lastEvtType = dynamicEvt;
+              if (dynamicEvt && typeof dynamicEvt === "string") {
+                const dynBinding = { ...binding, arg: dynamicEvt };
+                const listener = createEventListener(el, dynBinding, appConfig);
+                currentUnbind = listener.bind();
               }
             }
-          }
-          let targetFn;
-          let thisArg = ctx;
-          let args = [e];
-          const trimmed = val ? val.trim() : "";
-          const parenIdx = trimmed.indexOf("(");
-          if (parenIdx > -1 && trimmed.endsWith(")")) {
-            const fnPath = trimmed.slice(0, parenIdx).trim();
-            const argsStr = trimmed.slice(parenIdx + 1, trimmed.length - 1).trim();
-            targetFn = resolveRaw(fnPath, ctx);
-            if (fnPath.includes(".")) {
-              const parts = getPathParts(fnPath);
-              if (parts.length > 1) {
-                const rawParent = resolveRaw(parts.slice(0, -1).join("."), ctx);
-                const parentObj = isRef(rawParent) ? rawParent.value : rawParent;
-                if (parentObj && (typeof parentObj === "object" || typeof parentObj === "function")) {
-                  thisArg = parentObj;
-                }
-              }
-            }
-            if (argsStr) {
-              const rawArgs = parseArgs(argsStr);
-              args = rawArgs.map((a) => {
-                if (a === "$event")
-                  return e;
-                const resolved = resolvePath(a, ctx);
-                if (resolved !== void 0)
-                  return resolved;
-                try {
-                  return JSON.parse(a);
-                } catch {
-                }
-                if (a.startsWith('"') && a.endsWith('"') || a.startsWith("'") && a.endsWith("'")) {
-                  return a.slice(1, -1);
-                }
-                return a;
-              });
-            } else {
-              args = [];
-            }
-          } else {
-            targetFn = resolveRaw(trimmed, ctx);
-            if (trimmed.includes(".")) {
-              const parts = getPathParts(trimmed);
-              if (parts.length > 1) {
-                const rawParent = resolveRaw(parts.slice(0, -1).join("."), ctx);
-                const parentObj = isRef(rawParent) ? rawParent.value : rawParent;
-                if (parentObj && (typeof parentObj === "object" || typeof parentObj === "function")) {
-                  thisArg = parentObj;
-                }
-              }
-            }
-          }
-          if (typeof targetFn === "function") {
-            try {
-              targetFn.call(thisArg, ...args);
-            } catch (err) {
-              handleError(err, `Event @${evtType}`);
-            }
-          } else if (appConfig.allowInlineExpressions) {
-            try {
-              new Function("$ctx", "$event", `with($ctx) { ${val} }`)(ctx, e);
-            } catch (err) {
-              handleError(err, `Event @${evtType}`);
-            }
-          } else {
-            try {
-              const isCall = trimmed.endsWith(")");
-              const fn = new Function("$ctx", "$event", `with($ctx) { return (${isCall ? trimmed : trimmed + "($event)"}); }`);
-              fn(ctx, e);
-            } catch (inlineErr) {
-              warn(`Handler not found: ${val}`, "event");
-            }
-          }
-        };
-        if (isOutside) {
-          const outsideHandler = (e) => {
-            if (!el.contains(e.target) && el !== e.target) {
-              executeHandler(e);
-            }
-          };
-          if (typeof document !== "undefined") {
-            document.addEventListener("click", outsideHandler);
-            trackCleanup(() => document.removeEventListener("click", outsideHandler));
-          }
-          return;
+          }, { name: `on:[${dynamicExp}]`, area: "directive" });
+          let isCleaned = false;
+          trackCleanup(() => {
+            if (isCleaned)
+              return;
+            isCleaned = true;
+            cleanup(updateEffect);
+            if (currentUnbind)
+              currentUnbind();
+          });
+        } else {
+          const listener = createEventListener(el, binding, appConfig);
+          listener.bind();
         }
-        const listenerTarget = isWindow && typeof window !== "undefined" ? window : isDocument && typeof document !== "undefined" ? document : el;
-        const hasOpts = isOnce || isPassive || isCapture;
-        const listenerOpts = hasOpts ? { once: isOnce, passive: isPassive, capture: isCapture } : isCapture;
-        listenerTarget.addEventListener(evtType, executeHandler, listenerOpts);
-        trackCleanup(() => listenerTarget.removeEventListener(evtType, executeHandler, listenerOpts));
       }
     };
     dirs.show = {
-      mounted(el, binding) {
-        this.updated(el, binding);
-      },
-      updated(el, { value: val, ctx, instance, trackCleanup }) {
+      selfManaged: true,
+      mounted(el, { value: val, ctx, instance, trackCleanup }) {
         let initialRan = false;
+        let currentVisible = null;
         const updateFn = () => {
-          const shouldShow = resolveExpression(val, ctx, { asBoolean: true, fallback: false, contextName: "v-show" });
-          const newDisplay = shouldShow ? "" : "none";
-          if (el.style.display !== newDisplay) {
-            el.style.display = newDisplay;
+          const shouldShow = resolveExpression(val, ctx, { asBoolean: true, fallback: false, contextName: `${appConfig.prefix}show` });
+          if (shouldShow === currentVisible)
+            return;
+          currentVisible = shouldShow;
+          const transConfig = el.__hx_transition_config || resolveTransitionConfig(el, appConfig);
+          if (shouldShow) {
+            el.style.display = "";
+            if (transConfig) {
+              enter(el, transConfig);
+            }
+            if (initialRan && instance)
+              queueComponentUpdated(instance);
+          } else {
+            if (transConfig && initialRan) {
+              leave(el, transConfig, ({ cancelled } = {}) => {
+                if (!cancelled && currentVisible === false) {
+                  el.style.display = "none";
+                }
+              });
+            } else {
+              el.style.display = "none";
+            }
             if (initialRan && instance)
               queueComponentUpdated(instance);
           }
         };
         const e = effect(updateFn, { name: `show: ${val}`, area: "directive" });
         initialRan = true;
-        trackCleanup(() => cleanup(e));
+        let isCleaned = false;
+        trackCleanup(() => {
+          if (isCleaned)
+            return;
+          isCleaned = true;
+          cancelTransition(el);
+          cleanup(e);
+        });
       }
     };
     dirs.if = {
+      selfManaged: true,
       mounted(el, { value: val, branches, ctx, instance, trackCleanup, bindNode: bindNode2 }) {
         const branchList = branches && branches.length > 0 ? branches : [{ el, exp: val, type: "if" }];
         const placeholder = document.createComment(` ${appConfig.prefix}if-chain `);
@@ -3019,17 +4163,32 @@
             }
           }
           if (matchedIndex !== currentBranchIndex) {
-            if (activeNodes.length > 0) {
-              activeNodes.forEach((n) => destroyNode(n));
-              activeNodes = [];
-            }
+            const exitingNodes = [...activeNodes];
+            activeNodes = [];
             currentBranchIndex = matchedIndex;
+            if (exitingNodes.length > 0) {
+              exitingNodes.forEach((n) => {
+                const transConfig = n.__hx_transition_config || resolveTransitionConfig(n, appConfig);
+                if (transConfig && initialRan) {
+                  leave(n, transConfig, ({ cancelled } = {}) => {
+                    destroyNode(n);
+                  });
+                } else {
+                  destroyNode(n);
+                }
+              });
+            }
             if (matchedIndex >= 0) {
               const template = branchList[matchedIndex].el;
               if (template.tagName === "TEMPLATE" && template.content) {
                 const clone = template.content.cloneNode(true);
                 activeNodes = Array.from(clone.childNodes);
-                activeNodes.forEach((n) => bindNode2(n, ctx, instance, []));
+                activeNodes.forEach((n) => {
+                  bindNode2(n, ctx, instance, []);
+                  const transConfig = n.__hx_transition_config || resolveTransitionConfig(n, appConfig);
+                  if (transConfig)
+                    enter(n, transConfig);
+                });
                 if (placeholder.parentNode)
                   placeholder.parentNode.insertBefore(clone, placeholder);
               } else {
@@ -3038,6 +4197,9 @@
                 if (placeholder.parentNode)
                   placeholder.parentNode.insertBefore(node, placeholder);
                 activeNodes = [node];
+                const transConfig = node.__hx_transition_config || resolveTransitionConfig(node, appConfig);
+                if (transConfig)
+                  enter(node, transConfig);
               }
             }
             if (initialRan && instance)
@@ -3047,7 +4209,10 @@
         initialRan = true;
         trackCleanup(() => {
           cleanup(e);
-          activeNodes.forEach((n) => destroyNode(n));
+          activeNodes.forEach((n) => {
+            cancelTransition(n);
+            destroyNode(n);
+          });
           activeNodes = [];
           if (placeholder.parentNode)
             placeholder.parentNode.removeChild(placeholder);
@@ -3055,6 +4220,7 @@
       }
     };
     dirs.for = {
+      selfManaged: true,
       mounted(el, { value: val, ctx, instance, trackCleanup, bindNode: bindNode2 }) {
         const forMatch = val.match(/^\s*(?:\(([^)]+)\)|([^\s]+))\s+in\s+(.+)$/);
         if (!forMatch)
@@ -3207,6 +4373,20 @@
             const oldIndex = oldEnd + 1 + (i - (newEnd + 1));
             newItems[i] = renderedItems[oldIndex];
           }
+          const allOldNodes = renderedItems.flatMap((item) => item.nodes || []);
+          const oldPositions = initialRan ? recordPositions(allOldNodes) : null;
+          const removeRecord = (itemRecord) => {
+            if (!itemRecord || !itemRecord.nodes)
+              return;
+            itemRecord.nodes.forEach((n) => {
+              const transConfig = resolveTransitionConfig(n, appConfig);
+              if (transConfig && initialRan) {
+                leave(n, transConfig, () => destroyNode(n));
+              } else {
+                destroyNode(n);
+              }
+            });
+          };
           if (oldStart > oldEnd) {
             const anchor = getAnchor(newItems, newEnd + 1);
             const parentNode = placeholder.parentNode;
@@ -3216,12 +4396,15 @@
               if (parentNode) {
                 for (let k = 0; k < itemRecord.nodes.length; k++) {
                   parentNode.insertBefore(itemRecord.nodes[k], anchor);
+                  const transConfig = resolveTransitionConfig(itemRecord.nodes[k], appConfig);
+                  if (transConfig && initialRan)
+                    enter(itemRecord.nodes[k], transConfig);
                 }
               }
             }
           } else if (newStart > newEnd) {
             for (let i = oldStart; i <= oldEnd; i++) {
-              renderedItems[i].nodes.forEach((n) => destroyNode(n));
+              removeRecord(renderedItems[i]);
             }
           } else {
             const toBePatched = newEnd - newStart + 1;
@@ -3236,12 +4419,12 @@
             for (let i = oldStart; i <= oldEnd; i++) {
               const prevItem = renderedItems[i];
               if (patched >= toBePatched) {
-                prevItem.nodes.forEach((n) => destroyNode(n));
+                removeRecord(prevItem);
                 continue;
               }
               const newIndex = keyToNewIndexMap.get(prevItem.key);
               if (newIndex === void 0) {
-                prevItem.nodes.forEach((n) => destroyNode(n));
+                removeRecord(prevItem);
               } else {
                 newIndexToOldIndexMap[newIndex - newStart] = i + 1;
                 updateItemScope(prevItem, list[newIndex], newIndex);
@@ -3266,6 +4449,9 @@
                 if (parentNode) {
                   for (let k = 0; k < itemRecord.nodes.length; k++) {
                     parentNode.insertBefore(itemRecord.nodes[k], anchor);
+                    const transConfig = resolveTransitionConfig(itemRecord.nodes[k], appConfig);
+                    if (transConfig && initialRan)
+                      enter(itemRecord.nodes[k], transConfig);
                   }
                 }
               } else if (moved) {
@@ -3281,6 +4467,10 @@
                 }
               }
             }
+          }
+          if (oldPositions && oldPositions.size > 0) {
+            const cleanPrefix = appConfig.prefix ? appConfig.prefix.endsWith("-") ? appConfig.prefix.slice(0, -1) : appConfig.prefix : "h";
+            applyFlip(oldPositions, `${cleanPrefix}-move`);
           }
           renderedItems = newItems;
           if (initialRan && instance)
@@ -3301,9 +4491,85 @@
         placeholder.__hx_cleanup.push(teardown);
       }
     };
+    dirs.teleport = {
+      selfManaged: true,
+      mounted(el, { value: targetSelector, ctx, instance, trackCleanup, bindNode: bindNode2 }) {
+        const placeholder = document.createComment(` ${appConfig.prefix}teleport `);
+        const parent = el.parentNode;
+        if (parent) {
+          parent.insertBefore(placeholder, el);
+          el.remove();
+        }
+        let renderedNodes = [];
+        const isTemplate = el.tagName === "TEMPLATE" && el.content;
+        if (isTemplate) {
+          const clone = el.content.cloneNode(true);
+          renderedNodes = Array.from(clone.childNodes);
+          renderedNodes.forEach((n) => bindNode2(n, ctx, instance, []));
+        } else {
+          bindNode2(el, ctx, instance, []);
+          renderedNodes = [el];
+        }
+        const updatePlacement = () => {
+          let resolvedSel = targetSelector;
+          if (typeof targetSelector === "string" && targetSelector.trim()) {
+            const trimmed = targetSelector.trim();
+            if (trimmed.startsWith("#") || trimmed.startsWith(".") || trimmed.startsWith("[") || trimmed === "body" || trimmed === "head") {
+              resolvedSel = trimmed;
+            } else {
+              try {
+                const evalVal = resolveExpression(trimmed, ctx, { fallback: trimmed, contextName: "hx-teleport" });
+                if (evalVal !== void 0 && evalVal !== null && typeof evalVal !== "function") {
+                  resolvedSel = evalVal;
+                }
+              } catch {
+                resolvedSel = trimmed;
+              }
+            }
+          }
+          const target = resolveTeleportTarget(resolvedSel);
+          if (target) {
+            renderedNodes.forEach((n) => {
+              target.appendChild(n);
+            });
+          } else {
+            warn(`[Helix Teleport] Target container "${resolvedSel || targetSelector}" not found in document.`, "teleport");
+            if (placeholder && placeholder.parentNode) {
+              renderedNodes.forEach((n) => {
+                placeholder.parentNode.insertBefore(n, placeholder);
+              });
+            }
+          }
+        };
+        const e = effect(updatePlacement, { name: `teleport: ${targetSelector}`, area: "directive" });
+        let isDestroying = false;
+        const teardown = () => {
+          if (isDestroying)
+            return;
+          isDestroying = true;
+          cleanup(e);
+          const nodesToDestroy = [...renderedNodes];
+          renderedNodes = [];
+          nodesToDestroy.forEach((n) => {
+            destroyNode(n);
+          });
+          if (placeholder.parentNode)
+            placeholder.parentNode.removeChild(placeholder);
+        };
+        trackCleanup(teardown);
+        placeholder.__hx_cleanup = placeholder.__hx_cleanup || [];
+        placeholder.__hx_cleanup.push(teardown);
+      }
+    };
+    dirs.transition = {
+      mounted(el, { value, modifiers = [] }) {
+      }
+    };
     dirs.ref.priority = 100;
     dirs.if.priority = 100;
+    dirs.teleport.priority = 100;
     dirs.for.priority = 90;
+    dirs.transition.priority = 80;
     dirs.model.priority = 50;
     dirs.bind.priority = 10;
     dirs.on.priority = 10;
@@ -3348,7 +4614,7 @@
   }
   const scheduleRaf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (fn) => setTimeout(fn, 0);
   function ensureCloakStyles(appConfig) {
-    if (typeof document === "undefined" || appConfig.autoInjectCloak === false)
+    if (typeof document === "undefined" || !document.getElementById || !document.createElement || appConfig.autoInjectCloak === false)
       return;
     const rule = `[${appConfig.prefix}cloak] { display: none !important; }`;
     let style = document.getElementById("helix-cloak-style");
@@ -3460,12 +4726,99 @@ ${rule}`;
       if (node.nodeType !== 1 || node[BOUND])
         return;
       const tagName = node.tagName.toLowerCase();
+      if (tagName === "component" || node.hasAttribute(":is") || node.hasAttribute(`${appConfig.prefix}is`) || tagName === "component" && node.hasAttribute("is")) {
+        bindDynamicComponentNode(node, ctx, instance, cleanupTarget);
+        return;
+      }
       const compDef = resolveComponent(tagName);
       if (compDef) {
         bindComponentNode(node, compDef, tagName, ctx, instance, cleanupTarget, force);
         return;
       }
       bindElementNode(node, ctx, instance, cleanupTarget, force);
+    }
+    function bindDynamicComponentNode(node, ctx, instance, cleanupTarget, force) {
+      node[BOUND] = true;
+      const isAttr = node.getAttribute(":is") || node.getAttribute(`${appConfig.prefix}is`) || node.getAttribute("is");
+      node.removeAttribute(":is");
+      node.removeAttribute(`${appConfig.prefix}is`);
+      node.removeAttribute("is");
+      const parent = node.parentNode;
+      if (!parent)
+        return;
+      const doc = node.ownerDocument || (typeof document !== "undefined" ? document : null);
+      const placeholder = doc ? doc.createComment(" component-anchor ") : { nodeType: 8, textContent: " component-anchor " };
+      parent.insertBefore(placeholder, node);
+      parent.removeChild(node);
+      const slotChildren = Array.from(node.childNodes || []).map((c) => c.cloneNode(true));
+      const originalAttrs = Array.from(node.attributes || []).map((a) => ({ name: a.name, value: a.value }));
+      let currentMountedNode = null;
+      let currentCleanups = [];
+      const teardownCurrent = () => {
+        currentCleanups.forEach((fn) => {
+          try {
+            fn();
+          } catch (e2) {
+            handleError(e2, "dynamic component cleanup", instance);
+          }
+        });
+        currentCleanups = [];
+        if (currentMountedNode) {
+          const p = currentMountedNode.parentNode;
+          destroyNode(currentMountedNode);
+          if (p && currentMountedNode.parentNode === p) {
+            p.removeChild(currentMountedNode);
+          }
+          currentMountedNode = null;
+        }
+      };
+      if (cleanupTarget) {
+        cleanupTarget.push(teardownCurrent);
+      }
+      const e = effect(() => {
+        let target = resolveExpression(isAttr, ctx);
+        if (isRef(target))
+          target = target.value;
+        teardownCurrent();
+        if (!target)
+          return;
+        let targetDef = null;
+        let targetTagName = "div";
+        if (typeof target === "string") {
+          const resolved = resolveComponent(target.toLowerCase());
+          if (resolved) {
+            targetDef = resolved;
+            targetTagName = target.toLowerCase();
+          } else {
+            targetTagName = target.toLowerCase();
+          }
+        } else if (typeof target === "object" && target !== null) {
+          targetDef = target;
+          targetTagName = (target.name || "anonymous-component").toLowerCase();
+        } else if (typeof target === "function") {
+          targetDef = { setup: target };
+          targetTagName = "function-component";
+        }
+        const instanceNode = doc ? doc.createElement(targetTagName) : { nodeType: 1, tagName: targetTagName.toUpperCase() };
+        originalAttrs.forEach((attr) => {
+          instanceNode.setAttribute(attr.name, attr.value);
+        });
+        slotChildren.forEach((child) => {
+          instanceNode.appendChild(child.cloneNode(true));
+        });
+        if (placeholder.parentNode) {
+          placeholder.parentNode.insertBefore(instanceNode, placeholder);
+        }
+        currentMountedNode = instanceNode;
+        if (targetDef) {
+          bindComponentNode(instanceNode, targetDef, targetTagName, ctx, instance, currentCleanups, true);
+        } else {
+          bindElementNode(instanceNode, ctx, instance, currentCleanups, true);
+        }
+      }, { name: `dynamic component: ${isAttr}`, area: "component" });
+      if (cleanupTarget) {
+        cleanupTarget.push(() => cleanup(e));
+      }
     }
     function bindComponentNode(node, compDef, tagName, ctx, instance, cleanupTarget, force) {
       const normalizeEventName = (name) => name.replace(/([A-Z])/g, "-$1").toLowerCase().replace(/^-/, "");
@@ -3492,27 +4845,36 @@ ${rule}`;
       const scope = new EffectScope();
       const childInst = {
         id: incrementGlobalInstanceId(),
-        name: compDefNormalized.name || tagName,
+        name: tagName,
         root: node,
-        scope,
-        hooks: { beforeMount: [], mount: [], updated: [], beforeUnmount: [], destroy: [], unmounted: [] },
-        cleanups: [],
         parent: instance,
-        provides: instance ? Object.create(instance.provides || null) : /* @__PURE__ */ Object.create(null)
+        provides: instance ? instance.provides : null,
+        hooks: {
+          mount: [],
+          beforeMount: [],
+          destroy: [],
+          beforeUnmount: [],
+          updated: []
+        },
+        cleanups: [],
+        scope
       };
       const childNodes = Array.from(node.childNodes);
       const slotTemplates = [];
       childNodes.forEach((child) => {
         if (child.nodeType === 1) {
-          const hasSlotDirective = Array.from(child.attributes || []).some(
-            (attr) => attr.name.startsWith("v-slot:") || attr.name.startsWith("#")
+          const hasSlotAttr = Array.from(child.attributes || []).some(
+            (attr) => parseSlotAttribute(attr.name, appConfig.prefix).isSlot
           );
-          if (hasSlotDirective || child.tagName.toLowerCase() === "template") {
+          if (hasSlotAttr) {
             slotTemplates.push(child);
           }
         }
       });
-      const slots = createSlots(slotTemplates, ctx, childInst, bindNode);
+      while (node.firstChild) {
+        node.removeChild(node.firstChild);
+      }
+      const slots = createSlots(slotTemplates, ctx, childInst, bindNode, appConfig.prefix);
       const defaultSlotEls = childNodes.filter((child) => {
         if (child.nodeType !== 1)
           return true;
@@ -3537,25 +4899,22 @@ ${rule}`;
           const evtName = normalizeEventName(
             attr.name.replace(/^@/, "").replace(new RegExp(`^${appConfig.prefix}on:`), "")
           );
-          if (!listeners[evtName])
-            listeners[evtName] = [];
-          listeners[evtName].push((...args) => {
-            const targetFn = resolveRaw(attr.value, ctx);
-            if (typeof targetFn === "function")
-              targetFn.call(ctx, ...args);
-            else if (appConfig.allowInlineExpressions) {
-              try {
-                new Function("$ctx", "$event", `with($ctx) { ${attr.value} }`)(ctx, args[0]);
-              } catch (err) {
-                handleError(err, `emit handler: ${evtName}`);
-              }
-            } else
-              warn(`Inline expressions disabled. Cannot execute handler: ${attr.value}`, "compiler");
-          });
+          const handler = resolvePath(attr.value, ctx);
+          if (typeof handler === "function") {
+            if (!listeners[evtName])
+              listeners[evtName] = [];
+            listeners[evtName].push(handler);
+          }
         } else {
-          const isBind = attr.name.startsWith(appConfig.prefix + "bind:") || attr.name.startsWith(":");
-          let rawPropName = isBind ? attr.name.split(":")[1] || attr.name.slice(1) : attr.name;
-          const propName = rawPropName.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+          let propName = attr.name;
+          let isBind = false;
+          if (propName.startsWith(":")) {
+            isBind = true;
+            propName = propName.slice(1);
+          } else if (propName.startsWith(`${appConfig.prefix}bind:`)) {
+            isBind = true;
+            propName = propName.slice(`${appConfig.prefix}bind:`.length);
+          }
           if (isBind) {
             const e = effect(() => {
               const rawValue = resolvePath(attr.value, ctx);
@@ -3596,7 +4955,6 @@ ${rule}`;
         });
         scope.stop();
         childInst.hooks.destroy.forEach((fn) => fn());
-        childInst.hooks.unmounted.forEach((fn) => fn());
       });
       const prevInstance = currentInstance;
       setCurrentInstance(childInst);
@@ -3606,50 +4964,53 @@ ${rule}`;
           ...globalAPI2,
           props,
           emit,
-          slots
+          slots,
+          attrs: {},
+          root: node,
+          app: appConfig
         };
-        const setupCtx = getOrCreateAppCtxProxy(baseSetupCtx, appContext.app);
-        childCtx = scope.run(() => compDefNormalized.setup(setupCtx));
+        const setupCtx = getOrCreateAppCtxProxy(baseSetupCtx, appConfig);
+        if (typeof compDefNormalized.setup === "function") {
+          childCtx = scope.run(() => compDefNormalized.setup(setupCtx));
+        } else {
+          childCtx = baseSetupCtx;
+        }
       } catch (err) {
         handleError(err, `<${tagName}> setup`, childInst);
+      } finally {
         setCurrentInstance(prevInstance);
-        scope.stop();
-        return;
       }
-      const finishMount = (resolvedCtx) => {
-        if (!isComponentActive || hasMounted)
-          return;
-        setCurrentInstance(prevInstance);
-        if (resolvedCtx && resolvedCtx.template) {
-          node.innerHTML = resolvedCtx.template;
-          renderSlots(slots, node, resolvedCtx, childInst, bindNode);
-          node.childNodes.forEach((child) => {
-            if (child.nodeType === 1 && child.tagName.toLowerCase() !== "slot") {
-              bindNode(child, resolvedCtx, childInst, void 0, force);
-            }
-          });
+      const finishMount = () => {
+        childInst.hooks.beforeMount.forEach((fn) => fn(node));
+        if (compDefNormalized.template) {
+          node.innerHTML = compDefNormalized.template;
+          renderSlots(slots, node, ctx, childInst, bindNode);
+          Array.from(node.childNodes).forEach((child) => bindNode(child, childCtx, childInst, void 0, true));
+        } else if (compDefNormalized.render) {
+          const renderResult = compDefNormalized.render(childCtx);
+          if (typeof renderResult === "string") {
+            node.innerHTML = renderResult;
+            renderSlots(slots, node, ctx, childInst, bindNode);
+            Array.from(node.childNodes).forEach((child) => bindNode(child, childCtx, childInst, void 0, true));
+          }
         } else {
           if (slots.default) {
             const defaultContent = slots.default();
             node.appendChild(defaultContent);
           }
         }
-        childInst.hooks.beforeMount.forEach((fn) => fn());
-        childInst.hooks.mount.forEach((fn) => fn());
+        childInst.hooks.mount.forEach((fn) => fn(node));
         hasMounted = true;
       };
-      if (childCtx instanceof Promise) {
-        childCtx.then((resolvedCtx) => {
-          if (isComponentActive)
-            finishMount(resolvedCtx);
-        }).catch((err) => {
-          handleError(err, `<${tagName}> async setup`, childInst);
-          setCurrentInstance(prevInstance);
-        });
-      } else
-        finishMount(childCtx);
+      if (compDefNormalized.async) {
+        compDefNormalized.async().then(() => finishMount());
+      } else {
+        finishMount();
+      }
     }
     function bindElementNode(node, ctx, instance, cleanupTarget, force) {
+      if (node[BOUND] && !force)
+        return;
       const binding = node.__hx_binding ?? (node.__hx_binding = {
         cleanups: []
       });
@@ -3658,15 +5019,95 @@ ${rule}`;
       binding.bindNode = bindNode;
       binding.cleanups.length = 0;
       const trackCleanup = (fn) => {
+        if (cleanupTarget) {
+          cleanupTarget.push(fn);
+        }
         if (node.__hx_binding) {
           node.__hx_binding.cleanups.push(fn);
         }
+        (node.__hx_cleanup = node.__hx_cleanup || []).push(fn);
       };
+      if (node.hasAttribute(`${appConfig.prefix}pre`)) {
+        node.removeAttribute(`${appConfig.prefix}pre`);
+        node[BOUND] = true;
+        node.__hx_static = true;
+        return;
+      }
       if (node.hasAttribute(`${appConfig.prefix}ignore`) || node.hasAttribute(`${appConfig.prefix}static`)) {
         node.removeAttribute(`${appConfig.prefix}ignore`);
         node.removeAttribute(`${appConfig.prefix}static`);
         node[BOUND] = true;
         node.__hx_static = true;
+        return;
+      }
+      if (node.hasAttribute(`${appConfig.prefix}once`)) {
+        node.removeAttribute(`${appConfig.prefix}once`);
+        const onceScope = new EffectScope();
+        onceScope.run(() => {
+          bindElementDirectivesAndChildren(node, ctx, instance, cleanupTarget, force);
+        });
+        onceScope.stop();
+        node[BOUND] = true;
+        node.__hx_static = true;
+        return;
+      }
+      if (node.hasAttribute(`${appConfig.prefix}memo`)) {
+        const memoExp = node.getAttribute(`${appConfig.prefix}memo`);
+        node.removeAttribute(`${appConfig.prefix}memo`);
+        const templateNodes = Array.from(node.childNodes).map((c) => c.cloneNode(true));
+        let prevDeps = null;
+        let currentScope = null;
+        const updateMemo = () => {
+          const currentDeps = resolveExpression(memoExp, ctx, { contextName: "hx-memo" });
+          if (Array.isArray(prevDeps) && Array.isArray(currentDeps) && prevDeps.length === currentDeps.length && prevDeps.every((dep, idx) => Object.is(dep, currentDeps[idx]))) {
+            return;
+          }
+          prevDeps = Array.isArray(currentDeps) ? [...currentDeps] : currentDeps;
+          if (currentScope)
+            currentScope.stop();
+          currentScope = new EffectScope();
+          currentScope.run(() => {
+            while (node.firstChild) {
+              node.removeChild(node.firstChild);
+            }
+            templateNodes.forEach((tplNode) => {
+              const cloned = tplNode.cloneNode(true);
+              node.appendChild(cloned);
+              bindNode(cloned, ctx, instance, cleanupTarget, true);
+            });
+          });
+          currentScope.stop();
+        };
+        const memoEffect = effect(updateMemo, { name: `memo: ${memoExp}`, area: "directive" });
+        trackCleanup(() => {
+          cleanup(memoEffect);
+          if (currentScope)
+            currentScope.stop();
+        });
+        return;
+      }
+      bindElementDirectivesAndChildren(node, ctx, instance, cleanupTarget, force);
+    }
+    function bindElementDirectivesAndChildren(node, ctx, instance, cleanupTarget, force) {
+      const trackCleanup = (fn) => {
+        if (cleanupTarget) {
+          cleanupTarget.push(fn);
+        }
+        if (node.__hx_binding) {
+          node.__hx_binding.cleanups.push(fn);
+        }
+        (node.__hx_cleanup = node.__hx_cleanup || []).push(fn);
+      };
+      if (node.hasAttribute(`${appConfig.prefix}teleport`)) {
+        const val = node.getAttribute(`${appConfig.prefix}teleport`);
+        node.removeAttribute(`${appConfig.prefix}teleport`);
+        const dir = resolveDirective("teleport");
+        if (dir) {
+          const bindingObj = { value: val, ctx, instance, trackCleanup, bindNode };
+          const hook = createDirectiveHook("teleport", "mounted", node, bindingObj, instance, normalizeDirective(dir));
+          if (hook)
+            hook();
+        }
         return;
       }
       if (node.hasAttribute(`${appConfig.prefix}for`)) {
@@ -3681,7 +5122,32 @@ ${rule}`;
         }
         return;
       }
+      const dynamicDirectives = node.getAttribute(`${appConfig.prefix}directive`);
+      if (dynamicDirectives) {
+        const dirExpressions = dynamicDirectives.split(";").map((d) => d.trim()).filter(Boolean);
+        dirExpressions.forEach((expr) => {
+          const [dirName, bindingValueExpr] = expr.split(":").map((s) => s.trim());
+          if (dirName && bindingValueExpr) {
+            const dir = resolveDirective(dirName);
+            if (dir) {
+              const val = resolveExpression(bindingValueExpr, ctx);
+              const bindingObj = {
+                name: dirName,
+                value: val,
+                ctx,
+                instance,
+                trackCleanup,
+                bindNode
+              };
+              const hook = createDirectiveHook(dirName, "mounted", node, bindingObj, instance, normalizeDirective(dir));
+              if (hook)
+                hook();
+            }
+          }
+        });
+      }
       if (node.hasAttribute(`${appConfig.prefix}if`)) {
+        node[BOUND] = true;
         const ifVal = node.getAttribute(`${appConfig.prefix}if`);
         node.removeAttribute(`${appConfig.prefix}if`);
         const branches = [{ el: node, exp: ifVal, type: "if" }];
@@ -3734,7 +5200,7 @@ ${rule}`;
       if (attrs) {
         for (let i = 0; i < attrs.length; i++) {
           const name = attrs[i].name;
-          if (name.startsWith(appConfig.prefix) || name.startsWith(":") || name.startsWith("@")) {
+          if (name.startsWith(appConfig.prefix) || name.startsWith(":") || name.startsWith("@") || name === "ref" || name.startsWith("ref:") || name.startsWith("ref.")) {
             hasDynamicAttr = true;
             break;
           }
@@ -3756,21 +5222,88 @@ ${rule}`;
       const collectedDirectives = [];
       attrsBond.forEach((attr) => {
         let isDir = false, dirName = "", arg = null, modifiers = [];
-        if (attr.name.startsWith(appConfig.prefix)) {
+        const attrName = attr.name;
+        if (attrName === "ref" || attrName.startsWith("ref:") || attrName.startsWith("ref.")) {
           isDir = true;
-          const [base, ...mods] = attr.name.slice(appConfig.prefix.length).toLowerCase().split(".");
-          [dirName, arg] = base.split(":");
-          modifiers = mods;
-        } else if (attr.name.startsWith(":")) {
+          dirName = "ref";
+          const rest = attrName.replace(/^ref:?/, "");
+          const [base, ...mods] = rest.split(".");
+          arg = base || null;
+          modifiers = mods.map((m) => m.toLowerCase());
+        } else if (attrName.startsWith(appConfig.prefix)) {
           isDir = true;
-          dirName = "bind";
-          arg = attr.name.slice(1);
-        } else if (attr.name.startsWith("@")) {
+          const rawRest = attrName.slice(appConfig.prefix.length);
+          const colonIdx = rawRest.indexOf(":");
+          let rest;
+          if (colonIdx > -1) {
+            dirName = rawRest.slice(0, colonIdx).toLowerCase();
+            rest = rawRest.slice(colonIdx + 1);
+            if (rest.startsWith("[")) {
+              const closingIdx = rest.lastIndexOf("]");
+              if (closingIdx > -1) {
+                arg = rest.slice(0, closingIdx + 1);
+                const modsRest = rest.slice(closingIdx + 1);
+                modifiers = modsRest.startsWith(".") ? modsRest.slice(1).split(".").filter(Boolean).map((m) => m.toLowerCase()) : [];
+              } else {
+                arg = rest;
+                modifiers = [];
+              }
+            } else {
+              const [base, ...mods] = rest.split(".");
+              arg = base || null;
+              modifiers = mods.map((m) => m.toLowerCase());
+            }
+          } else {
+            const [base, ...mods] = rawRest.split(".");
+            dirName = base.toLowerCase();
+            arg = null;
+            modifiers = mods.map((m) => m.toLowerCase());
+          }
+        } else if (attrName.startsWith(":")) {
+          isDir = true;
+          const rest = attrName.slice(1);
+          if (rest === "ref" || rest.startsWith("ref:") || rest.startsWith("ref.")) {
+            dirName = "ref";
+            const [base, ...mods] = rest.replace(/^ref:?/, "").split(".");
+            arg = base || null;
+            modifiers = mods.map((m) => m.toLowerCase());
+          } else {
+            dirName = "bind";
+            if (rest.startsWith("[")) {
+              const closingIdx = rest.lastIndexOf("]");
+              if (closingIdx > -1) {
+                arg = rest.slice(0, closingIdx + 1);
+                const modsRest = rest.slice(closingIdx + 1);
+                modifiers = modsRest.startsWith(".") ? modsRest.slice(1).split(".").filter(Boolean).map((m) => m.toLowerCase()) : [];
+              } else {
+                arg = rest;
+                modifiers = [];
+              }
+            } else {
+              const [base, ...mods] = rest.split(".");
+              arg = base || null;
+              modifiers = mods.map((m) => m.toLowerCase());
+            }
+          }
+        } else if (attrName.startsWith("@")) {
           isDir = true;
           dirName = "on";
-          const [evt, ...mods] = attr.name.slice(1).split(".");
-          arg = evt;
-          modifiers = mods;
+          const rest = attrName.slice(1);
+          if (rest.startsWith("[")) {
+            const closingIdx = rest.lastIndexOf("]");
+            if (closingIdx > -1) {
+              arg = rest.slice(0, closingIdx + 1);
+              const modsRest = rest.slice(closingIdx + 1);
+              modifiers = modsRest.startsWith(".") ? modsRest.slice(1).split(".").filter(Boolean).map((m) => m.toLowerCase()) : [];
+            } else {
+              arg = rest;
+              modifiers = [];
+            }
+          } else {
+            const [base, ...mods] = rest.split(".");
+            arg = base || null;
+            modifiers = mods.map((m) => m.toLowerCase());
+          }
         }
         if (isDir) {
           const dirDef = resolveDirective(dirName);
@@ -3834,7 +5367,7 @@ ${rule}`;
         }
       });
       directiveBindings.forEach(({ dirName, node: el, binding: bindingObj, normalized }) => {
-        if (normalized.beforeUpdate || normalized.updated) {
+        if (!normalized.selfManaged && (normalized.beforeUpdate || normalized.updated)) {
           const updateEffect = effect(() => {
             if (bindingObj.arg)
               resolvePath(bindingObj.value, bindingObj.ctx);
@@ -3889,8 +5422,7 @@ ${rule}`;
     let rootInstance = null;
     let mountedRootSelector = null;
     let unmountCallbacks = [];
-    const appConfig = Object.create(globalConfig);
-    Object.freeze(appConfig);
+    const appConfig = Object.assign(Object.create(globalConfig), rootComponent.config || {}, rootComponent.prefix ? { prefix: rootComponent.prefix } : {});
     const appContext = {
       config: appConfig,
       components: appComponents,
@@ -5072,6 +6604,7 @@ ${rule}`;
           return { template: "" };
         };
         const fallbackHtml = computed(() => renderFallback().template);
+        const p = globalConfig.prefix || "h-";
         return {
           hasError,
           capturedError,
@@ -5082,10 +6615,10 @@ ${rule}`;
           },
           template: `
                     <div class="hx-error-boundary-wrapper">
-                        <template hx-if="hasError">
-                            <div hx-html="fallbackHtml"></div>
+                        <template ${p}if="hasError">
+                            <div ${p}html="fallbackHtml"></div>
                         </template>
-                        <template hx-if="!hasError">
+                        <template ${p}if="!hasError">
                             <slot></slot>
                         </template>
                     </div>
@@ -5094,6 +6627,21 @@ ${rule}`;
         };
       }
     };
+  }
+  function useTemplateRef(key) {
+    if (!currentInstance) {
+      warn("useTemplateRef() can only be used inside setup().", "component");
+      return shallowRef(null);
+    }
+    if (!currentInstance.templateRefs) {
+      currentInstance.templateRefs = /* @__PURE__ */ new Map();
+    }
+    if (currentInstance.templateRefs.has(key)) {
+      return currentInstance.templateRefs.get(key);
+    }
+    const r = shallowRef(null);
+    currentInstance.templateRefs.set(key, r);
+    return r;
   }
   function inspectComponent(instance) {
     if (!instance)
@@ -5131,17 +6679,18 @@ ${rule}`;
             state.pending = false;
         });
       });
+      const p = globalConfig.prefix || "h-";
       return {
         state,
         template: `
                 <div class="helix-suspense">
-                    <template hx-if="state.pending">
+                    <template ${p}if="state.pending">
                         <slot name="fallback"><div class="suspense-loading">Loading...</div></slot>
                     </template>
-                    <template hx-else-if="state.error">
+                    <template ${p}else-if="state.error">
                         <slot name="error"><div class="suspense-error">{{ state.error.message || state.error }}</div></slot>
                     </template>
-                    <template hx-else>
+                    <template ${p}else>
                         <slot></slot>
                     </template>
                 </div>
@@ -5149,6 +6698,313 @@ ${rule}`;
       };
     }
   };
+  const Transition = {
+    name: "Transition",
+    props: {
+      name: { default: "" },
+      enterActiveClass: { default: "" },
+      enterFromClass: { default: "" },
+      enterToClass: { default: "" },
+      leaveActiveClass: { default: "" },
+      leaveFromClass: { default: "" },
+      leaveToClass: { default: "" },
+      mode: { default: "default" },
+      appear: { default: false }
+    },
+    setup(ctx) {
+      const transConfig = {
+        name: ctx.name || "h",
+        enterActiveClass: ctx.enterActiveClass || (ctx.name ? `${ctx.name}-enter-active` : "h-enter-active"),
+        enterFromClass: ctx.enterFromClass || (ctx.name ? `${ctx.name}-enter-from` : "h-enter-from"),
+        enterToClass: ctx.enterToClass || (ctx.name ? `${ctx.name}-enter-to` : "h-enter-to"),
+        leaveActiveClass: ctx.leaveActiveClass || (ctx.name ? `${ctx.name}-leave-active` : "h-leave-active"),
+        leaveFromClass: ctx.leaveFromClass || (ctx.name ? `${ctx.name}-leave-from` : "h-leave-from"),
+        leaveToClass: ctx.leaveToClass || (ctx.name ? `${ctx.name}-leave-to` : "h-leave-to"),
+        mode: ctx.mode || "default"
+      };
+      onMounted((el) => {
+        if (!el)
+          return;
+        const targetEl = el.nodeType === 1 ? el : el.firstElementChild;
+        if (targetEl && targetEl.nodeType === 1) {
+          targetEl.__hx_transition_config = transConfig;
+          if (ctx.appear) {
+            enter(targetEl, transConfig);
+          }
+        }
+      });
+      return {
+        config: transConfig,
+        template: `<slot></slot>`
+      };
+    }
+  };
+  const TransitionGroup = {
+    name: "TransitionGroup",
+    props: {
+      name: { default: "" },
+      tag: { default: "div" },
+      moveClass: { default: "" },
+      enterActiveClass: { default: "" },
+      leaveActiveClass: { default: "" }
+    },
+    setup(ctx) {
+      const tag = ctx.tag || "div";
+      const name = ctx.name || "h";
+      const moveClass = ctx.moveClass || `${name}-move`;
+      const transConfig = {
+        name,
+        moveClass,
+        enterActiveClass: ctx.enterActiveClass || `${name}-enter-active`,
+        enterFromClass: ctx.enterFromClass || `${name}-enter-from`,
+        enterToClass: ctx.enterToClass || `${name}-enter-to`,
+        leaveActiveClass: ctx.leaveActiveClass || `${name}-leave-active`,
+        leaveFromClass: ctx.leaveFromClass || `${name}-leave-from`,
+        leaveToClass: ctx.leaveToClass || `${name}-leave-to`
+      };
+      let observer = null;
+      let prevChildren = [];
+      onMounted((container) => {
+        if (!container || container.nodeType !== 1)
+          return;
+        container.__hx_transition_group = transConfig;
+        const getValidChildren = () => Array.from(container.children || container.childNodes || []).filter((c) => c.nodeType === 1);
+        prevChildren = getValidChildren();
+        if (typeof MutationObserver === "function") {
+          let prevPositions = recordPositions(prevChildren);
+          observer = new MutationObserver((mutations) => {
+            const currentChildren = getValidChildren();
+            if (prevPositions && prevPositions.size > 0) {
+              applyFlip(prevPositions, moveClass);
+            }
+            mutations.forEach((m) => {
+              if (m.type === "childList") {
+                m.addedNodes.forEach((node) => {
+                  if (node.nodeType === 1) {
+                    enter(node, transConfig);
+                  }
+                });
+              }
+            });
+            prevChildren = currentChildren;
+            prevPositions = recordPositions(currentChildren);
+          });
+          observer.observe(container, { childList: true });
+        }
+      });
+      onUnmounted(() => {
+        if (observer) {
+          observer.disconnect();
+          observer = null;
+        }
+      });
+      return {
+        config: transConfig,
+        template: `<${tag} class="helix-transition-group"><slot></slot></${tag}>`
+      };
+    }
+  };
+  function defineCustomElement(ComponentDef = {}, options = {}) {
+    const isHTMLElementDefined = typeof HTMLElement !== "undefined";
+    const BaseClass = isHTMLElementDefined ? HTMLElement : class {
+    };
+    const propsDef = ComponentDef.props || {};
+    const propNames = Array.isArray(propsDef) ? propsDef : Object.keys(propsDef);
+    const attrToPropMap = /* @__PURE__ */ new Map();
+    const observedAttrs = propNames.map((prop) => {
+      const attr = prop.replace(/([A-Z])/g, "-$1").toLowerCase();
+      attrToPropMap.set(attr, prop);
+      return attr;
+    });
+    class HelixCustomElement extends BaseClass {
+      static get observedAttributes() {
+        return observedAttrs;
+      }
+      constructor() {
+        super();
+        this._app = null;
+        this._props = reactive({});
+        this._container = null;
+        this._shadowRoot = null;
+        this._isMounted = false;
+        this._isConnected = false;
+        this._mountToken = 0;
+        propNames.forEach((prop) => {
+          const def = !Array.isArray(propsDef) ? propsDef[prop] : null;
+          const defaultVal = def && typeof def === "object" && "default" in def ? typeof def.default === "function" ? def.default() : def.default : void 0;
+          this._props[prop] = defaultVal;
+          Object.defineProperty(this, prop, {
+            get: () => this._props[prop],
+            set: (val) => {
+              this._props[prop] = val;
+            },
+            configurable: true,
+            enumerable: true
+          });
+        });
+      }
+      connectedCallback() {
+        this._isConnected = true;
+        const currentToken = ++this._mountToken;
+        if (this._isMounted)
+          return;
+        const useShadow = options.shadow !== false && ComponentDef.shadow !== false;
+        if (useShadow && typeof this.attachShadow === "function") {
+          if (!this._shadowRoot) {
+            this._shadowRoot = this.shadowRoot || this.attachShadow({ mode: "open" });
+          }
+          if (!this._container) {
+            this._container = document.createElement("div");
+            this._container.className = "helix-ce-root";
+            this._shadowRoot.appendChild(this._container);
+            const styles = ComponentDef.styles || options.styles;
+            if (styles) {
+              const styleArray = Array.isArray(styles) ? styles : [styles];
+              styleArray.forEach((css) => {
+                const styleEl = document.createElement("style");
+                styleEl.textContent = css;
+                this._shadowRoot.insertBefore(styleEl, this._container);
+              });
+            }
+          }
+        } else {
+          this._container = this;
+        }
+        observedAttrs.forEach((attr) => {
+          if (this.hasAttribute(attr)) {
+            const prop = attrToPropMap.get(attr);
+            this._props[prop] = this._parseAttributeValue(this.getAttribute(attr), prop);
+          }
+        });
+        if (ComponentDef.template && this._container) {
+          this._container.innerHTML = ComponentDef.template;
+        }
+        const self = this;
+        this._app = createApp({
+          setup(setupCtx) {
+            const emit = (evtName, ...args) => {
+              const eventDetail = args.length === 1 ? args[0] : args.length > 1 ? args : void 0;
+              const customEvt = new CustomEvent(evtName, {
+                detail: eventDetail,
+                bubbles: true,
+                composed: true
+              });
+              self.dispatchEvent(customEvt);
+            };
+            const componentCtx = {
+              ...setupCtx,
+              props: self._props,
+              emit
+            };
+            let userState = {};
+            if (typeof ComponentDef.setup === "function") {
+              userState = ComponentDef.setup(componentCtx) || {};
+            }
+            const returnTarget = {
+              props: self._props,
+              emit,
+              ...userState
+            };
+            return new Proxy(returnTarget, {
+              get(target, prop, receiver) {
+                if (prop in target)
+                  return target[prop];
+                if (prop in self._props)
+                  return self._props[prop];
+                return void 0;
+              },
+              set(target, prop, value, receiver) {
+                if (prop in self._props) {
+                  self._props[prop] = value;
+                  return true;
+                }
+                target[prop] = value;
+                return true;
+              },
+              has(target, prop) {
+                return prop in target || prop in self._props;
+              },
+              ownKeys(target) {
+                const keys = /* @__PURE__ */ new Set([...Reflect.ownKeys(target), ...Reflect.ownKeys(self._props)]);
+                return Array.from(keys);
+              },
+              getOwnPropertyDescriptor(target, prop) {
+                if (prop in target) {
+                  return Reflect.getOwnPropertyDescriptor(target, prop);
+                }
+                if (prop in self._props) {
+                  return {
+                    configurable: true,
+                    enumerable: true,
+                    value: self._props[prop],
+                    writable: true
+                  };
+                }
+                return void 0;
+              }
+            });
+          }
+        });
+        this._app.mount(this._container).then(() => {
+          if (!this._isConnected || this._mountToken !== currentToken) {
+            if (this._app && typeof this._app.unmount === "function") {
+              this._app.unmount();
+            } else if (this._container) {
+              destroyNode(this._container);
+            }
+            this._app = null;
+            this._isMounted = false;
+            return;
+          }
+          this._isMounted = true;
+        }).catch((err) => {
+          warn(`[Helix CustomElement] Error mounting <${this.tagName ? this.tagName.toLowerCase() : "custom-element"}>:`, "component", err);
+        });
+      }
+      disconnectedCallback() {
+        this._isConnected = false;
+        this._mountToken++;
+        if (this._app) {
+          if (typeof this._app.unmount === "function") {
+            this._app.unmount();
+          } else if (this._container) {
+            destroyNode(this._container);
+          }
+          this._app = null;
+        }
+        this._isMounted = false;
+      }
+      attributeChangedCallback(name, oldVal, newVal) {
+        if (oldVal === newVal)
+          return;
+        const prop = attrToPropMap.get(name);
+        if (prop) {
+          this._props[prop] = this._parseAttributeValue(newVal, prop);
+        }
+      }
+      _parseAttributeValue(val, prop) {
+        if (val === null || val === void 0)
+          return val;
+        const def = !Array.isArray(propsDef) ? propsDef[prop] : null;
+        const expectedType = def && typeof def === "object" ? def.type : def;
+        if (expectedType === Boolean || typeof this._props[prop] === "boolean") {
+          return val !== "false" && val !== null;
+        }
+        if (expectedType === Number || typeof this._props[prop] === "number") {
+          const parsed = Number(val);
+          return isNaN(parsed) ? val : parsed;
+        }
+        try {
+          if (val.startsWith("{") && val.endsWith("}") || val.startsWith("[") && val.endsWith("]")) {
+            return JSON.parse(val);
+          }
+        } catch (e) {
+        }
+        return val;
+      }
+    }
+    return HelixCustomElement;
+  }
   let profileStartTime = 0;
   const profileData = {
     duration: 0,
@@ -5386,6 +7242,10 @@ ${rule}`;
     globalConfig.htmxIntegration = true;
     initHtmxIntegration(Helix);
   }
+  globalComponents["transition"] = Transition;
+  globalComponents["transitiongroup"] = TransitionGroup;
+  globalComponents["transition-group"] = TransitionGroup;
+  globalComponents["teleport"] = Teleport;
   const globalNamespaces = /* @__PURE__ */ Object.create(null);
   const globalProvides = /* @__PURE__ */ Object.create(null);
   function useGlobal(plugin, options = {}) {
@@ -5756,6 +7616,8 @@ ${rule}`;
     preloadAll,
     createErrorBoundary,
     onErrorCaptured,
+    useTemplateRef,
+    defineCustomElement,
     inspectComponent,
     onError: onErrorGlobal,
     ScopeScheduler,
@@ -5765,6 +7627,20 @@ ${rule}`;
     getCurrentScope,
     onScopeDispose,
     Suspense,
+    Transition,
+    TransitionGroup,
+    Teleport,
+    resolveTeleportTarget,
+    enter,
+    leave,
+    cancelTransition,
+    cancelFlip,
+    getTransitionDurations,
+    fireTransitionHook,
+    nextFrame,
+    resolveTransitionConfig,
+    recordPositions,
+    applyFlip,
     inspectTree,
     validatePluginDependencies,
     profile,
@@ -5791,12 +7667,19 @@ ${rule}`;
   exports.$apps = globalApps;
   exports.$bus = globalBus;
   exports.EffectScope = EffectScope;
+  exports.KEY_ALIASES = KEY_ALIASES;
   exports.PatchFlags = PatchFlags;
   exports.ScopeScheduler = ScopeScheduler;
   exports.Suspense = Suspense;
+  exports.Teleport = Teleport;
+  exports.Transition = Transition;
+  exports.TransitionGroup = TransitionGroup;
   exports._internal = globalInternal;
   exports.app = createApp;
+  exports.applyFlip = applyFlip;
   exports.batch = batch;
+  exports.cancelFlip = cancelFlip;
+  exports.cancelTransition = cancelTransition;
   exports.checkMemoryLeaks = checkMemoryLeaks;
   exports.closeBlock = closeBlock;
   exports.component = componentGlobal;
@@ -5806,9 +7689,11 @@ ${rule}`;
   exports.createApp = createApp;
   exports.createEffectGroup = createEffectGroup;
   exports.createErrorBoundary = createErrorBoundary;
+  exports.createEventListener = createEventListener;
   exports.customRef = customRef;
   exports.default = globalAPI;
   exports.defineAsyncComponent = defineAsyncComponent;
+  exports.defineCustomElement = defineCustomElement;
   exports.definePlugin = definePlugin;
   exports.devtools = devtoolsAPI;
   exports.directive = directiveGlobal;
@@ -5819,9 +7704,12 @@ ${rule}`;
   exports.effectScope = effectScope;
   exports.enableHtmx = enableHtmxIntegration;
   exports.enableTracking = enableTracking;
+  exports.enter = enter;
+  exports.fireTransitionHook = fireTransitionHook;
   exports.getCurrentInstance = getCurrentInstance;
   exports.getCurrentScope = getCurrentScope;
   exports.getProfileData = getProfileData;
+  exports.getTransitionDurations = getTransitionDurations;
   exports.initHtmx = initHtmxIntegration;
   exports.inject = inject;
   exports.inspectComponent = inspectComponent;
@@ -5834,13 +7722,16 @@ ${rule}`;
   exports.isRef = isRef;
   exports.isShallow = isShallow;
   exports.lazyBind = lazyBind;
+  exports.leave = leave;
   exports.logger = logger;
   exports.markRaw = markRaw;
   exports.markTrace = markTrace;
+  exports.matchesKey = matchesKey;
   exports.measureTrace = measureTrace;
   exports.memo = memo;
   exports.mount = createAndMount;
   exports.namespace = namespaceGlobal;
+  exports.nextFrame = nextFrame;
   exports.nextTick = nextTick;
   exports.onBeforeMount = onBeforeMount;
   exports.onBeforeUnmount = onBeforeUnmount;
@@ -5865,12 +7756,15 @@ ${rule}`;
   exports.reactive = reactive;
   exports.readonly = readonly;
   exports.rebind = rebindGlobal;
+  exports.recordPositions = recordPositions;
   exports.ref = ref;
   exports.registry = globalRegistry;
   exports.removeDirective = removeDirectiveGlobal;
   exports.removeNamespace = removeNamespaceGlobal;
   exports.resetTracking = resetTracking;
   exports.resolvePath = resolvePath;
+  exports.resolveTeleportTarget = resolveTeleportTarget;
+  exports.resolveTransitionConfig = resolveTransitionConfig;
   exports.resumeTracking = resumeTracking;
   exports.runWithContext = runWithContextGlobal;
   exports.scopeScheduler = globalScopeScheduler;
@@ -5888,6 +7782,7 @@ ${rule}`;
   exports.untrack = untrack;
   exports.unuse = unuseGlobal;
   exports.use = useGlobal;
+  exports.useTemplateRef = useTemplateRef;
   exports.validatePluginDependencies = validatePluginDependencies;
   exports.version = VERSION;
   exports.watch = watch;
