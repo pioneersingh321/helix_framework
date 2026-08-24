@@ -1,7 +1,5 @@
 import { _hasOwn, _isPlainObject, _toPath } from './shared.js';
 
-const _cloneMap = new WeakMap();
-
 export function createObjectMethods(H, app) {
     return {
         pick(obj, keys) {
@@ -36,60 +34,114 @@ export function createObjectMethods(H, app) {
             }, {});
         },
 
-        cloneDeep(obj) {
+        cloneDeep(obj, _map = new WeakMap()) {
             if (obj === null || typeof obj !== 'object') return obj;
-            if (obj instanceof Date) return new Date(obj.getTime());
-            if (obj instanceof RegExp) return new RegExp(obj.source, obj.flags);
-            if (obj instanceof Map) return new Map(Array.from(obj, ([k, v]) => [H.cloneDeep(k), H.cloneDeep(v)]));
-            if (obj instanceof Set) return new Set(Array.from(obj, v => H.cloneDeep(v)));
-            if (Array.isArray(obj)) return obj.map(i => H.cloneDeep(i));
 
-            if (_cloneMap.has(obj)) return _cloneMap.get(obj);
-            const clone = {};
-            _cloneMap.set(obj, clone);
+            if (_map.has(obj)) return _map.get(obj);
 
-            for (const k of Reflect.ownKeys(obj)) {
-                if (_hasOwn(obj, k) || Object.getOwnPropertyDescriptor(obj, k)) {
-                    clone[k] = H.cloneDeep(obj[k]);
+            const copyDescriptors = (src, target, exclude = []) => {
+                const descriptors = Object.getOwnPropertyDescriptors(src);
+                for (const k of Reflect.ownKeys(descriptors)) {
+                    if (exclude.includes(k) || (Array.isArray(src) && /^\d+$/.test(k))) continue;
+                    const desc = descriptors[k];
+                    if ('value' in desc) {
+                        desc.value = H.cloneDeep(desc.value, _map);
+                    }
+                    try {
+                        Object.defineProperty(target, k, desc);
+                    } catch {
+                        target[k] = H.cloneDeep(src[k], _map);
+                    }
                 }
+            };
+
+            if (obj instanceof Date) {
+                const cloneDate = new Date(obj.getTime());
+                _map.set(obj, cloneDate);
+                copyDescriptors(obj, cloneDate);
+                return cloneDate;
             }
-            _cloneMap.delete(obj);
+
+            if (obj instanceof RegExp) {
+                const cloneReg = new RegExp(obj.source, obj.flags);
+                _map.set(obj, cloneReg);
+                copyDescriptors(obj, cloneReg);
+                return cloneReg;
+            }
+
+            if (Array.isArray(obj)) {
+                const cloneArr = [];
+                _map.set(obj, cloneArr);
+                for (let i = 0; i < obj.length; i++) {
+                    cloneArr[i] = H.cloneDeep(obj[i], _map);
+                }
+                copyDescriptors(obj, cloneArr, ['length']);
+                return cloneArr;
+            }
+
+            if (obj instanceof Map) {
+                const cloneMap = new Map();
+                _map.set(obj, cloneMap);
+                obj.forEach((v, k) => {
+                    cloneMap.set(H.cloneDeep(k, _map), H.cloneDeep(v, _map));
+                });
+                copyDescriptors(obj, cloneMap);
+                return cloneMap;
+            }
+
+            if (obj instanceof Set) {
+                const cloneSet = new Set();
+                _map.set(obj, cloneSet);
+                obj.forEach(v => {
+                    cloneSet.add(H.cloneDeep(v, _map));
+                });
+                copyDescriptors(obj, cloneSet);
+                return cloneSet;
+            }
+
+            const proto = Object.getPrototypeOf(obj);
+            const clone = Object.create(proto);
+            _map.set(obj, clone);
+            copyDescriptors(obj, clone);
+
             return clone;
         },
 
         deepMerge(target, ...sources) {
-            if (!sources.length) return target;
-            const s = sources.shift();
-            if (!_isPlainObject(target) || !_isPlainObject(s)) return H.deepMerge(target, ...sources);
-            const result = { ...target };
-            for (const k of Reflect.ownKeys(s)) {
-                if (_hasOwn(s, k)) {
-                    if (_isPlainObject(s[k]) && _isPlainObject(result[k])) {
-                        result[k] = H.deepMerge(result[k], s[k]);
-                    } else {
-                        result[k] = H.cloneDeep(s[k]);
-                    }
-                }
-            }
-            return H.deepMerge(result, ...sources);
-        },
-
-        merge(target, ...sources) {
-            if (!sources.length) return target;
-            const s = sources.shift();
-            if (_isPlainObject(target) && _isPlainObject(s)) {
-                for (const k of Reflect.ownKeys(s)) {
-                    if (_hasOwn(s, k)) {
-                        if (_isPlainObject(s[k])) {
-                            if (!target[k]) target[k] = {};
-                            H.merge(target[k], s[k]);
-                        } else {
-                            target[k] = s[k];
+            let result = _isPlainObject(target) ? { ...target } : {};
+            for (const s of sources) {
+                if (_isPlainObject(s)) {
+                    for (const k of Reflect.ownKeys(s)) {
+                        if (_hasOwn(s, k)) {
+                            if (_isPlainObject(s[k]) && _isPlainObject(result[k])) {
+                                result[k] = H.deepMerge(result[k], s[k]);
+                            } else {
+                                result[k] = H.cloneDeep(s[k]);
+                            }
                         }
                     }
                 }
             }
-            return H.merge(target, ...sources);
+            return result;
+        },
+
+        merge(target, ...sources) {
+            if (!target || typeof target !== 'object') target = {};
+            for (const s of sources) {
+                if (_isPlainObject(s)) {
+                    for (const k of Reflect.ownKeys(s)) {
+                        if (_hasOwn(s, k)) {
+                            if (_isPlainObject(s[k])) {
+                                if (!target[k] || typeof target[k] !== 'object') target[k] = {};
+                                H.merge(target[k], s[k]);
+                            } else {
+                                target[k] = s[k];
+                            }
+                        }
+                    }
+                }
+            }
+            return target;
         },
 
         hasKey(obj, key) {
@@ -119,7 +171,11 @@ export function createObjectMethods(H, app) {
             const ks = _toPath(path);
             for (let i = 0; i < ks.length - 1; i++) {
                 const k = ks[i];
-                if (!(k in c) || typeof c[k] !== 'object' || c[k] === null) c[k] = {};
+                const nextKey = ks[i + 1];
+                const isNextIndex = /^\d+$/.test(nextKey);
+                if (!(k in c) || typeof c[k] !== 'object' || c[k] === null || (isNextIndex && !Array.isArray(c[k])) || (!isNextIndex && Array.isArray(c[k]))) {
+                    c[k] = isNextIndex ? [] : {};
+                }
                 c = c[k];
             }
             c[ks[ks.length - 1]] = val;

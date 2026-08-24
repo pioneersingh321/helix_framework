@@ -1,16 +1,21 @@
 import { createDebounceDirective } from './directives/debounce.js';
+import { createCollapseDirective } from './directives/collapse.js';
+import { createTrapDirective } from './directives/trap.js';
+import { createClipboardDirective } from './directives/clipboard.js';
+import { createIntersectDirective } from './directives/intersect.js';
 
 // Directive factories, keyed by the name they're registered under.
-// Each factory is (app, config) => directiveDefinition.
-// Adding a new directive later: write src/directives/whatever.js exporting
-// createWhateverDirective(app, config), import it above, add one line here.
 const directiveFactories = {
-    debounce: createDebounceDirective
+    debounce: createDebounceDirective,
+    collapse: createCollapseDirective,
+    trap: createTrapDirective,
+    clipboard: createClipboardDirective,
+    intersect: createIntersectDirective
 };
 
 const HelixDirectivesPlugin = {
     name: 'directives',
-    version: import.meta.env.VITE_DIRECTIVES_VERSION || '0.0.0',
+    version: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_DIRECTIVES_VERSION) || '2.2.0',
     requires: {
         helix: '>=11.1.5'
     },
@@ -18,8 +23,6 @@ const HelixDirectivesPlugin = {
     install(app, options = {}) {
         const config = { ...options };
         const debug = !!config.debug;
-
-        const isReconfigure = !!app.__helixDirectivesInstalled;
 
         const registeredNames = [];
         for (const [name, factory] of Object.entries(directiveFactories)) {
@@ -29,7 +32,7 @@ const HelixDirectivesPlugin = {
             registeredNames.push(name);
         }
 
-        if (debug) console.log(`[directives] ${isReconfigure ? 're-installed (reconfigured)' : 'installed'}:`, registeredNames, '| config:', config);
+        if (debug) console.log('[directives] installed:', registeredNames, '| config:', config);
 
         const api = {
             names: registeredNames,
@@ -51,14 +54,14 @@ const HelixDirectivesPlugin = {
             try { bus.emit('plugin:directives:installed', { version: HelixDirectivesPlugin.version, names: registeredNames }); } catch (e) {}
         }
 
-        app.__helixDirectivesInstalled = true;
-
         return () => {
             registeredNames.forEach(name => {
                 if (typeof app.removeDirective === 'function') app.removeDirective(name);
             });
             if (app.$directives === api) delete app.$directives;
-            delete app.__helixDirectivesInstalled;
+            if (typeof app.removeNamespace === 'function') {
+                try { app.removeNamespace('directives'); } catch (e) {}
+            }
             if (bus && typeof bus.emit === 'function') {
                 try { bus.emit('plugin:directives:destroyed', { version: HelixDirectivesPlugin.version }); } catch (e) {}
             }
@@ -66,28 +69,8 @@ const HelixDirectivesPlugin = {
     }
 };
 
-// Expose globally AND autoload with zero required setup.
-//
-// If Helix is already present when this script runs, install immediately
-// with default options — no explicit Helix.use() call needed for the common
-// case of "just give me h-debounce with defaults".
-//
-// This calls install() DIRECTLY, not Helix.use(). That's deliberate: Helix.use()
-// registers the plugin in Core's plugin registry under its name, and Core
-// rejects a second install under the same name — so if the autoload used
-// Helix.use(), a later explicit Helix.use(HelixDirectivesPlugin, { debug: true })
-// call would be silently rejected, unable to actually apply real options
-// (this was the exact bug this plugin previously had, and the one every other
-// plugin in this ecosystem still avoids by not auto-installing at all).
-// Calling install() directly never touches that registry, so it doesn't
-// occupy a slot — a later Helix.use(HelixDirectivesPlugin, options) still
-// works normally, and install()'s own guard above (isReconfigure) allows it
-// to safely re-run and apply the new options on top.
+// Expose globally on window / globalThis for script-tag usage
 const root = (typeof window !== 'undefined' ? window : globalThis);
 root.HelixDirectivesPlugin = HelixDirectivesPlugin;
-
-if (root.Helix && typeof root.Helix.directive === 'function') {
-    HelixDirectivesPlugin.install(root.Helix, {});
-}
 
 export default HelixDirectivesPlugin;

@@ -18,13 +18,48 @@ export function createDataMethods(H) {
         },
 
         fromQueryString(str) {
-            if (!H.isString(str)) return {};
+            if (!H.isString(str) || !str.trim()) return {};
+            const cleanStr = str.startsWith('?') ? str.slice(1) : str;
             const result = {};
-            for (const [k, v] of new URLSearchParams(str)) {
-                if (result[k] !== undefined) {
-                    result[k] = [].concat(result[k], v);
+            const params = new URLSearchParams(cleanStr);
+
+            const parseKeys = (key) => {
+                const keys = [];
+                const re = /^([^\[\]]+)|\[([^\[\]]*)\]/g;
+                let match;
+                while ((match = re.exec(key)) !== null) {
+                    keys.push(match[1] !== undefined ? match[1] : match[2]);
+                }
+                return keys.length ? keys : [key];
+            };
+
+            for (const [rawKey, val] of params) {
+                const path = parseKeys(rawKey);
+                let curr = result;
+                for (let i = 0; i < path.length - 1; i++) {
+                    const segment = path[i];
+                    const nextSegment = path[i + 1];
+                    const isNextIndex = nextSegment !== '' && /^\d+$/.test(nextSegment);
+
+                    if (!(segment in curr) || typeof curr[segment] !== 'object' || curr[segment] === null) {
+                        curr[segment] = (isNextIndex || nextSegment === '') ? [] : {};
+                    }
+                    curr = curr[segment];
+                }
+
+                const lastSegment = path[path.length - 1];
+                if (lastSegment === '') {
+                    if (Array.isArray(curr)) {
+                        curr.push(val);
+                    }
+                } else if (lastSegment in curr) {
+                    if (Array.isArray(curr[lastSegment])) {
+                        curr[lastSegment].push(val);
+                    } else {
+                        curr[lastSegment] = [curr[lastSegment], val];
+                    }
                 } else {
-                    result[k] = v;
+                    curr[lastSegment] = val;
                 }
             }
             return result;

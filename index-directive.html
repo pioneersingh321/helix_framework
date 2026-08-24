@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Helix Directives · Reactive & Accessible UI Directives</title>
+
+  <!-- Google Fonts & Bootstrap 5 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <!-- 1) Helix Core, 2) Directives Plugin, 3) Helpers Plugin -->
+  <script src="./dist/helix.js"></script>
+  <script src="./plugins/directives/helix-directives.js"></script>
+  <script src="./plugins/helpers/helix-helpers.js"></script>
+
+  <style>
+    :root {
+      --hx-primary: #6366f1;
+      --hx-primary-hover: #4f46e5;
+      --hx-accent: #06b6d4;
+      --hx-surface: #ffffff;
+      --hx-bg: #0f172a;
+      --hx-text: #334155;
+      --hx-text-dark: #0f172a;
+    }
+
+    body {
+      background: #f8fafc;
+      color: var(--hx-text);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      overflow-x: hidden;
+    }
+
+    code, pre, .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Hero Header */
+    .hero {
+      background: radial-gradient(circle at top right, #312e81 0%, #1e1b4b 50%, #0f172a 100%);
+      color: #fff;
+      border-radius: 1.5rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.4);
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      top: -30%;
+      right: -15%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(165, 243, 252, 0.3);
+      color: #a5f3fc;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.825rem;
+      font-weight: 600;
+    }
+
+    /* Navigation Pill Bar */
+    .directive-nav {
+      position: sticky;
+      top: 1rem;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid #e2e8f0;
+      border-radius: 1rem;
+      padding: 0.5rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+    }
+
+    .directive-nav .nav-link {
+      color: #64748b;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 0.5rem 1rem;
+      border-radius: 0.75rem;
+      transition: all 0.2s ease;
+    }
+
+    .directive-nav .nav-link:hover {
+      color: var(--hx-primary);
+      background: #f1f5f9;
+    }
+
+    .directive-nav .nav-link.active {
+      color: #fff;
+      background: var(--hx-primary);
+    }
+
+    /* Interactive Demo Cards */
+    .demo-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 1.25rem;
+      background: #fff;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+      margin-bottom: 2.5rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .demo-card:hover {
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08);
+    }
+
+    .card-header-custom {
+      padding: 1.25rem 1.5rem;
+      background: linear-gradient(to right, #f8fafc, #ffffff);
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .code-preview {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1.25rem;
+      border-radius: 0.85rem;
+      font-size: 0.85rem;
+      overflow-x: auto;
+    }
+
+    .tag-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.25rem 0.6rem;
+      border-radius: 0.5rem;
+    }
+
+    .tag-directive {
+      background: #e0e7ff;
+      color: #4338ca;
+    }
+
+    .tag-modifier {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
+    /* Modal Trap Overlay */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+      z-index: 1050;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .trap-modal {
+      background: #fff;
+      border-radius: 1.25rem;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      padding: 1.75rem;
+      position: relative;
+      animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalPop {
+      0% { transform: scale(0.95); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* Clipboard Feedback Active Styles */
+    .copied-badge {
+      transition: all 0.25s ease;
+    }
+
+    .copied-badge.is-copied {
+      background: #10b981 !important;
+      color: #fff !important;
+      transform: scale(1.05);
+    }
+
+    /* Intersection Scroll Box */
+    .intersect-viewport {
+      height: 280px;
+      overflow-y: auto;
+      border: 2px dashed #cbd5e1;
+      border-radius: 1rem;
+      background: #f8fafc;
+      position: relative;
+      padding: 1rem;
+    }
+
+    .intersect-target {
+      padding: 2.5rem 1.5rem;
+      border-radius: 1rem;
+      background: #ffffff;
+      border: 2px solid #e2e8f0;
+      text-align: center;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    }
+
+    .intersect-target.is-visible {
+      background: #ecfdf5;
+      border-color: #10b981;
+      box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.2);
+    }
+
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .pulse-online {
+      background: #10b981;
+      box-shadow: 0 0 0 rgba(16, 185, 129, 0.4);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+  </style>
+</head>
+
+<body id="app-root">
+
+  <div class="container py-4">
+
+    <!-- Hero Banner -->
+    <header class="hero p-4 p-md-5 mb-4">
+      <div class="row align-items-center">
+        <div class="col-lg-8">
+          <div class="hero-badge mb-3">
+            <i class="bi bi-stars"></i> Official Helix Directives Plugin · v2.2.0
+          </div>
+          <h1 class="display-5 fw-bold text-white mb-3">Helix UI Directives</h1>
+          <p class="lead text-white-50 mb-4" style="max-width: 650px;">
+            A suite of high-performance, accessible, and reactive directives for modern interactive web applications. 
+            Debouncing, smooth height collapse, focus traps, clipboard actions, and viewport triggers.
+          </p>
+          <div class="d-flex flex-wrap gap-2">
+            <span class="badge bg-white bg-opacity-10 text-white border border-white border-opacity-25 px-3 py-2">
+              <i class="bi bi-lightning-charge me-1 text-warning"></i> Lifecycle Reactive
+            </span>
+            <span class="badge bg-white bg-opacity-10 text-white border border-white border-opacity-25 px-3 py-2">
+              <i class="bi bi-universal-access me-1 text-info"></i> Accessible Inert & Trap
+            </span>
+            <span class="badge bg-white bg-opacity-10 text-white border border-white border-opacity-25 px-3 py-2">
+              <i class="bi bi-hdd-stack me-1 text-success"></i> Zero Dependencies
+            </span>
+          </div>
+        </div>
+        <div class="col-lg-4 d-none d-lg-block text-center">
+          <div class="p-3 bg-white bg-opacity-10 rounded-4 border border-white border-opacity-10 backdrop-blur">
+            <div class="font-mono text-start small text-info mb-2">// Directives Registered</div>
+            <div class="font-mono text-start small text-light mb-1">✓ hx-debounce</div>
+            <div class="font-mono text-start small text-light mb-1">✓ hx-collapse</div>
+            <div class="font-mono text-start small text-light mb-1">✓ hx-trap</div>
+            <div class="font-mono text-start small text-light mb-1">✓ hx-clipboard</div>
+            <div class="font-mono text-start small text-light">✓ hx-intersect</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Bar -->
+    <nav class="directive-nav d-flex flex-wrap justify-content-between align-items-center mb-4">
+      <ul class="nav nav-pills gap-1">
+        <li class="nav-item"><a class="nav-link active" href="#debounce">hx-debounce</a></li>
+        <li class="nav-item"><a class="nav-link" href="#collapse">hx-collapse</a></li>
+        <li class="nav-item"><a class="nav-link" href="#trap">hx-trap</a></li>
+        <li class="nav-item"><a class="nav-link" href="#clipboard">hx-clipboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="#intersect">hx-intersect</a></li>
+      </ul>
+      <div class="d-none d-md-flex align-items-center gap-2 me-2">
+        <span class="small fw-semibold text-muted"><span class="pulse-dot pulse-online"></span>Live Playground</span>
+      </div>
+    </nav>
+
+    <!-- SECTION 1: HX-DEBOUNCE -->
+    <section id="debounce" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-directive me-2">Directive</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">hx-debounce</span>
+        </div>
+        <div>
+          <span class="badge bg-secondary-subtle text-secondary border">Default: 300ms</span>
+          <span class="badge bg-secondary-subtle text-secondary border">Auto-Cancelling</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          Debounces user inputs, keystrokes, and clicks. Supports dot-path arguments like <code>$event.target.value</code>, 
+          custom delay overrides in milliseconds, and automatically cancels pending timers when the component state changes.
+        </p>
+
+        <div class="row g-4 mb-3">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Live Demo: Search Input</label>
+              <div class="input-group mb-3">
+                <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                <input type="text" 
+                       class="form-control" 
+                       placeholder="Type quickly (e.g. 'Helix Directives')..." 
+                       hx-debounce="[handleSearch($event.target.value), 400]"
+                       @input="onRawInput($event.target.value)">
+              </div>
+
+              <div class="d-flex justify-content-between small text-muted mb-2">
+                <span>Immediate Raw Keystrokes: <strong class="text-dark" hx-text="rawStrokeCount">0</strong></span>
+                <span>Debounced API Calls: <strong class="text-primary" hx-text="debouncedCallCount">0</strong></span>
+              </div>
+
+              <div class="p-2 bg-white rounded border small">
+                <span class="text-muted">Last Debounced Value:</span>
+                <span class="fw-bold text-success" hx-text="debouncedQuery || '(none yet)'"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview">
+<pre class="mb-0"><code>&lt;!-- Bare method (default 300ms on 'input') --&gt;
+&lt;input hx-debounce="handleSearch"&gt;
+
+&lt;!-- Custom delay (400ms) with event argument --&gt;
+&lt;input hx-debounce="[handleSearch($event.target.value), 400]"&gt;
+
+&lt;!-- Debounce button click (1000ms) --&gt;
+&lt;button hx-debounce:click="[saveDraft(), 1000]"&gt;Save&lt;/button&gt;</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: HX-COLLAPSE -->
+    <section id="collapse" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-directive me-2">Directive</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">hx-collapse</span>
+        </div>
+        <div class="d-flex gap-1">
+          <span class="tag-badge tag-modifier">.duration.&lt;ms&gt;</span>
+          <span class="tag-badge tag-modifier">.min.&lt;px&gt;</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          Smoothly animates height between <code>0px</code> (or a custom <code>minHeight</code>) and natural <code>scrollHeight</code> 
+          using hardware-accelerated CSS transitions. Automatically clears fixed inline styles once fully expanded.
+        </p>
+
+        <div class="row g-4 mb-3">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="fw-bold text-dark">Interactive Accordion Panel</span>
+                <button class="btn btn-sm btn-primary px-3 rounded-pill" @click="toggleAccordion">
+                  <i class="bi" :class="isAccordionOpen ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                  <span hx-text="isAccordionOpen ? 'Collapse' : 'Expand'"></span>
+                </button>
+              </div>
+
+              <!-- Collapsible Element -->
+              <div hx-collapse.duration.300ms="isAccordionOpen" class="rounded-3 bg-white border p-3">
+                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-magic me-1"></i> Hardware-Accelerated Smooth Collapse</h6>
+                <p class="small text-muted mb-2">
+                  Helix automatically calculates exact scroll height, applies a synchronized CSS transition, and clears 
+                  overflow upon completion so dropdowns and tooltips inside aren't clipped.
+                </p>
+                <div class="alert alert-info py-2 px-3 small mb-0">
+                  <i class="bi bi-info-circle me-1"></i> Supports dynamic content changes and rapid click reversals without jumping!
+                </div>
+              </div>
+
+              <!-- Collapsible with minHeight preview -->
+              <div class="mt-3 pt-3 border-top">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="small fw-bold text-muted">Preview Panel (min. 45px)</span>
+                  <button class="btn btn-xs btn-outline-secondary btn-sm" @click="togglePreview">
+                    <span hx-text="isPreviewOpen ? 'Show Less' : 'Show Full'"></span>
+                  </button>
+                </div>
+                <div hx-collapse.duration.250ms.min.45px="isPreviewOpen" class="bg-white border rounded p-2 small text-muted">
+                  <strong>Preview Summary:</strong> This panel never completely disappears because <code>.min.45px</code> 
+                  keeps the first line visible even when closed. When expanded, it seamlessly grows to full height!
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview">
+<pre class="mb-0"><code>&lt;!-- Standard collapse toggled by boolean --&gt;
+&lt;div hx-collapse="isOpen"&gt;
+  &lt;p&gt;Smoothly animated content...&lt;/p&gt;
+&lt;/div&gt;
+
+&lt;!-- Custom 400ms duration modifier --&gt;
+&lt;div hx-collapse.duration.400ms="isOpen"&gt;
+  ...
+&lt;/div&gt;
+
+&lt;!-- Minimum height modifier for peek preview --&gt;
+&lt;div hx-collapse.duration.300ms.min.45px="isOpen"&gt;
+  ...
+&lt;/div&gt;</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: HX-TRAP -->
+    <section id="trap" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-directive me-2">Directive</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">hx-trap</span>
+        </div>
+        <div class="d-flex gap-1">
+          <span class="tag-badge tag-modifier">.noscroll</span>
+          <span class="tag-badge tag-modifier">.inert</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          Traps keyboard focus (<code>Tab</code> / <code>Shift+Tab</code>) within a modal or dialog. Supports <code>.noscroll</code> 
+          (locks body scroll with nested reference counting) and <code>.inert</code> (deep-tree background isolation for accessibility).
+        </p>
+
+        <div class="row g-4 mb-3">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Modal Focus & Accessibility Demo</label>
+              <p class="small text-muted mb-3">
+                Open the modal below. Notice that you cannot Tab outside of it, background page scroll is locked, 
+                and all outside elements are marked <code>inert="true"</code>. Closing it restores focus to this button!
+              </p>
+              <button id="open-modal-btn" class="btn btn-primary" @click="openModal">
+                <i class="bi bi-box-arrow-up-right me-1"></i> Open Accessible Modal (hx-trap.noscroll.inert)
+              </button>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview">
+<pre class="mb-0"><code>&lt;!-- Focus trap with scroll lock & deep inert --&gt;
+&lt;div hx-trap.noscroll.inert="isModalOpen" class="modal-dialog"&gt;
+  &lt;h5&gt;Accessible Modal Dialog&lt;/h5&gt;
+  &lt;input type="text" placeholder="First Name" /&gt;
+  &lt;button @click="closeModal"&gt;Close&lt;/button&gt;
+&lt;/div&gt;
+
+&lt;!-- Features:
+  ✓ Loops Tab and Shift+Tab navigation
+  ✓ Reference-counted body scroll locking
+  ✓ Deep ancestor-guarded inert isolation
+  ✓ Restores focus safely on close --&gt;</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Trap Modal (Rendered when isModalOpen is true) -->
+        <div class="modal-overlay" hx-if="isModalOpen" @click.self="closeModal">
+          <div class="trap-modal" hx-trap.noscroll.inert="isModalOpen">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-shield-lock-fill text-primary me-2"></i>Focus Trapped Modal</h5>
+              <button type="button" class="btn-close" aria-label="Close" @click="closeModal"></button>
+            </div>
+            <p class="text-secondary small mb-3">
+              Press <kbd>Tab</kbd> or <kbd>Shift + Tab</kbd> repeatedly. Focus will cycle strictly through these inputs and buttons without escaping into the page.
+            </p>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">Test Input 1</label>
+              <input type="text" class="form-control form-control-sm" placeholder="First field" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">Test Input 2</label>
+              <input type="text" class="form-control form-control-sm" placeholder="Second field" />
+            </div>
+            <div class="d-flex justify-content-end gap-2 mt-4">
+              <button type="button" class="btn btn-sm btn-outline-secondary" @click="closeModal">Cancel</button>
+              <button type="button" class="btn btn-sm btn-primary" @click="closeModal">Done & Restore Focus</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: HX-CLIPBOARD -->
+    <section id="clipboard" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-directive me-2">Directive</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">hx-clipboard</span>
+        </div>
+        <div class="d-flex gap-1">
+          <span class="tag-badge tag-modifier">.class.&lt;name&gt;</span>
+          <span class="tag-badge tag-modifier">.duration.&lt;ms&gt;</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          Copies bound context values or element text content to the user's system clipboard. 
+          Provides instant visual feedback classes and dispatches a rich <code>@copied</code> CustomEvent.
+        </p>
+
+        <div class="row g-4 mb-3">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Interactive Copy Buttons</label>
+              
+              <!-- Copy context variable -->
+              <div class="input-group mb-3">
+                <input type="text" class="form-control font-mono small" :value="snippetToCopy" readonly>
+                <button class="btn btn-outline-primary copied-badge" 
+                        hx-clipboard.class.is-copied.duration.1500="snippetToCopy"
+                        @copied="onSnippetCopied($event)">
+                  <i class="bi bi-clipboard me-1"></i> Copy Code
+                </button>
+              </div>
+
+              <!-- Copy direct text content -->
+              <div class="d-flex align-items-center justify-content-between p-2 bg-white rounded border">
+                <span class="font-mono small text-dark">npm i @helix-js/directives</span>
+                <button class="btn btn-sm btn-secondary copied-badge"
+                        hx-clipboard.class.is-copied.duration.1000
+                        @copied="onSnippetCopied($event)">
+                  <i class="bi bi-copy"></i>
+                </button>
+              </div>
+
+              <!-- Live Event Log -->
+              <div class="mt-3 p-2 bg-dark rounded small font-mono text-light" style="font-size: 0.78rem;">
+                <span class="text-info">// @copied Event Console:</span><br>
+                <span class="text-white-50" hx-text="clipboardLog || 'Click any copy button above to see event payload...'"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview">
+<pre class="mb-0"><code>&lt;!-- Copy context variable with custom feedback class & duration --&gt;
+&lt;button hx-clipboard.class.is-copied.duration.1500="shareUrl"&gt;
+  Copy Link
+&lt;/button&gt;
+
+&lt;!-- Listen to @copied event with payload --&gt;
+&lt;button hx-clipboard="token" @copied="onCopied($event)"&gt;
+  Copy Token
+&lt;/button&gt;
+
+&lt;!-- Event detail payload structure:
+  event.detail = {
+    text: "https://helixjs.org",
+    success: true
+  } --&gt;</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5: HX-INTERSECT -->
+    <section id="intersect" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-directive me-2">Directive</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">hx-intersect</span>
+        </div>
+        <div class="d-flex gap-1">
+          <span class="tag-badge tag-modifier">.once</span>
+          <span class="tag-badge tag-modifier">.half / .full</span>
+          <span class="tag-badge tag-modifier">.threshold.&lt;pct&gt;</span>
+          <span class="tag-badge tag-modifier">:leave</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          Executes reactive callbacks when an element enters or leaves the browser viewport. 
+          Supports percentage thresholds (<code>.threshold.50</code>, <code>.half</code>), root margins, and unobserve cleanup.
+        </p>
+
+        <div class="row g-4 mb-3">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="fw-bold small text-uppercase text-muted">Scroll Viewport Demo</span>
+                <span class="badge" :class="intersectVisible ? 'bg-success' : 'bg-secondary'" hx-text="intersectVisible ? 'Target Visible (50%)' : 'Target Hidden'"></span>
+              </div>
+
+              <!-- Scroll Container Box -->
+              <div class="intersect-viewport">
+                <div class="p-3 text-center text-muted small">
+                  <i class="bi bi-arrow-down-circle fs-4 d-block mb-1"></i>
+                  Scroll down inside this box to trigger intersection...
+                </div>
+                <div style="height: 180px;"></div>
+
+                <!-- Intersection Target Element -->
+                <div class="intersect-target" 
+                     :class="{ 'is-visible': intersectVisible }"
+                     hx-intersect.threshold.50="onIntersectEnter"
+                     hx-intersect:leave="onIntersectLeave">
+                  <h6 class="fw-bold mb-1" hx-text="intersectVisible ? '🎉 50% In Viewport!' : 'Target Element'"></h6>
+                  <p class="small text-muted mb-0">Trigger count: <strong class="text-primary" hx-text="intersectCounter">0</strong></p>
+                </div>
+
+                <div style="height: 180px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview">
+<pre class="mb-0"><code>&lt;!-- Trigger when 50% visible --&gt;
+&lt;div hx-intersect.threshold.50="loadMore"&gt;...&lt;/div&gt;
+
+&lt;!-- Fire once and disconnect observer --&gt;
+&lt;div hx-intersect.once="fetchAnalytics"&gt;...&lt;/div&gt;
+
+&lt;!-- Root margin offset (with negative margins) --&gt;
+&lt;div hx-intersect.margin.-50px="onNearScreen"&gt;...&lt;/div&gt;
+
+&lt;!-- Detect when leaving viewport --&gt;
+&lt;div hx-intersect:leave="pauseVideo"&gt;...&lt;/div&gt;</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center py-4 border-top text-muted small">
+      <p class="mb-1">Helix.js Framework · Comprehensive Directives & Helpers Suite</p>
+      <p class="mb-0 text-secondary">Built with modern web standards, strict reactive scoping, and 100% test coverage.</p>
+    </footer>
+
+  </div>
+
+  <!-- Bootstrapping Script -->
+  <script>
+    // 1. Configure Helix prefix and features
+    Helix.config.prefix = 'hx-';
+    Helix.config.allowInlineExpressions = true;
+
+    // 2. Install Directives and Helpers Plugins
+    Helix.use(HelixDirectivesPlugin);
+    Helix.use(HelixHelpersPlugin);
+
+    // 3. Mount Application with Full Reactive State
+    Helix.createApp({
+      setup() {
+        const { ref } = Helix;
+
+        // Debounce demo state
+        const rawStrokeCount = ref(0);
+        const debouncedCallCount = ref(0);
+        const debouncedQuery = ref('');
+
+        const onRawInput = (val) => {
+          rawStrokeCount.value++;
+        };
+
+        const handleSearch = (val) => {
+          debouncedCallCount.value++;
+          debouncedQuery.value = val;
+        };
+
+        // Collapse demo state
+        const isAccordionOpen = ref(false);
+        const isPreviewOpen = ref(false);
+
+        const toggleAccordion = () => {
+          isAccordionOpen.value = !isAccordionOpen.value;
+        };
+
+        const togglePreview = () => {
+          isPreviewOpen.value = !isPreviewOpen.value;
+        };
+
+        // Trap demo state
+        const isModalOpen = ref(false);
+
+        const openModal = () => {
+          isModalOpen.value = true;
+        };
+
+        const closeModal = () => {
+          isModalOpen.value = false;
+        };
+
+        // Clipboard demo state
+        const snippetToCopy = ref("Helix.use(HelixDirectivesPlugin);");
+        const clipboardLog = ref("");
+
+        const onSnippetCopied = (e) => {
+          const detail = e.detail || {};
+          clipboardLog.value = `Copied "${detail.text}" · Success: ${detail.success}`;
+        };
+
+        // Intersect demo state
+        const intersectVisible = ref(false);
+        const intersectCounter = ref(0);
+
+        const onIntersectEnter = (entry) => {
+          intersectVisible.value = true;
+          intersectCounter.value++;
+        };
+
+        const onIntersectLeave = (entry) => {
+          intersectVisible.value = false;
+        };
+
+        return {
+          rawStrokeCount,
+          debouncedCallCount,
+          debouncedQuery,
+          onRawInput,
+          handleSearch,
+          isAccordionOpen,
+          isPreviewOpen,
+          toggleAccordion,
+          togglePreview,
+          isModalOpen,
+          openModal,
+          closeModal,
+          snippetToCopy,
+          clipboardLog,
+          onSnippetCopied,
+          intersectVisible,
+          intersectCounter,
+          onIntersectEnter,
+          onIntersectLeave
+        };
+      }
+    }).mount('#app-root');
+  </script>
+
+</body>
+</html>

@@ -29,7 +29,8 @@ import {
     ref,
     isRef,
     toRef,
-    toRefs
+    toRefs,
+    proxyRefs
 } from '../reactivity/ref.js';
 import { effect } from '../reactivity/effect.js';
 import { computed } from '../reactivity/computed.js';
@@ -512,7 +513,7 @@ export function createApp(rootComponent = {}) {
                         }
                         if (!res.$refs) res.$refs = {};
                     }
-                    return res;
+                    return proxyRefs(res);
                 });
             } catch (err) {
                 handleError(err, "Root setup");

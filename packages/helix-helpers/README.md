@@ -52,27 +52,27 @@ time any method actually *runs* — the same way the original single
 object-literal version worked (methods referencing sibling methods on the
 same object, just spread across files instead of one file).
 
-## Notes on this version vs. the original single-file plugin
+## Enhanced Capabilities & Correctness Guarantees
 
-- **Not auto-installed.** The original version called `Helix.use(HelixHelpersPlugin)`
-  automatically at script-load time if `window.Helix` already existed. That's
-  inconsistent with every other Helix plugin (`scope`, `loader`, `fetch`, `axios`,
-  `model`, `tooltip`) and would silently block a later explicit
-  `Helix.use(HelixHelpersPlugin, options)` call, since core's plugin registry
-  rejects a second install under the same name. This version just exposes
-  `window.HelixHelpersPlugin` and expects an explicit `Helix.use(...)` call.
-- **Removed the unused third `instance` parameter** from `install(app, options, instance)`.
-  Core's plugin system never passes a third argument — the original file's own
-  comments already correctly identified this exact pattern for why
-  `app.onAppUnmount` doesn't work either, but the parameter itself was left in
-  place; it's now gone.
-- Everything else — behavior of every `H.*` method, the `_cloneMap`/`_equalMap`
-  circular-reference handling, the `_timerCancels` cleanup tracking for
-  `debounce`/`throttle` — is unchanged.
+- **Not Auto-Installed**: Fully matches every sibling Helix plugin (`scope`, `loader`, `fetch`, `axios`, `directives`). Simply registers `root.HelixHelpersPlugin` and expects explicit `Helix.use(HelixHelpersPlugin, options)`.
+- **True Circular Data Structure Support**: `cloneDeep` and `isEqual` natively support circular Arrays, circular Maps (keys and values), circular Sets, circular Objects, and arbitrary cross-references.
+- **Deep Clone Supported Types**: Deeply clones Primitives, Plain Objects, Arrays, Maps, Sets, Dates, and RegExps while preserving prototypes, property descriptors, and custom properties across all container types. Standard reference types (Functions, Promises, DOM nodes, WeakMaps) are safely preserved by reference.
+- **Deep Map & Set Equality**: `isEqual` performs structural recursive pair-equality on Map entries and Set values, including complex circular Map/Set graphs.
+- **Structured Bracket-Path Query Strings**: `toQueryString` and `fromQueryString` seamlessly round-trip nested objects (`user[name]`, `user[address][city]`) and arrays (`tags[]`, `items[0]`).
+- **Container Type Safety in `set()`**: `H.set({}, 'users.0.name', 'John')` automatically creates Array containers for numeric path segments, replacing any existing mismatched non-Array containers when encountering numeric indices.
+- **Distinct ID Semantics**: `H.id(prefix)` generates deterministic sequential DOM IDs (`hx-1`, `hx-2`), while `H.uniqueId(prefix)` generates collision-resistant random IDs (`hx-a1b2c3d4`).
+- **SSR & Headless Execution Safety**: `scrollTo`, `copyToClipboard`, `downloadFile`, `collapse`, `intersect`, and `trapFocus` gracefully guard against missing DOM primitives in headless, testing, or server environments.
+- **Explicit Event Dispatch Overloads**: Supports both global `dispatch(eventName, detail, options)` and element-targeted `dispatch(target, eventName, detail, options)`.
+- **Proper Timer & Cancellation Semantics**: `debounce.cancel()` and `throttle.cancel()` reset timers and state cleanly.
+- **Destructuring-Safe Methods**: `const { copy } = inject('$h')` works without `this` binding dependency.
+- **Multi-Currency, Locale & UTC Support**: `formatCurrency` accepts either currency strings or options objects (`locale`, `currencyDisplay`, etc.), `formatNumber` accepts custom locales, and `formatDate` supports optional `{ utc: true }` mode.
+- **Comprehensive Automated Test Suite**: Exhaustive test suite covering all 12 modules, circular reference graphs, provider lifecycle cleanup, and production bundle sandbox validation.
 
-## Development
+## Development & Testing
 
 ```bash
 npm install
-npm run build
+npm test          # Runs source test suite (works cleanly on fresh checkout)
+npm run build     # Builds production IIFE bundles to dist/ and copies to plugins/helpers/
+npm run test:build # Rebuilds bundle and executes full suite with dist validation
 ```

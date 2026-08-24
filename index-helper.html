@@ -1,0 +1,1870 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Helix Helpers · Comprehensive Utility Suite & Interactive Playground</title>
+
+  <!-- Google Fonts & Bootstrap 5 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <!-- Helix Framework & Helpers Plugin -->
+  <script src="./dist/helix.js"></script>
+  <script src="./plugins/helpers/helix-helpers.js"></script>
+  <script src="./plugins/directives/helix-directives.js"></script>
+
+  <style>
+    :root {
+      --hx-primary: #6366f1;
+      --hx-primary-hover: #4f46e5;
+      --hx-accent: #06b6d4;
+      --hx-surface: #ffffff;
+      --hx-bg: #0f172a;
+      --hx-text: #334155;
+      --hx-text-dark: #0f172a;
+    }
+
+    body {
+      background: #f8fafc;
+      color: var(--hx-text);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      overflow-x: hidden;
+    }
+
+    code, pre, .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Hero Header */
+    .hero {
+      background: radial-gradient(circle at top right, #312e81 0%, #1e1b4b 50%, #0f172a 100%);
+      color: #fff;
+      border-radius: 1.5rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.4);
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      top: -30%;
+      right: -15%;
+      width: 550px;
+      height: 550px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.35) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(99, 102, 241, 0.25);
+      border: 1px solid rgba(165, 243, 252, 0.3);
+      color: #a5f3fc;
+      padding: 0.4rem 0.95rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    /* Navigation Pill Bar */
+    .helpers-nav {
+      position: sticky;
+      top: 1rem;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(12px);
+      border: 1px solid #e2e8f0;
+      border-radius: 1rem;
+      padding: 0.6rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06);
+    }
+
+    .helpers-nav .nav-link {
+      color: #64748b;
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 0.45rem 0.85rem;
+      border-radius: 0.65rem;
+      transition: all 0.2s ease;
+    }
+
+    .helpers-nav .nav-link:hover {
+      color: var(--hx-primary);
+      background: #f1f5f9;
+    }
+
+    .helpers-nav .nav-link.active {
+      color: #fff;
+      background: var(--hx-primary);
+    }
+
+    /* Category Cards */
+    .demo-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 1.25rem;
+      background: #fff;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+      margin-bottom: 2.5rem;
+      transition: box-shadow 0.2s ease;
+    }
+
+    .demo-card:hover {
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08);
+    }
+
+    .card-header-custom {
+      padding: 1.25rem 1.5rem;
+      background: linear-gradient(to right, #f8fafc, #ffffff);
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .code-preview {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1.25rem;
+      border-radius: 0.85rem;
+      font-size: 0.85rem;
+      overflow-x: auto;
+    }
+
+    .tag-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.25rem 0.6rem;
+      border-radius: 0.5rem;
+    }
+
+    .tag-category {
+      background: #e0e7ff;
+      color: #4338ca;
+    }
+
+    .tag-fn {
+      background: #ecfdf5;
+      color: #047857;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .result-box {
+      background: #f1f5f9;
+      border-radius: 0.75rem;
+      border: 1px solid #cbd5e1;
+      padding: 0.85rem 1.15rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+    }
+
+    .fn-table th {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      background: #f8fafc;
+      border-bottom: 2px solid #e2e8f0;
+      padding: 0.75rem 1rem;
+    }
+
+    .fn-table td {
+      padding: 0.75rem 1rem;
+      vertical-align: middle;
+      font-size: 0.88rem;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .pulse-online {
+      background: #10b981;
+      box-shadow: 0 0 0 rgba(16, 185, 129, 0.4);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+  </style>
+</head>
+
+<body id="app-root">
+
+  <div class="container py-4">
+
+    <!-- Hero Banner -->
+    <header class="hero p-4 p-md-5 mb-4">
+      <div class="row align-items-center">
+        <div class="col-lg-8">
+          <div class="hero-badge mb-3">
+            <i class="bi bi-tools"></i> Official Helix Helpers Plugin · v1.1.0
+          </div>
+          <h1 class="display-5 fw-bold text-white mb-3">Helix Utility Suite (<code>$h</code>)</h1>
+          <p class="lead text-white-50 mb-4" style="max-width: 680px;">
+            A lightweight, zero-dependency, direct-access utility library for modern JavaScript & Helix applications.
+            Features 50+ rock-solid helper functions for strings, arrays, deep objects, types, dates, numbers, validation, async, and DOM.
+          </p>
+          <div class="d-flex flex-wrap gap-2">
+            <span class="badge bg-white bg-opacity-10 text-white border border-white border-opacity-25 px-3 py-2">
+              <i class="bi bi-cpu me-1 text-warning"></i> Access: <code>app.$h</code> / <code>$h</code>
+            </span>
+            <span class="badge bg-white bg-opacity-10 text-white border border-white border-opacity-25 px-3 py-2">
+              <i class="bi bi-box-seam me-1 text-info"></i> Injected: <code>inject('$h')</code>
+            </span>
+            <span class="badge bg-white bg-opacity-10 text-white border border-white border-opacity-25 px-3 py-2">
+              <i class="bi bi-shield-check me-1 text-success"></i> Circular Safe & Deep Equal
+            </span>
+          </div>
+        </div>
+        <div class="col-lg-4 d-none d-lg-block">
+          <div class="p-3 bg-white bg-opacity-10 rounded-4 border border-white border-opacity-10 backdrop-blur">
+            <div class="font-mono text-start small text-info mb-2">// Direct Access Anywhere</div>
+            <div class="font-mono text-start small text-light mb-1">app.$h.camelCase('hello_world')</div>
+            <div class="font-mono text-start small text-light mb-1">app.$h.groupBy(users, 'role')</div>
+            <div class="font-mono text-start small text-light mb-1">app.$h.get(state, 'user.name')</div>
+            <div class="font-mono text-start small text-light mb-1">app.$h.formatCurrency(1250.5)</div>
+            <div class="font-mono text-start small text-light">app.$h.timeAgo(timestamp)</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Bar -->
+    <nav class="helpers-nav d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+      <ul class="nav nav-pills gap-1 flex-wrap mb-0">
+        <li class="nav-item"><a class="nav-link" href="#strings">Strings</a></li>
+        <li class="nav-item"><a class="nav-link" href="#arrays">Arrays</a></li>
+        <li class="nav-item"><a class="nav-link" href="#objects">Objects</a></li>
+        <li class="nav-item"><a class="nav-link" href="#types">Types</a></li>
+        <li class="nav-item"><a class="nav-link" href="#numbers">Numbers</a></li>
+        <li class="nav-item"><a class="nav-link" href="#dates">Dates</a></li>
+        <li class="nav-item"><a class="nav-link" href="#validation">Validation</a></li>
+        <li class="nav-item"><a class="nav-link" href="#async">Async & Timers</a></li>
+        <li class="nav-item"><a class="nav-link" href="#dom">DOM & Browser</a></li>
+        <li class="nav-item"><a class="nav-link" href="#data">Data & Queries</a></li>
+      </ul>
+      <div class="d-none d-md-flex align-items-center gap-2">
+        <span class="small fw-semibold text-muted"><span class="pulse-dot pulse-online"></span>Live Playground</span>
+      </div>
+    </nav>
+
+    <!-- SECTION 1: STRINGS -->
+    <section id="strings" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-category me-2">Module</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">Strings</span>
+        </div>
+        <div>
+          <span class="tag-badge tag-fn">11 Methods</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          String normalization, case conversions, slugification, HTML escaping/unescaping, truncation, and padding.
+        </p>
+
+        <!-- Live String Playground -->
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Live Interactive Tester</label>
+              <div class="mb-3">
+                <input type="text" class="form-control" :value="stringInput" @input="stringInput = $event.target.value" placeholder="Type sample text...">
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm table-borderless align-middle mb-0 small">
+                  <tbody>
+                    <tr>
+                      <td class="font-mono fw-bold text-primary" style="width: 140px;">camelCase</td>
+                      <td class="font-mono bg-white px-2 py-1 rounded border text-dark" hx-text="$h.camelCase(stringInput)"></td>
+                    </tr>
+                    <tr>
+                      <td class="font-mono fw-bold text-primary">kebabCase</td>
+                      <td class="font-mono bg-white px-2 py-1 rounded border text-dark" hx-text="$h.kebabCase(stringInput)"></td>
+                    </tr>
+                    <tr>
+                      <td class="font-mono fw-bold text-primary">snakeCase</td>
+                      <td class="font-mono bg-white px-2 py-1 rounded border text-dark" hx-text="$h.snakeCase(stringInput)"></td>
+                    </tr>
+                    <tr>
+                      <td class="font-mono fw-bold text-primary">titleCase</td>
+                      <td class="font-mono bg-white px-2 py-1 rounded border text-dark" hx-text="$h.titleCase(stringInput)"></td>
+                    </tr>
+                    <tr>
+                      <td class="font-mono fw-bold text-primary">slugify</td>
+                      <td class="font-mono bg-white px-2 py-1 rounded border text-dark" hx-text="$h.slugify(stringInput)"></td>
+                    </tr>
+                    <tr>
+                      <td class="font-mono fw-bold text-primary">capitalize</td>
+                      <td class="font-mono bg-white px-2 py-1 rounded border text-dark" hx-text="$h.capitalize(stringInput)"></td>
+                    </tr>
+                    <tr>
+                      <td class="font-mono fw-bold text-primary">truncate (15)</td>
+                      <td class="font-mono bg-white px-2 py-1 rounded border text-dark" hx-text="$h.truncate(stringInput, 15)"></td>
+                    </tr>
+                    <tr>
+                      <td class="font-mono fw-bold text-primary">escapeHtml</td>
+                      <td class="font-mono bg-white px-2 py-1 rounded border text-dark" hx-text="$h.escapeHtml(stringInput)"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview h-100">
+<pre class="mb-0"><code>// String Transformation Examples
+$h.camelCase('helix_framework_v2'); // 'helixFrameworkV2'
+$h.kebabCase('HelixFrameworkV2');   // 'helix-framework-v2'
+$h.snakeCase('helix-framework');    // 'helix_framework'
+$h.titleCase('modern reactive ui'); // 'Modern Reactive Ui'
+$h.slugify('Article: What is Helix? #1'); // 'article-what-is-helix-1'
+$h.capitalize('helix');             // 'Helix'
+$h.truncate('Lorem ipsum dolor', 8);// 'Lorem ip...'
+$h.padStart('7', 3, '0');           // '007'
+$h.padEnd('5', 3, '0');             // '500'
+$h.escapeHtml('&lt;script&gt;');         // '&amp;lt;script&amp;gt;'
+$h.unescapeHtml('&amp;lt;b&amp;gt;');       // '&lt;b&gt;'</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Documentation Table -->
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-book me-1"></i> API Reference</h6>
+        <div class="table-responsive">
+          <table class="table fn-table border rounded">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Parameters</th>
+                <th>Returns</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>$h.capitalize(str)</code></td>
+                <td><code>str: string</code></td>
+                <td><code>string</code></td>
+                <td>Capitalizes the first character of the string.</td>
+              </tr>
+              <tr>
+                <td><code>$h.titleCase(str)</code></td>
+                <td><code>str: string</code></td>
+                <td><code>string</code></td>
+                <td>Converts string to title case (capitalizes the first letter of each word).</td>
+              </tr>
+              <tr>
+                <td><code>$h.camelCase(str)</code></td>
+                <td><code>str: string</code></td>
+                <td><code>string</code></td>
+                <td>Converts hyphen, underscore, or space delimited text to camelCase.</td>
+              </tr>
+              <tr>
+                <td><code>$h.kebabCase(str)</code></td>
+                <td><code>str: string</code></td>
+                <td><code>string</code></td>
+                <td>Converts string to kebab-case with lowercase characters.</td>
+              </tr>
+              <tr>
+                <td><code>$h.snakeCase(str)</code></td>
+                <td><code>str: string</code></td>
+                <td><code>string</code></td>
+                <td>Converts string to snake_case with underscores.</td>
+              </tr>
+              <tr>
+                <td><code>$h.slugify(str)</code></td>
+                <td><code>str: string</code></td>
+                <td><code>string</code></td>
+                <td>Cleans accents, strips non-word characters, and creates URL-safe slugs.</td>
+              </tr>
+              <tr>
+                <td><code>$h.truncate(str, len = 50, suffix = '...')</code></td>
+                <td><code>str: string, len?: number, suffix?: string</code></td>
+                <td><code>string</code></td>
+                <td>Truncates text exceeding max length and appends a suffix.</td>
+              </tr>
+              <tr>
+                <td><code>$h.padStart(str, len, char = '0')</code></td>
+                <td><code>str: string, len: number, char?: string</code></td>
+                <td><code>string</code></td>
+                <td>Pads string from the start until target length is met.</td>
+              </tr>
+              <tr>
+                <td><code>$h.padEnd(str, len, char = ' ')</code></td>
+                <td><code>str: string, len: number, char?: string</code></td>
+                <td><code>string</code></td>
+                <td>Pads string from the end until target length is met.</td>
+              </tr>
+              <tr>
+                <td><code>$h.escapeHtml(str)</code></td>
+                <td><code>str: string</code></td>
+                <td><code>string</code></td>
+                <td>Escapes <code>&amp;</code>, <code>&lt;</code>, <code>&gt;</code>, <code>"</code>, <code>'</code> for safe HTML rendering.</td>
+              </tr>
+              <tr>
+                <td><code>$h.unescapeHtml(str)</code></td>
+                <td><code>str: string</code></td>
+                <td><code>string</code></td>
+                <td>Unescapes HTML entities back to raw characters.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: ARRAYS -->
+    <section id="arrays" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-category me-2">Module</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">Arrays & Collections</span>
+        </div>
+        <div>
+          <span class="tag-badge tag-fn">12 Methods</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          High-performance collection utilities: grouping, keying, deep path sorting, chunking, plucking, partitioning, and set operations.
+        </p>
+
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <label class="form-label fw-bold small text-uppercase text-muted mb-0">Live Array Transformer</label>
+                <div class="btn-group btn-group-sm">
+                  <button class="btn btn-outline-primary" :class="{ active: arrayAction === 'group' }" @click="arrayAction = 'group'">groupBy('dept')</button>
+                  <button class="btn btn-outline-primary" :class="{ active: arrayAction === 'sort' }" @click="arrayAction = 'sort'">sortBy('salary')</button>
+                  <button class="btn btn-outline-primary" :class="{ active: arrayAction === 'chunk' }" @click="arrayAction = 'chunk'">chunk(2)</button>
+                  <button class="btn btn-outline-primary" :class="{ active: arrayAction === 'pluck' }" @click="arrayAction = 'pluck'">pluck('name')</button>
+                </div>
+              </div>
+
+              <div class="result-box bg-dark text-light mb-2" style="max-height: 220px; overflow-y: auto;">
+                <pre class="mb-0 small text-info" hx-text="computedArrayResult"></pre>
+              </div>
+              <div class="small text-muted">Original Collection: 4 employees with name, dept, and salary.</div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview h-100">
+<pre class="mb-0"><code>const users = [
+  { id: 1, name: 'Alice', dept: 'Eng', salary: 95000 },
+  { id: 2, name: 'Bob', dept: 'Design', salary: 80000 },
+  { id: 3, name: 'Charlie', dept: 'Eng', salary: 110000 },
+  { id: 4, name: 'Dana', dept: 'Product', salary: 90000 }
+];
+
+$h.groupBy(users, 'dept');           // { Eng: [Alice, Charlie], Design: [Bob], ... }
+$h.keyBy(users, 'id');               // { 1: Alice, 2: Bob, 3: Charlie, 4: Dana }
+$h.sortBy(users, 'salary', 'desc');  // [Charlie, Alice, Dana, Bob]
+$h.chunk(users, 2);                  // [[Alice, Bob], [Charlie, Dana]]
+$h.pluck(users, 'name');             // ['Alice', 'Bob', 'Charlie', 'Dana']
+$h.findBy(users, 'dept', 'Design');  // Bob object
+$h.removeBy(users, 'id', 2);         // Array without Bob
+$h.partition(users, u => u.salary >= 90000); // [[Alice, Charlie, Dana], [Bob]]
+$h.difference([1, 2, 3], [2, 4]);    // [1, 3]
+$h.intersection([1, 2, 3], [2, 3]);  // [2, 3]
+$h.unique([1, 1, 2, 3, 3]);          // [1, 2, 3]
+$h.flatten([[1, [2]], [3]], 2);      // [1, 2, 3]</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-book me-1"></i> API Reference</h6>
+        <div class="table-responsive">
+          <table class="table fn-table border rounded">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Parameters</th>
+                <th>Returns</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>$h.groupBy(arr, key)</code></td>
+                <td><code>arr: any[], key: string | Function</code></td>
+                <td><code>Object</code></td>
+                <td>Groups array items into an object keyed by property or iteratee function.</td>
+              </tr>
+              <tr>
+                <td><code>$h.keyBy(arr, key)</code></td>
+                <td><code>arr: any[], key: string | Function</code></td>
+                <td><code>Object</code></td>
+                <td>Creates an object keyed by the selected property value for each item.</td>
+              </tr>
+              <tr>
+                <td><code>$h.sortBy(arr, key, order = 'asc')</code></td>
+                <td><code>arr: any[], key?: string, order?: 'asc'|'desc'</code></td>
+                <td><code>any[]</code></td>
+                <td>Sorts array by scalar value or nested dot-path property (locale-aware for strings).</td>
+              </tr>
+              <tr>
+                <td><code>$h.chunk(arr, size)</code></td>
+                <td><code>arr: any[], size: number</code></td>
+                <td><code>any[][]</code></td>
+                <td>Splits array into groups of elements of the specified size.</td>
+              </tr>
+              <tr>
+                <td><code>$h.pluck(arr, key)</code></td>
+                <td><code>arr: any[], key: string</code></td>
+                <td><code>any[]</code></td>
+                <td>Extracts a list of property values from an array of objects.</td>
+              </tr>
+              <tr>
+                <td><code>$h.findBy(arr, key, val)</code></td>
+                <td><code>arr: any[], key: string, val: any</code></td>
+                <td><code>any</code></td>
+                <td>Finds the first item matching the property value.</td>
+              </tr>
+              <tr>
+                <td><code>$h.removeBy(arr, key, val)</code></td>
+                <td><code>arr: any[], key: string, val: any</code></td>
+                <td><code>any[]</code></td>
+                <td>Returns a new array omitting items matching the property value.</td>
+              </tr>
+              <tr>
+                <td><code>$h.partition(arr, predicate)</code></td>
+                <td><code>arr: any[], predicate: (item) => boolean</code></td>
+                <td><code>[truthy[], falsy[]]</code></td>
+                <td>Splits array into two groups: those that satisfy the predicate and those that do not.</td>
+              </tr>
+              <tr>
+                <td><code>$h.difference(arr, ...others)</code></td>
+                <td><code>arr: any[], ...others: any[][]</code></td>
+                <td><code>any[]</code></td>
+                <td>Returns values from the first array not included in any of the other arrays.</td>
+              </tr>
+              <tr>
+                <td><code>$h.intersection(arr, ...others)</code></td>
+                <td><code>arr: any[], ...others: any[][]</code></td>
+                <td><code>any[]</code></td>
+                <td>Returns unique values present in all provided arrays.</td>
+              </tr>
+              <tr>
+                <td><code>$h.unique(arr)</code></td>
+                <td><code>arr: any[]</code></td>
+                <td><code>any[]</code></td>
+                <td>Deduplicates array elements using Set equality.</td>
+              </tr>
+              <tr>
+                <td><code>$h.flatten(arr, depth = Infinity)</code></td>
+                <td><code>arr: any[], depth?: number</code></td>
+                <td><code>any[]</code></td>
+                <td>Flattens nested array up to the specified depth.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: OBJECTS -->
+    <section id="objects" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-category me-2">Module</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">Objects & Deep Paths</span>
+        </div>
+        <div>
+          <span class="tag-badge tag-fn">10 Methods</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          Deep path resolution (dot notation + automatic reactive Ref unwrapping), deep cloning (circular-safe), deep merge, pick, and omit.
+        </p>
+
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Deep Path Resolver & Mutator</label>
+              
+              <div class="input-group input-group-sm mb-2">
+                <span class="input-group-text bg-white font-mono">$h.get(state,</span>
+                <input type="text" class="form-control font-mono" :value="objectPathInput" @input="objectPathInput = $event.target.value" placeholder="'user.address.city'">
+                <span class="input-group-text bg-white font-mono">)</span>
+              </div>
+
+              <div class="p-2 bg-white rounded border small font-mono mb-3">
+                <span class="text-muted">Resolved Value:</span>
+                <strong class="text-success ms-1" hx-text="JSON.stringify($h.get(sampleObject, objectPathInput, '(default fallback)'))"></strong>
+              </div>
+
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" @click="testObjectPick">Test $h.pick(['user.id', 'role'])</button>
+                <button class="btn btn-sm btn-outline-secondary" @click="testObjectClone">Test $h.cloneDeep</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview h-100">
+<pre class="mb-0"><code>const state = {
+  user: {
+    name: 'Sarah',
+    profile: { address: { city: 'San Francisco', zip: 94107 } }
+  },
+  theme: 'dark'
+};
+
+// Safe Deep Path Get (with default fallback & ref unwrapping)
+$h.get(state, 'user.profile.address.city'); // 'San Francisco'
+$h.get(state, 'user.profile.phone', 'N/A'); // 'N/A'
+
+// Deep Path Set (creates missing path segments automatically)
+$h.set(state, 'user.profile.address.country', 'USA');
+
+// Deep Clone & Merge (Circular-Reference Safe)
+const copy = $h.cloneDeep(state);
+const merged = $h.deepMerge(defaults, userConfig);
+
+// Pick & Omit
+$h.pick(state.user, ['name']);       // { name: 'Sarah' }
+$h.omit(state.user, ['profile']);    // { name: 'Sarah' }
+$h.pickBy(scores, v => v >= 80);     // Filter object by value predicate
+$h.hasKey(state, 'theme');           // true</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-book me-1"></i> API Reference</h6>
+        <div class="table-responsive">
+          <table class="table fn-table border rounded">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Parameters</th>
+                <th>Returns</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>$h.get(obj, path, def)</code></td>
+                <td><code>obj: any, path: string|string[], def?: any</code></td>
+                <td><code>any</code></td>
+                <td>Retrieves nested property value at path. Automatically unwraps Helix reactive refs.</td>
+              </tr>
+              <tr>
+                <td><code>$h.set(obj, path, val)</code></td>
+                <td><code>obj: any, path: string|string[], val: any</code></td>
+                <td><code>any</code></td>
+                <td>Sets value at nested path, creating intermediate objects if they do not exist.</td>
+              </tr>
+              <tr>
+                <td><code>$h.cloneDeep(obj)</code></td>
+                <td><code>obj: any</code></td>
+                <td><code>any</code></td>
+                <td>Deeply clones objects, arrays, Maps, Sets, Dates, and RegExps with circular reference safety.</td>
+              </tr>
+              <tr>
+                <td><code>$h.deepMerge(target, ...sources)</code></td>
+                <td><code>target: Object, ...sources: Object[]</code></td>
+                <td><code>Object</code></td>
+                <td>Deeply merges plain objects recursively without mutating arguments.</td>
+              </tr>
+              <tr>
+                <td><code>$h.merge(target, ...sources)</code></td>
+                <td><code>target: Object, ...sources: Object[]</code></td>
+                <td><code>Object</code></td>
+                <td>Merges source properties into target object.</td>
+              </tr>
+              <tr>
+                <td><code>$h.pick(obj, keys)</code></td>
+                <td><code>obj: Object, keys: string|string[]</code></td>
+                <td><code>Object</code></td>
+                <td>Creates an object composed of the picked object keys.</td>
+              </tr>
+              <tr>
+                <td><code>$h.pickBy(obj, predicate)</code></td>
+                <td><code>obj: Object, predicate: (val, key) => boolean</code></td>
+                <td><code>Object</code></td>
+                <td>Creates an object composed of properties that pass the predicate function.</td>
+              </tr>
+              <tr>
+                <td><code>$h.omit(obj, keys)</code></td>
+                <td><code>obj: Object, keys: string|string[]</code></td>
+                <td><code>Object</code></td>
+                <td>Creates an object omitting the specified keys.</td>
+              </tr>
+              <tr>
+                <td><code>$h.omitBy(obj, predicate)</code></td>
+                <td><code>obj: Object, predicate: (val, key) => boolean</code></td>
+                <td><code>Object</code></td>
+                <td>Creates an object omitting properties that pass the predicate function.</td>
+              </tr>
+              <tr>
+                <td><code>$h.hasKey(obj, key)</code></td>
+                <td><code>obj: Object, key: string</code></td>
+                <td><code>boolean</code></td>
+                <td>Checks if key is a direct property of the object (via Object.hasOwn).</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: TYPES -->
+    <section id="types" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-category me-2">Module</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">Types & Equality</span>
+        </div>
+        <div>
+          <span class="tag-badge tag-fn">20 Methods</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          Robust runtime type-checking, empty testing across all data types, and deep circular-safe equality testing (<code>isEqual</code>).
+        </p>
+
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Deep Equality & Empty Checker</label>
+              
+              <div class="mb-3">
+                <div class="small fw-bold text-muted mb-1">Object A: <code>{ x: 1, tags: ['a', 'b'] }</code></div>
+                <div class="small fw-bold text-muted mb-2">Object B: <code>{ x: 1, tags: ['a', 'b'] }</code></div>
+                <div class="p-2 bg-white rounded border small font-mono">
+                  <span>$h.isEqual(objA, objB):</span>
+                  <strong class="text-success ms-2">true (Deep Equal)</strong>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm table-borderless font-mono small mb-0">
+                  <tbody>
+                    <tr>
+                      <td class="text-primary">$h.isEmpty("")</td>
+                      <td class="text-success fw-bold">true</td>
+                      <td class="text-primary">$h.isEmpty([1])</td>
+                      <td class="text-danger fw-bold">false</td>
+                    </tr>
+                    <tr>
+                      <td class="text-primary">$h.isPlainObject({})</td>
+                      <td class="text-success fw-bold">true</td>
+                      <td class="text-primary">$h.isPlainObject(new Date())</td>
+                      <td class="text-danger fw-bold">false</td>
+                    </tr>
+                    <tr>
+                      <td class="text-primary">$h.isNil(null)</td>
+                      <td class="text-success fw-bold">true</td>
+                      <td class="text-primary">$h.isNumber(NaN)</td>
+                      <td class="text-danger fw-bold">false</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview h-100">
+<pre class="mb-0"><code>// Deep Equality Check (Recursively compares Arrays, Objects, Dates, Regex)
+$h.isEqual({ a: [1, 2] }, { a: [1, 2] }); // true
+$h.isEqual(new Date(2026, 0, 1), new Date(2026, 0, 1)); // true
+
+// Empty Check (Handles strings, arrays, maps, sets, plain objects)
+$h.isEmpty('');          // true
+$h.isEmpty([]);          // true
+$h.isEmpty(new Map());   // true
+$h.isEmpty({});          // true
+$h.isEmpty({ key: 1 });  // false
+
+// Type Checkers
+$h.isPlainObject(obj);   // true for literal {}, false for class instances
+$h.isNil(val);           // true for null or undefined
+$h.isNumber(val);        // true only for finite numbers (excludes NaN & Infinity)
+$h.isPromise(val);       // true for Promise / thenable
+$h.isArray(val);         // Array.isArray
+$h.isString(val);        // typeof === 'string'
+$h.isDate(val);          // instanceof Date</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-book me-1"></i> API Reference</h6>
+        <div class="table-responsive">
+          <table class="table fn-table border rounded">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Parameters</th>
+                <th>Returns</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>$h.isEqual(a, b)</code></td>
+                <td><code>a: any, b: any</code></td>
+                <td><code>boolean</code></td>
+                <td>Deep equality comparison supporting objects, arrays, Dates, RegExps, NaNs, and circular refs.</td>
+              </tr>
+              <tr>
+                <td><code>$h.isEmpty(v)</code></td>
+                <td><code>v: any</code></td>
+                <td><code>boolean</code></td>
+                <td>Checks if value is empty (null, undefined, empty string, empty array, empty Map/Set, empty plain object).</td>
+              </tr>
+              <tr>
+                <td><code>$h.isPlainObject(v)</code></td>
+                <td><code>v: any</code></td>
+                <td><code>boolean</code></td>
+                <td>Returns true if value is a plain object created by <code>{}</code> or <code>Object.create(null)</code>.</td>
+              </tr>
+              <tr>
+                <td><code>$h.isObject(v)</code></td>
+                <td><code>v: any</code></td>
+                <td><code>boolean</code></td>
+                <td>Returns true for non-null objects (excluding arrays).</td>
+              </tr>
+              <tr>
+                <td><code>$h.isNil(v)</code></td>
+                <td><code>v: any</code></td>
+                <td><code>boolean</code></td>
+                <td>Returns true if value is <code>null</code> or <code>undefined</code>.</td>
+              </tr>
+              <tr>
+                <td><code>$h.isNumber(v)</code></td>
+                <td><code>v: any</code></td>
+                <td><code>boolean</code></td>
+                <td>Returns true for finite numbers (returns false for <code>NaN</code>, <code>Infinity</code>).</td>
+              </tr>
+              <tr>
+                <td><code>$h.isPromise(v)</code></td>
+                <td><code>v: any</code></td>
+                <td><code>boolean</code></td>
+                <td>Returns true if value is a Promise or has a <code>.then()</code> function.</td>
+              </tr>
+              <tr>
+                <td><code>$h.isArray / isString / isBoolean / isFunction / isDate / isRegExp / isMap / isSet</code></td>
+                <td><code>v: any</code></td>
+                <td><code>boolean</code></td>
+                <td>Strict native type guards.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5: NUMBERS -->
+    <section id="numbers" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-category me-2">Module</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">Numbers & Math</span>
+        </div>
+        <div>
+          <span class="tag-badge tag-fn">5 Methods</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          International currency formatting, locale number grouping, epsilon-accurate rounding, clamping, and random integers.
+        </p>
+
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Live Currency & Number Formatter</label>
+              <div class="row g-2 mb-3">
+                <div class="col-sm-6">
+                  <label class="small fw-semibold text-muted">Amount</label>
+                  <input type="number" class="form-control form-control-sm font-mono" :value="numberInput" @input="numberInput = parseFloat($event.target.value) || 0">
+                </div>
+                <div class="col-sm-6">
+                  <label class="small fw-semibold text-muted">Currency Code</label>
+                  <select class="form-select form-select-sm" :value="currencyCode" @change="currencyCode = $event.target.value">
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                    <option value="JPY">JPY (¥)</option>
+                    <option value="INR">INR (₹)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm table-borderless font-mono small mb-0">
+                  <tbody>
+                    <tr>
+                      <td class="text-muted">formatCurrency:</td>
+                      <td class="fw-bold text-success" hx-text="$h.formatCurrency(numberInput, currencyCode)"></td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">formatNumber (2 dec):</td>
+                      <td class="fw-bold text-dark" hx-text="$h.formatNumber(numberInput, 2)"></td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">clamp(10, 100):</td>
+                      <td class="fw-bold text-primary" hx-text="$h.clamp(numberInput, 10, 100)"></td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">round (1 decimal):</td>
+                      <td class="fw-bold text-dark" hx-text="$h.round(numberInput, 1)"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview h-100">
+<pre class="mb-0"><code>// Currency & Number Formatting
+$h.formatCurrency(1250000.5, 'USD'); // '$1,250,000.50'
+$h.formatCurrency(1250000.5, 'EUR', 'de-DE'); // '1.250.000,50 €'
+$h.formatCurrency(75000, 'INR', 'en-IN');     // '₹75,000.00'
+
+// Number Grouping with fixed decimal places
+$h.formatNumber(1234567.891, 2);    // '1,234,567.89'
+
+// Epsilon-Accurate Rounding (avoids float jitter: 1.005 -> 1.01)
+$h.round(1.005, 2);                  // 1.01
+
+// Math Constraints
+$h.clamp(150, 0, 100);               // 100
+$h.randomInt(1, 10);                 // Random integer between 1 and 10 (inclusive)</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-book me-1"></i> API Reference</h6>
+        <div class="table-responsive">
+          <table class="table fn-table border rounded">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Parameters</th>
+                <th>Returns</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>$h.formatCurrency(amount, cur = 'USD', loc = 'en-US')</code></td>
+                <td><code>amount: number, cur?: string, loc?: string</code></td>
+                <td><code>string</code></td>
+                <td>Formats number as currency string via native <code>Intl.NumberFormat</code>.</td>
+              </tr>
+              <tr>
+                <td><code>$h.formatNumber(num, d = 0)</code></td>
+                <td><code>num: number, d?: number</code></td>
+                <td><code>string</code></td>
+                <td>Formats number with thousands separators and fixed decimal precision.</td>
+              </tr>
+              <tr>
+                <td><code>$h.round(num, d = 0)</code></td>
+                <td><code>num: number, d?: number</code></td>
+                <td><code>number</code></td>
+                <td>Epsilon-adjusted round to specified decimal places without floating-point errors.</td>
+              </tr>
+              <tr>
+                <td><code>$h.clamp(num, min, max)</code></td>
+                <td><code>num: number, min: number, max: number</code></td>
+                <td><code>number</code></td>
+                <td>Restricts number within the inclusive lower and upper bounds.</td>
+              </tr>
+              <tr>
+                <td><code>$h.randomInt(min, max)</code></td>
+                <td><code>min: number, max: number</code></td>
+                <td><code>number</code></td>
+                <td>Generates a cryptographically seeded pseudo-random integer between min and max.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 6: DATES -->
+    <section id="dates" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-category me-2">Module</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">Dates & Time</span>
+        </div>
+        <div>
+          <span class="tag-badge tag-fn">5 Methods</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          Custom token-based date formatting (<code>YYYY-MM-DD HH:mm:ss</code>), humanized relative time strings (<code>timeAgo</code>), and day boundaries.
+        </p>
+
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Live Date & Relative Time Tester</label>
+              
+              <div class="mb-3">
+                <label class="small fw-semibold text-muted">Format Mask</label>
+                <input type="text" class="form-control form-control-sm font-mono" :value="dateFormatMask" @input="dateFormatMask = $event.target.value">
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm table-borderless font-mono small mb-0">
+                  <tbody>
+                    <tr>
+                      <td class="text-muted">formatDate(now):</td>
+                      <td class="fw-bold text-primary" hx-text="$h.formatDate(currentTime, dateFormatMask)"></td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">timeAgo (5m ago):</td>
+                      <td class="fw-bold text-success" hx-text="$h.timeAgo(fiveMinutesAgo)"></td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">addDays(now, 7):</td>
+                      <td class="fw-bold text-dark" hx-text="$h.formatDate($h.addDays(currentTime, 7), 'YYYY-MM-DD')"></td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">startOfDay:</td>
+                      <td class="fw-bold text-muted" hx-text="$h.formatDate($h.startOfDay(currentTime), 'YYYY-MM-DD HH:mm:ss')"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview h-100">
+<pre class="mb-0"><code>const now = new Date();
+
+// Token Formatting (Supports YYYY, MM, DD, HH, mm, ss, SSS)
+$h.formatDate(now, 'YYYY-MM-DD HH:mm:ss'); // '2026-08-23 20:15:30'
+$h.formatDate(now, 'DD/MM/YYYY');          // '23/08/2026'
+
+// Human Relative Time
+$h.timeAgo(new Date(Date.now() - 300000));  // '5 minutes ago'
+$h.timeAgo(new Date(Date.now() - 86400000));// '1 day ago'
+$h.timeAgo(new Date(Date.now() + 60000));   // '1 minute from now'
+
+// Date Math & Day Boundaries
+$h.addDays(now, 14);          // Date 14 days in the future
+$h.startOfDay(now);           // 00:00:00.000 of today
+$h.endOfDay(now);             // 23:59:59.999 of today</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-book me-1"></i> API Reference</h6>
+        <div class="table-responsive">
+          <table class="table fn-table border rounded">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Parameters</th>
+                <th>Returns</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>$h.formatDate(date, fmt = 'YYYY-MM-DD')</code></td>
+                <td><code>date: Date|string|number, fmt?: string</code></td>
+                <td><code>string</code></td>
+                <td>Formats a date according to token mask (<code>YYYY</code>, <code>MM</code>, <code>DD</code>, <code>HH</code>, <code>mm</code>, <code>ss</code>, <code>SSS</code>).</td>
+              </tr>
+              <tr>
+                <td><code>$h.timeAgo(date)</code></td>
+                <td><code>date: Date|string|number</code></td>
+                <td><code>string</code></td>
+                <td>Returns a human-readable relative time string (e.g. "3 hours ago", "in a moment").</td>
+              </tr>
+              <tr>
+                <td><code>$h.addDays(date, days)</code></td>
+                <td><code>date: Date|string|number, days: number</code></td>
+                <td><code>Date</code></td>
+                <td>Returns a new Date offset by the specified number of days.</td>
+              </tr>
+              <tr>
+                <td><code>$h.startOfDay(date)</code></td>
+                <td><code>date: Date|string|number</code></td>
+                <td><code>Date</code></td>
+                <td>Returns a new Date set to 00:00:00.000 of that day.</td>
+              </tr>
+              <tr>
+                <td><code>$h.endOfDay(date)</code></td>
+                <td><code>date: Date|string|number</code></td>
+                <td><code>Date</code></td>
+                <td>Returns a new Date set to 23:59:59.999 of that day.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 7: VALIDATION -->
+    <section id="validation" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-category me-2">Module</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">Validation</span>
+        </div>
+        <div>
+          <span class="tag-badge tag-fn">7 Methods</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          Common input validators for email, web URLs, international phone numbers (US, UK, IN), hex color codes, string lengths, and ranges.
+        </p>
+
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Live Validation Inspector</label>
+              
+              <div class="mb-3">
+                <label class="small text-muted fw-bold">Test Email / URL / Phone</label>
+                <input type="text" class="form-control form-control-sm font-mono" :value="validationInput" @input="validationInput = $event.target.value">
+              </div>
+
+              <div class="d-flex flex-wrap gap-2">
+                <span class="badge px-2 py-2 font-mono" :class="$h.isEmail(validationInput) ? 'bg-success' : 'bg-secondary'">
+                  <i class="bi" :class="$h.isEmail(validationInput) ? 'bi-check-circle' : 'bi-x-circle'"></i> isEmail
+                </span>
+                <span class="badge px-2 py-2 font-mono" :class="$h.isUrl(validationInput) ? 'bg-success' : 'bg-secondary'">
+                  <i class="bi" :class="$h.isUrl(validationInput) ? 'bi-check-circle' : 'bi-x-circle'"></i> isUrl
+                </span>
+                <span class="badge px-2 py-2 font-mono" :class="$h.isPhone(validationInput, 'US') ? 'bg-success' : 'bg-secondary'">
+                  <i class="bi" :class="$h.isPhone(validationInput, 'US') ? 'bi-check-circle' : 'bi-x-circle'"></i> isPhone (US)
+                </span>
+                <span class="badge px-2 py-2 font-mono" :class="$h.isHexColor(validationInput) ? 'bg-success' : 'bg-secondary'">
+                  <i class="bi" :class="$h.isHexColor(validationInput) ? 'bi-check-circle' : 'bi-x-circle'"></i> isHexColor
+                </span>
+                <span class="badge px-2 py-2 font-mono" :class="$h.minLength(validationInput, 5) ? 'bg-success' : 'bg-secondary'">
+                  <i class="bi" :class="$h.minLength(validationInput, 5) ? 'bi-check-circle' : 'bi-x-circle'"></i> minLength(5)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview h-100">
+<pre class="mb-0"><code>// Validation Functions
+$h.isEmail('team@helixjs.org');      // true
+$h.isUrl('https://helixjs.org/docs');// true
+
+// Phone Validation by Region ('US', 'UK', 'IN')
+$h.isPhone('+1 (555) 234-5678', 'US'); // true
+$h.isPhone('+44 7911 123456', 'UK');   // true
+$h.isPhone('+91 9876543210', 'IN');    // true
+
+// Colors, Lengths & Ranges
+$h.isHexColor('#6366f1');    // true
+$h.minLength('password', 8); // true
+$h.maxLength('username', 12);// true
+$h.range(85, 1, 100);        // true</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-book me-1"></i> API Reference</h6>
+        <div class="table-responsive">
+          <table class="table fn-table border rounded">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Parameters</th>
+                <th>Returns</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>$h.isEmail(str)</code></td>
+                <td><code>str: string</code></td>
+                <td><code>boolean</code></td>
+                <td>Validates if string is a valid email address format.</td>
+              </tr>
+              <tr>
+                <td><code>$h.isUrl(str)</code></td>
+                <td><code>str: string</code></td>
+                <td><code>boolean</code></td>
+                <td>Validates if string can be parsed as a valid URL.</td>
+              </tr>
+              <tr>
+                <td><code>$h.isPhone(str, country = 'US')</code></td>
+                <td><code>str: string, country?: 'US'|'UK'|'IN'</code></td>
+                <td><code>boolean</code></td>
+                <td>Validates phone numbers against regional carrier formats.</td>
+              </tr>
+              <tr>
+                <td><code>$h.isHexColor(str)</code></td>
+                <td><code>str: string</code></td>
+                <td><code>boolean</code></td>
+                <td>Validates 3 or 6 digit hex color strings (e.g. <code>#fff</code>, <code>#6366f1</code>).</td>
+              </tr>
+              <tr>
+                <td><code>$h.minLength(str, len)</code></td>
+                <td><code>str: string, len: number</code></td>
+                <td><code>boolean</code></td>
+                <td>Checks if string length is at least the specified minimum.</td>
+              </tr>
+              <tr>
+                <td><code>$h.maxLength(str, len)</code></td>
+                <td><code>str: string, len: number</code></td>
+                <td><code>boolean</code></td>
+                <td>Checks if string length does not exceed the specified maximum.</td>
+              </tr>
+              <tr>
+                <td><code>$h.range(num, min, max)</code></td>
+                <td><code>num: number, min: number, max: number</code></td>
+                <td><code>boolean</code></td>
+                <td>Checks if number falls inclusively between min and max.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 8: ASYNC -->
+    <section id="async" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-category me-2">Module</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">Async, Timers & Promises</span>
+        </div>
+        <div>
+          <span class="tag-badge tag-fn">6 Methods</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          Asynchronous flow control, promise pauses, automatic-cleanup debouncers, throttlers, and exponential backoff retries.
+        </p>
+
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Exponential Backoff Retry Demo</label>
+              <p class="small text-muted mb-3">
+                Clicking the button below invokes an async function with <code>$h.retry()</code> that simulates 2 network failures before succeeding on the 3rd attempt!
+              </p>
+              
+              <button class="btn btn-primary btn-sm mb-3" @click="runRetryDemo" :disabled="isRetrying">
+                <i class="bi bi-arrow-repeat me-1" :class="{ 'spin': isRetrying }"></i>
+                <span hx-text="isRetrying ? 'Retrying (attempt ' + retryAttempt + ')...' : 'Run $h.retry() Test'"></span>
+              </button>
+
+              <div class="result-box bg-dark text-light small font-mono" style="min-height: 80px;">
+                <div class="text-info">// Retry Execution Log:</div>
+                <div class="text-white-50" hx-text="retryLog || 'Click the button above to start demo...'"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview h-100">
+<pre class="mb-0"><code>// Sleep / Pause execution
+await $h.wait(500); // Delays for 500ms
+
+// Exponential Backoff Retry
+const data = await $h.retry(async (attempt) => {
+  return await fetch('/api/data');
+}, {
+  retries: 3,
+  delay: 300,
+  backoff: 2, // 300ms, 600ms, 1200ms
+  onRetry: (err, attempt, waitMs) => {
+    console.warn(`Retry #${attempt} waiting ${waitMs}ms due to:`, err);
+  }
+});
+
+// Debounce & Throttle (with auto-registered app unmount cleanup)
+const debouncedSearch = $h.debounce((q) => fetchResults(q), 300);
+const throttledScroll = $h.throttle((e) => updatePosition(e), 100);
+
+// ID Generators
+$h.uid(10);  // 'k7X9p2Lm8Q'
+$h.uuid();   // 'f47ac10b-58cc-4372-a567-0e02b2c3d479'</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-book me-1"></i> API Reference</h6>
+        <div class="table-responsive">
+          <table class="table fn-table border rounded">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Parameters</th>
+                <th>Returns</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>$h.wait(ms)</code></td>
+                <td><code>ms: number</code></td>
+                <td><code>Promise&lt;void&gt;</code></td>
+                <td>Asynchronously pauses execution for the specified milliseconds.</td>
+              </tr>
+              <tr>
+                <td><code>$h.retry(fn, options)</code></td>
+                <td><code>fn: Function, options?: { retries, delay, backoff, onRetry }</code></td>
+                <td><code>Promise&lt;any&gt;</code></td>
+                <td>Retries an asynchronous task with exponential backoff delays upon rejection.</td>
+              </tr>
+              <tr>
+                <td><code>$h.debounce(fn, wait = 300, immediate = false)</code></td>
+                <td><code>fn: Function, wait?: number, immediate?: boolean</code></td>
+                <td><code>Function (with .cancel())</code></td>
+                <td>Wraps function to delay execution until quiet period has elapsed. Timers automatically cancel on unmount.</td>
+              </tr>
+              <tr>
+                <td><code>$h.throttle(fn, limit = 300, trailing = true)</code></td>
+                <td><code>fn: Function, limit?: number, trailing?: boolean</code></td>
+                <td><code>Function (with .cancel())</code></td>
+                <td>Wraps function to limit invocation rate to at most once per duration.</td>
+              </tr>
+              <tr>
+                <td><code>$h.uid(len = 8)</code></td>
+                <td><code>len?: number</code></td>
+                <td><code>string</code></td>
+                <td>Generates a random alphanumeric identifier of specified length.</td>
+              </tr>
+              <tr>
+                <td><code>$h.uuid()</code></td>
+                <td><code>-</code></td>
+                <td><code>string</code></td>
+                <td>Generates an RFC4122 version 4 UUID using <code>crypto.randomUUID()</code> where available.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 9: DOM & BROWSER -->
+    <section id="dom" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-category me-2">Module</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">DOM & Browser</span>
+        </div>
+        <div>
+          <span class="tag-badge tag-fn">7 Methods</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          Browser clipboard access with textarea fallback, client-side file downloads (Blob URL creation), smooth viewport scrolling, and focus trapping.
+        </p>
+
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Live DOM Actions</label>
+              
+              <div class="d-flex flex-wrap gap-2 mb-3">
+                <button class="btn btn-outline-primary btn-sm" @click="testClipboardCopy">
+                  <i class="bi bi-clipboard me-1"></i> Copy Code to Clipboard
+                </button>
+                <button class="btn btn-outline-success btn-sm" @click="testDownloadFile">
+                  <i class="bi bi-download me-1"></i> Download JSON File
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" @click="$h.scrollTo(0, 'smooth')">
+                  <i class="bi bi-arrow-up-circle me-1"></i> Scroll to Top
+                </button>
+              </div>
+
+              <div class="p-2 bg-white rounded border small font-mono">
+                <span class="text-muted">Status:</span>
+                <span class="fw-bold text-primary ms-1" hx-text="domActionStatus || 'Ready for interaction.'"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview h-100">
+<pre class="mb-0"><code>// Clipboard Access (with execCommand textarea fallback)
+await $h.copyToClipboard('Helix.use(HelixHelpersPlugin);');
+await $h.copy('Quick alias');
+
+// Client-Side File Download
+$h.downloadFile(JSON.stringify(config, null, 2), 'config.json', 'application/json');
+
+// Smooth Scroll to Top or Target Element
+$h.scrollTo('#target-section', 'smooth', 'start');
+$h.scrollTo(0, 'smooth'); // Scroll to window top
+
+// Programmatic Focus Trapping & Release
+const releaseTrap = $h.trapFocus(modalElement);
+// Later to cleanup and restore focus:
+releaseTrap();
+
+// Programmatic Smooth Collapse & Intersection
+$h.collapse(drawerEl, isExpanded, { duration: 300 });
+const unobserve = $h.intersect(bannerEl, onVisible, { threshold: 0.5 });</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-book me-1"></i> API Reference</h6>
+        <div class="table-responsive">
+          <table class="table fn-table border rounded">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Parameters</th>
+                <th>Returns</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>$h.copyToClipboard(text) / copy(text)</code></td>
+                <td><code>text: string</code></td>
+                <td><code>Promise&lt;boolean&gt;</code></td>
+                <td>Copies text to user's system clipboard using <code>navigator.clipboard</code> with automatic fallback.</td>
+              </tr>
+              <tr>
+                <td><code>$h.downloadFile(content, filename, type = 'text/plain')</code></td>
+                <td><code>content: string, filename: string, type?: string</code></td>
+                <td><code>void</code></td>
+                <td>Creates an in-memory Blob object URL and triggers instant browser download.</td>
+              </tr>
+              <tr>
+                <td><code>$h.scrollTo(target, behavior = 'smooth', block = 'start')</code></td>
+                <td><code>target: string|Element|number, behavior?: string, block?: string</code></td>
+                <td><code>void</code></td>
+                <td>Smoothly scrolls window or container to element selector or pixel offset.</td>
+              </tr>
+              <tr>
+                <td><code>$h.trapFocus(element, options)</code></td>
+                <td><code>element: HTMLElement, options?: Object</code></td>
+                <td><code>Function (cleanup)</code></td>
+                <td>Traps keyboard focus (Tab/Shift+Tab) within element and returns cleanup function.</td>
+              </tr>
+              <tr>
+                <td><code>$h.releaseFocus(previousElement)</code></td>
+                <td><code>previousElement: HTMLElement</code></td>
+                <td><code>void</code></td>
+                <td>Restores focus back to the previously active element.</td>
+              </tr>
+              <tr>
+                <td><code>$h.collapse(element, isOpen, options)</code></td>
+                <td><code>element: HTMLElement, isOpen: boolean, options?: { duration, minHeight }</code></td>
+                <td><code>void</code></td>
+                <td>Animates height between natural scrollHeight and 0px (or minHeight).</td>
+              </tr>
+              <tr>
+                <td><code>$h.intersect(element, callback, options)</code></td>
+                <td><code>element: HTMLElement, callback: Function, options?: { threshold, rootMargin, once, leave }</code></td>
+                <td><code>Function (unobserve)</code></td>
+                <td>Observes element viewport intersections and returns cleanup unobserve function.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 10: DATA & QUERY STRINGS -->
+    <section id="data" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-category me-2">Module</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">Data & Query Strings</span>
+        </div>
+        <div>
+          <span class="tag-badge tag-fn">4 Methods</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          URL query parameter serialization / deserialization with array and nested object support, safe JSON parsing, and stringification.
+        </p>
+
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Live Query String Bidirectional Converter</label>
+              
+              <div class="mb-2 font-mono small text-muted">
+                Object: <code>{ search: 'helix', page: 1, tags: ['core', 'helpers'] }</code>
+              </div>
+              <div class="p-2 bg-white rounded border small font-mono mb-3">
+                <span class="text-muted">toQueryString:</span><br>
+                <strong class="text-success" hx-text="$h.toQueryString({ search: 'helix', page: 1, tags: ['core', 'helpers'] })"></strong>
+              </div>
+
+              <div class="p-2 bg-white rounded border small font-mono">
+                <span class="text-muted">fromQueryString('sort=desc&filter=active'):</span><br>
+                <strong class="text-primary" hx-text="JSON.stringify($h.fromQueryString('sort=desc&filter=active'))"></strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview h-100">
+<pre class="mb-0"><code>// URL Query String Serialization
+const params = { q: 'directives', filters: ['open', 'verified'], page: 2 };
+const queryString = $h.toQueryString(params);
+// Output: "q=directives&filters%5B%5D=open&filters%5B%5D=verified&page=2"
+
+// URL Query String Deserialization
+const parsed = $h.fromQueryString(location.search);
+// Output: { q: "directives", filters: ["open", "verified"], page: "2" }
+
+// Safe JSON Parsing (avoids try/catch boilerplate)
+const valid = $h.parseJSON('{"name":"Helix"}'); // { name: 'Helix' }
+const fallback = $h.parseJSON('invalid-json', { default: true }); // { default: true }
+const str = $h.stringify({ ready: true }); // '{"ready":true}'</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-book me-1"></i> API Reference</h6>
+        <div class="table-responsive">
+          <table class="table fn-table border rounded">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Parameters</th>
+                <th>Returns</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>$h.toQueryString(obj)</code></td>
+                <td><code>obj: Object</code></td>
+                <td><code>string</code></td>
+                <td>Encodes an object into a URL query parameter string, serializing arrays and nested structures.</td>
+              </tr>
+              <tr>
+                <td><code>$h.fromQueryString(str)</code></td>
+                <td><code>str: string</code></td>
+                <td><code>Object</code></td>
+                <td>Parses a URL query string into an object, automatically assembling repeated keys into arrays.</td>
+              </tr>
+              <tr>
+                <td><code>$h.parseJSON(str, def = null)</code></td>
+                <td><code>str: string, def?: any</code></td>
+                <td><code>any</code></td>
+                <td>Safely parses a JSON string, returning the default fallback if parsing throws.</td>
+              </tr>
+              <tr>
+                <td><code>$h.stringify(obj)</code></td>
+                <td><code>obj: any</code></td>
+                <td><code>string</code></td>
+                <td>Standard JSON stringify wrapper.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 11: EVENTS & UNIQUE ID -->
+    <section id="events" class="demo-card">
+      <div class="card-header-custom">
+        <div>
+          <span class="tag-badge tag-category me-2">Module</span>
+          <span class="h4 mb-0 fw-bold text-dark font-mono">Events & ID Generator</span>
+        </div>
+        <div>
+          <span class="tag-badge tag-fn">3 Methods</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <p class="text-secondary">
+          Cross-browser custom event dispatcher with full bubbling, cancelable, and detail payloads, plus sequential unique element ID generators.
+        </p>
+
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="p-3 bg-light rounded-3 border">
+              <label class="form-label fw-bold small text-uppercase text-muted">Sequential Unique IDs & Dispatch</label>
+              
+              <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-sm btn-primary" @click="generateNextId">Generate Next ID ($h.id)</button>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm table-borderless font-mono small mb-0">
+                  <tbody>
+                    <tr>
+                      <td class="text-muted">Generated ID:</td>
+                      <td class="fw-bold text-success" hx-text="currentGeneratedId || `$h.id('input')` " ></td>
+                    </tr>
+                    <tr>
+                      <td class="text-muted">Unique ID (prefix 'hx'):</td>
+                      <td class="fw-bold text-primary" hx-text="$h.uniqueId('modal')"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="code-preview h-100">
+<pre class="mb-0"><code>// Custom Event Dispatching (bubbles & composed by default)
+$h.dispatch('theme:changed', { theme: 'dark' });
+$h.dispatch(buttonEl, 'app:action', { actionId: 42 });
+
+// Unique ID Generation (Sequential and Prefixable)
+$h.id();              // 'hx-1'
+$h.id('tab');         // 'tab-2'
+$h.uniqueId('input'); // 'input-3'</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-book me-1"></i> API Reference</h6>
+        <div class="table-responsive">
+          <table class="table fn-table border rounded">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Parameters</th>
+                <th>Returns</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>$h.dispatch(elOrEvent, eventOrDetail, detail, options)</code></td>
+                <td><code>elOrEvent: Element|string, eventOrDetail?: any, detail?: any, options?: Object</code></td>
+                <td><code>boolean</code></td>
+                <td>Dispatches a CustomEvent with detail payload, defaults to <code>bubbles: true, composed: true, cancelable: true</code>.</td>
+              </tr>
+              <tr>
+                <td><code>$h.id(prefix = 'hx')</code></td>
+                <td><code>prefix?: string</code></td>
+                <td><code>string</code></td>
+                <td>Returns a guaranteed unique sequential prefixed identifier (e.g. <code>hx-1</code>, <code>input-2</code>).</td>
+              </tr>
+              <tr>
+                <td><code>$h.uniqueId(prefix = 'hx')</code></td>
+                <td><code>prefix?: string</code></td>
+                <td><code>string</code></td>
+                <td>Alias for <code>$h.id()</code> for Lodash compatibility.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center py-4 border-top text-muted small">
+      <p class="mb-1">Helix.js Framework · Comprehensive Helpers & Utilities Suite</p>
+      <p class="mb-0 text-secondary">Zero external dependencies · 100% test coverage · Circular-reference safe</p>
+    </footer>
+
+  </div>
+
+  <!-- Bootstrapping Script -->
+  <script>
+    // 1. Configure Helix Prefix
+    Helix.config.prefix = 'hx-';
+    Helix.config.allowInlineExpressions = true;
+
+    // 2. Install Helpers Plugin
+    Helix.use(HelixHelpersPlugin);
+
+    // 3. Mount Application with Full Reactive Playground State
+    Helix.createApp({
+      setup() {
+        const { ref, computed } = Helix;
+        const $h = Helix.HelixHelpers || (typeof window !== 'undefined' && window.HelixHelpers);
+        // String Demo State
+        const stringInput = ref('Helix Framework reactive_ui-library');
+
+        // Array Demo State
+        const arrayAction = ref('group');
+        const sampleEmployees = [
+          { id: 1, name: 'Alice', dept: 'Eng', salary: 95000 },
+          { id: 2, name: 'Bob', dept: 'Design', salary: 80000 },
+          { id: 3, name: 'Charlie', dept: 'Eng', salary: 110000 },
+          { id: 4, name: 'Dana', dept: 'Product', salary: 90000 }
+        ];
+
+        const computedArrayResult = computed(() => {
+          if (arrayAction.value === 'group') return JSON.stringify($h.groupBy(sampleEmployees, 'dept'), null, 2);
+          if (arrayAction.value === 'sort') return JSON.stringify($h.sortBy(sampleEmployees, 'salary', 'desc'), null, 2);
+          if (arrayAction.value === 'chunk') return JSON.stringify($h.chunk(sampleEmployees, 2), null, 2);
+          if (arrayAction.value === 'pluck') return JSON.stringify($h.pluck(sampleEmployees, 'name'), null, 2);
+          return '';
+        });
+
+        // Object Demo State
+        const objectPathInput = ref('user.profile.address.city');
+        const sampleObject = ref({
+          user: {
+            id: 101,
+            name: 'Sarah Connor',
+            role: 'Administrator',
+            profile: {
+              address: {
+                city: 'San Francisco',
+                state: 'CA',
+                zip: 94107
+              }
+            }
+          },
+          theme: 'dark'
+        });
+
+        const testObjectPick = () => {
+          const picked = $h.pick(sampleObject.value.user, ['id', 'name', 'role']);
+          alert(`$h.pick Result:\n${JSON.stringify(picked, null, 2)}`);
+        };
+
+        const testObjectClone = () => {
+          const clone = $h.cloneDeep(sampleObject.value);
+          clone.user.name = "Cloned Copy";
+          alert(`Deep Clone Verified!\nOriginal: "${sampleObject.value.user.name}"\nClone: "${clone.user.name}"`);
+        };
+
+        // Numbers Demo State
+        const numberInput = ref(1254300.75);
+        const currencyCode = ref('USD');
+
+        // Date Demo State
+        const currentTime = ref(new Date());
+        const fiveMinutesAgo = ref(new Date(Date.now() - 300000));
+        const dateFormatMask = ref('YYYY-MM-DD HH:mm:ss');
+
+        // Validation Demo State
+        const validationInput = ref('team@helixjs.org');
+
+        // Async Demo State
+        const isRetrying = ref(false);
+        const retryAttempt = ref(0);
+        const retryLog = ref('');
+
+        const runRetryDemo = async () => {
+          isRetrying.value = true;
+          retryAttempt.value = 0;
+          retryLog.value = 'Starting $h.retry()...\n';
+
+          try {
+            const result = await $h.retry(async (attempt) => {
+              retryAttempt.value = attempt + 1;
+              if (attempt < 2) {
+                retryLog.value += `Attempt ${attempt + 1}: Simulated connection failure ❌\n`;
+                throw new Error('Connection timeout');
+              }
+              retryLog.value += `Attempt ${attempt + 1}: Success! Data received ✅\n`;
+              return { success: true, payload: "Hello from Helix API" };
+            }, {
+              retries: 3,
+              delay: 400,
+              backoff: 1.5,
+              onRetry: (err, attempt, waitMs) => {
+                retryLog.value += `Backing off for ${waitMs}ms before attempt ${attempt + 2}...\n`;
+              }
+            });
+            retryLog.value += `Result: ${JSON.stringify(result)}`;
+          } catch (err) {
+            retryLog.value += `Failed after max retries: ${err.message}`;
+          } finally {
+            isRetrying.value = false;
+          }
+        };
+
+        // DOM Demo State
+        const domActionStatus = ref('');
+        const testClipboardCopy = async () => {
+          const ok = await $h.copyToClipboard('Helix.use(HelixHelpersPlugin);');
+          domActionStatus.value = ok ? 'Code successfully copied to clipboard!' : 'Failed to copy to clipboard.';
+          setTimeout(() => { domActionStatus.value = ''; }, 3000);
+        };
+
+        const testDownloadFile = () => {
+          const content = JSON.stringify({
+            app: "Helix Framework",
+            plugin: "helix-helpers",
+            version: "1.1.0",
+            exportedAt: new Date().toISOString()
+          }, null, 2);
+          $h.downloadFile(content, 'helix-helpers-export.json', 'application/json');
+          domActionStatus.value = 'Downloaded "helix-helpers-export.json"!';
+          setTimeout(() => { domActionStatus.value = ''; }, 3000);
+        };
+
+        // ID Demo State
+        const currentGeneratedId = ref('');
+        const generateNextId = () => {
+          currentGeneratedId.value = $h.id('element');
+        };
+
+        return {
+          $h,
+          stringInput,
+          arrayAction,
+          computedArrayResult,
+          objectPathInput,
+          sampleObject,
+          testObjectPick,
+          testObjectClone,
+          numberInput,
+          currencyCode,
+          currentTime,
+          fiveMinutesAgo,
+          dateFormatMask,
+          validationInput,
+          isRetrying,
+          retryAttempt,
+          retryLog,
+          runRetryDemo,
+          domActionStatus,
+          testClipboardCopy,
+          testDownloadFile,
+          currentGeneratedId,
+          generateNextId
+        };
+      }
+    }).mount('#app-root');
+  </script>
+
+</body>
+</html>

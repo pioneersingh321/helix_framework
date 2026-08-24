@@ -49,6 +49,7 @@ import {
     toValue,
     toRef,
     toRefs,
+    proxyRefs,
     customRef
 } from './reactivity/ref.js';
 import { computed } from './reactivity/computed.js';
@@ -118,6 +119,11 @@ import {
     matchesKey,
     KEY_ALIASES
 } from './events/index.js';
+import {
+    dispatch,
+    id,
+    uniqueId
+} from './renderer/component.js';
 
 globalComponents["transition"] = Transition;
 globalComponents["transitiongroup"] = TransitionGroup;
@@ -439,6 +445,7 @@ const globalAPI = {
     toValue,
     toRef,
     toRefs,
+    proxyRefs,
     toRaw,
     isRaw,
     markRaw,
@@ -521,7 +528,9 @@ const globalAPI = {
     resumeTracking,
     enableTracking,
     resetTracking,
-    untrack,
+    dispatch,
+    id,
+    uniqueId,
     enableHtmx: () => enableHtmxIntegration(globalAPI),
     initHtmx: () => initHtmxIntegration(globalAPI),
     devtools: devtoolsAPI,
@@ -565,6 +574,7 @@ export {
     toValue,
     toRef,
     toRefs,
+    proxyRefs,
     toRaw,
     isRaw,
     markRaw,
@@ -635,6 +645,9 @@ export {
     onErrorCaptured,
     useTemplateRef,
     defineCustomElement,
+    dispatch,
+    id,
+    uniqueId,
     inspectComponent,
     inspectTree,
     validatePluginDependencies,

@@ -7,8 +7,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Parse .env from workspace root if it exists
 function loadEnv() {
-    const envPath = path.resolve(__dirname, '../../.env');
-    if (fs.existsSync(envPath)) {
+    const parentEnvPath = path.resolve(__dirname, '../../.env');
+    const localEnvPath = path.resolve(__dirname, '.env');
+    const envPath = fs.existsSync(parentEnvPath) ? parentEnvPath : (fs.existsSync(localEnvPath) ? localEnvPath : null);
+    if (envPath) {
         const content = fs.readFileSync(envPath, 'utf8');
         content.split(/\r?\n/).forEach(line => {
             const trimmed = line.trim();
@@ -29,11 +31,21 @@ function loadEnv() {
 loadEnv();
 
 const srcDir = path.resolve(__dirname, 'dist');
-const destDir = path.resolve(__dirname, process.env.PLUGINS_DEST_DIR || '../../plugins');
-
 const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
 const packageName = packageJson.name; // "helix-helpers"
 const folderName = packageName.replace('helix-', ''); // "helpers"
+
+// Check if monorepo / parent plugins destination exists
+const defaultMonorepoPlugins = path.resolve(__dirname, '../../plugins');
+const isMonorepo = fs.existsSync(defaultMonorepoPlugins) || !!process.env.PLUGINS_DEST_DIR;
+const destDir = path.resolve(__dirname, process.env.PLUGINS_DEST_DIR || '../../plugins');
+
+if (!isMonorepo) {
+    // Running standalone outside monorepo: build complete, skip monorepo plugins copy
+    console.log(`Build complete in dist/. (Standalone build: no parent monorepo plugins directory detected)`);
+    process.exit(0);
+}
+
 const targetDir = path.resolve(destDir, folderName);
 
 // Ensure destination directory exists

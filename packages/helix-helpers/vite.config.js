@@ -1,10 +1,14 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import fs from 'fs';
+
+const rootEnvPath = resolve(__dirname, '../../.env');
+const hasMonorepoEnv = fs.existsSync(rootEnvPath);
 
 export default defineConfig(({ mode }) => {
   const isMin = mode === 'min';
   return {
-    envDir: '../../',
+    envDir: hasMonorepoEnv ? '../../' : './',
     build: {
       outDir: 'dist',
       lib: {

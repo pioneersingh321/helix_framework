@@ -136,6 +136,106 @@ export function createBuiltinDirectives(appConfig) {
         }
     };
 
+    dirs.intersect = {
+        selfManaged: true,
+        mounted(el, { value: val, arg, modifiers = [], ctx, instance, trackCleanup }) {
+            if (!val) return;
+
+            const isLeave = arg === "leave" || modifiers.includes("leave");
+            const isOnce = modifiers.includes("once");
+            const isHalf = modifiers.includes("half");
+            const isFull = modifiers.includes("full");
+
+            let threshold = 0;
+            if (isFull) threshold = 1.0;
+            else if (isHalf) threshold = 0.5;
+            else {
+                const threshMod = modifiers.find(m => m === "threshold" || m.startsWith("threshold"));
+                if (threshMod) {
+                    let numStr = null;
+                    if (threshMod.includes(".") || threshMod.includes("-")) {
+                        numStr = threshMod.replace(/^threshold[.-]/, "");
+                    } else {
+                        const idx = modifiers.indexOf(threshMod);
+                        numStr = modifiers[idx + 1];
+                    }
+                    if (numStr) {
+                        const parsed = parseFloat(numStr);
+                        if (!isNaN(parsed)) {
+                            threshold = parsed > 1 ? parsed / 100 : parsed;
+                        }
+                    }
+                }
+            }
+            threshold = Math.min(1.0, Math.max(0, threshold));
+
+            let rootMargin = "0px";
+            const marginMod = modifiers.find(m => m === "margin" || m.startsWith("margin"));
+            if (marginMod) {
+                let valStr = null;
+                if (marginMod.includes(".") || marginMod.includes("-")) {
+                    valStr = marginMod.replace(/^margin[.-]/, "");
+                    if (marginMod.startsWith("margin.-") || marginMod.startsWith("margin.--")) {
+                        valStr = "-" + marginMod.replace(/^margin\.[-]+/, "");
+                    }
+                } else {
+                    const idx = modifiers.indexOf(marginMod);
+                    valStr = modifiers[idx + 1];
+                }
+                if (valStr) {
+                    rootMargin = valStr.replace(/_/g, " ");
+                }
+            }
+
+            const runHandler = (entry) => {
+                const fn = resolveRaw(val, ctx);
+                if (typeof fn === "function") {
+                    try {
+                        fn.call(ctx, entry);
+                    } catch (err) {
+                        handleError(err, `${appConfig.prefix}intersect handler`, instance);
+                    }
+                } else {
+                    resolveExpression(val, ctx, { contextName: `${appConfig.prefix}intersect`, forceExpression: true });
+                }
+            };
+
+            if (typeof IntersectionObserver === "undefined") {
+                runHandler({ target: el, isIntersecting: true, intersectionRatio: 1 });
+                return;
+            }
+
+            let triggered = false;
+            const observer = new IntersectionObserver((entries) => {
+                for (const entry of entries) {
+                    const matchesCondition = isLeave ? !entry.isIntersecting : entry.isIntersecting;
+                    if (matchesCondition) {
+                        if (isOnce) {
+                            if (triggered) break;
+                            triggered = true;
+                            observer.unobserve(el);
+                            observer.disconnect();
+                        }
+                        runHandler(entry);
+                        if (isOnce) break;
+                    }
+                }
+            }, {
+                threshold,
+                rootMargin
+            });
+
+            observer.observe(el);
+
+            if (trackCleanup) {
+                trackCleanup(() => {
+                    observer.unobserve(el);
+                    observer.disconnect();
+                });
+            }
+        }
+    };
+
     dirs.text = {
         selfManaged: true,
         mounted(el, { value: val, ctx, instance, trackCleanup }) {
@@ -555,16 +655,16 @@ export function createBuiltinDirectives(appConfig) {
                         if (template.tagName === 'TEMPLATE' && template.content) {
                             const clone = template.content.cloneNode(true);
                             activeNodes = Array.from(clone.childNodes);
+                            if (placeholder.parentNode) placeholder.parentNode.insertBefore(clone, placeholder);
                             activeNodes.forEach((n) => {
                                 bindNode2(n, ctx, instance, []);
                                 const transConfig = n.__hx_transition_config || resolveTransitionConfig(n, appConfig);
                                 if (transConfig) enter(n, transConfig);
                             });
-                            if (placeholder.parentNode) placeholder.parentNode.insertBefore(clone, placeholder);
                         } else {
                             const node = template.cloneNode(true);
-                            bindNode2(node, ctx, instance, []);
                             if (placeholder.parentNode) placeholder.parentNode.insertBefore(node, placeholder);
+                            bindNode2(node, ctx, instance, []);
                             activeNodes = [node];
                             const transConfig = node.__hx_transition_config || resolveTransitionConfig(node, appConfig);
                             if (transConfig) enter(node, transConfig);

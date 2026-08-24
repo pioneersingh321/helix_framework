@@ -60,11 +60,15 @@ export function createArrayMethods(H) {
 
         findBy(arr, key, val) {
             if (!Array.isArray(arr)) return undefined;
+            if (typeof key === 'function') return arr.find(key);
+            if (key == null) return arr.find(i => i === val);
             return arr.find(i => H.get(i, key) === val);
         },
 
         removeBy(arr, key, val) {
             if (!Array.isArray(arr)) return arr;
+            if (typeof key === 'function') return arr.filter((item, idx) => !key(item, idx));
+            if (key == null) return arr.filter(i => i !== val);
             return arr.filter(i => H.get(i, key) !== val);
         },
 
@@ -79,13 +83,13 @@ export function createArrayMethods(H) {
         difference(arr, ...others) {
             if (!Array.isArray(arr)) return [];
             const combined = new Set(others.flat());
-            return arr.filter(x => !combined.has(x));
+            return [...new Set(arr.filter(x => !combined.has(x)))];
         },
 
         intersection(arr, ...others) {
             if (!Array.isArray(arr)) return [];
             const sets = others.map(o => new Set(o));
-            return arr.filter(x => sets.every(s => s.has(x)));
+            return [...new Set(arr.filter(x => sets.every(s => s.has(x))))];
         }
     };
 }

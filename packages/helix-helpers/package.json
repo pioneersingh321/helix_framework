@@ -8,7 +8,10 @@
     "dist"
   ],
   "scripts": {
-    "build": "vite build && vite build --mode min && node post-build.js"
+    "build": "vite build && vite build --mode min && node post-build.js",
+    "test": "node test-helpers.js",
+    "test:build": "npm run build && npm test",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "vite": "^4.0.0"

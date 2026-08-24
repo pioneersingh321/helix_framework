@@ -112,3 +112,32 @@ export function toRefs(object) {
     for (const key of Object.keys(object)) result[key] = toRef(object, key);
     return result;
 }
+
+export function proxyRefs(objectWithRefs) {
+    if (typeof objectWithRefs !== "object" || objectWithRefs === null) {
+        return objectWithRefs;
+    }
+    return new Proxy(objectWithRefs, {
+        get(target, key, receiver) {
+            return unref(Reflect.get(target, key, receiver));
+        },
+        set(target, key, value, receiver) {
+            const oldValue = target[key];
+            if (isRef(oldValue) && !isRef(value)) {
+                oldValue.value = value;
+                return true;
+            }
+            return Reflect.set(target, key, value, receiver);
+        },
+        has(target, key) {
+            return key in target;
+        },
+        ownKeys(target) {
+            return Reflect.ownKeys(target);
+        },
+        getOwnPropertyDescriptor(target, key) {
+            return Reflect.getOwnPropertyDescriptor(target, key);
+        }
+    });
+}
+

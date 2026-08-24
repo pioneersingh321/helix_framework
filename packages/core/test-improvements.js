@@ -50,6 +50,9 @@ import {
     createApp,
     useTemplateRef,
     defineCustomElement,
+    dispatch,
+    id,
+    uniqueId,
     $apps,
     use,
     unuse,
@@ -71,6 +74,7 @@ import { flushJobs } from './src/reactivity/scheduler.js';
 import { sanitizeHtml } from './src/compiler/html.js';
 import { createBuiltinDirectives } from './src/directives/index.js';
 import { destroyNode } from './src/renderer/node.js';
+import { getOrCreateAppCtxProxy } from './src/renderer/component.js';
 
 console.log("=========================================");
 console.log(" Running Comprehensive Helix Core Tests");
@@ -651,6 +655,7 @@ async function runMockDomTests() {
                 this.detail = opts.detail;
                 this.bubbles = Boolean(opts.bubbles);
                 this.composed = Boolean(opts.composed);
+                this.cancelable = Boolean(opts.cancelable);
             }
         };
 
@@ -2685,6 +2690,217 @@ async function runMockDomTests() {
         await customSlotApp.mount(customSlotHost);
 
         assert(customSlotHost.textContent.includes("Prefix Configured Slot Header"), "40f: Custom prefix-defined slot (custom-slot:header) renders with configured prefix");
+
+        // 40g-1. hx-intersect directive (headless fallback)
+        let intersectTriggered = false;
+        let intersectEntry = null;
+        const intersectHost = new MockNode(1, "div");
+        const intersectChild = new MockNode(1, "div");
+        intersectChild.setAttribute("h-intersect", "onIntersect");
+        intersectHost.appendChild(intersectChild);
+
+        const intersectApp = createApp({
+            setup() {
+                return {
+                    onIntersect(entry) {
+                        intersectTriggered = true;
+                        intersectEntry = entry;
+                    }
+                };
+            }
+        });
+        await intersectApp.mount(intersectHost);
+        assert(intersectTriggered === true, "40g-1: hx-intersect executes handler on mount (with fallback)");
+        assert(intersectEntry !== null && intersectEntry.isIntersecting === true, "40g-1: hx-intersect receives entry payload");
+
+        // Mock IntersectionObserver for I-03, I-04, I-05
+        let observedInstances = [];
+        class MockIntersectionObserver {
+            constructor(callback, options = {}) {
+                this.callback = callback;
+                this.options = options;
+                this.observedElements = [];
+                this.disconnected = false;
+                observedInstances.push(this);
+            }
+            observe(el) {
+                this.observedElements.push(el);
+            }
+            unobserve(el) {
+                this.observedElements = this.observedElements.filter(e => e !== el);
+            }
+            disconnect() {
+                this.disconnected = true;
+                this.observedElements = [];
+            }
+            trigger(entries) {
+                if (this.disconnected) return;
+                const validEntries = entries.filter(e => this.observedElements.includes(e.target));
+                if (validEntries.length > 0) {
+                    this.callback(validEntries);
+                }
+            }
+        }
+
+        const origIntersectionObserver = global.IntersectionObserver;
+        global.IntersectionObserver = MockIntersectionObserver;
+        try {
+            // I-03: h-intersect.once
+            observedInstances = [];
+            let onceCount = 0;
+            const onceHost = new MockNode(1, "div");
+            const onceChild = new MockNode(1, "div");
+            onceChild.setAttribute("h-intersect.once", "onOnce");
+            onceHost.appendChild(onceChild);
+
+            const onceApp = createApp({
+                setup() {
+                    return {
+                        onOnce() {
+                            onceCount++;
+                        }
+                    };
+                }
+            });
+            await onceApp.mount(onceHost);
+
+            const onceObserver = observedInstances[observedInstances.length - 1];
+            assert(onceObserver && onceObserver.observedElements.includes(onceChild), "I-03: MockIntersectionObserver observes h-intersect.once element");
+
+            // First intersection -> handler runs
+            onceObserver.trigger([{ target: onceChild, isIntersecting: true }]);
+            assert(onceCount === 1, "I-03: h-intersect.once executes handler on first intersection");
+            assert(onceObserver.disconnected === true || !onceObserver.observedElements.includes(onceChild), "I-03: h-intersect.once unobserves and disconnects");
+
+            // Second intersection -> handler does not run again
+            onceObserver.trigger([{ target: onceChild, isIntersecting: true }]);
+            assert(onceCount === 1, "I-03: h-intersect.once does NOT execute handler on second intersection");
+
+            // I-04: h-intersect:leave and h-intersect.leave
+            observedInstances = [];
+            let leaveCount = 0;
+            const leaveHost = new MockNode(1, "div");
+            const leaveChild = new MockNode(1, "div");
+            leaveChild.setAttribute("h-intersect:leave", "onLeave");
+            leaveHost.appendChild(leaveChild);
+
+            const leaveApp = createApp({
+                setup() {
+                    return {
+                        onLeave() {
+                            leaveCount++;
+                        }
+                    };
+                }
+            });
+            await leaveApp.mount(leaveHost);
+
+            const leaveObserver = observedInstances[observedInstances.length - 1];
+            // When isIntersecting: true, onLeave should NOT fire
+            leaveObserver.trigger([{ target: leaveChild, isIntersecting: true }]);
+            assert(leaveCount === 0, "I-04: h-intersect:leave does not fire when element is intersecting");
+
+            // When isIntersecting: false, onLeave SHOULD fire
+            leaveObserver.trigger([{ target: leaveChild, isIntersecting: false }]);
+            assert(leaveCount === 1, "I-04: h-intersect:leave fires when element leaves viewport");
+
+            // I-05: Intersection options (half, full, threshold, margin)
+            observedInstances = [];
+            const optHost = new MockNode(1, "div");
+
+            const halfChild = new MockNode(1, "div");
+            halfChild.setAttribute("h-intersect.half", "dummy");
+            optHost.appendChild(halfChild);
+
+            const fullChild = new MockNode(1, "div");
+            fullChild.setAttribute("h-intersect.full", "dummy");
+            optHost.appendChild(fullChild);
+
+            const threshChild = new MockNode(1, "div");
+            threshChild.setAttribute("h-intersect.threshold.75", "dummy");
+            optHost.appendChild(threshChild);
+
+            const marginChild = new MockNode(1, "div");
+            marginChild.setAttribute("h-intersect.margin.100px", "dummy");
+            optHost.appendChild(marginChild);
+
+            const optApp = createApp({
+                setup() {
+                    return { dummy() {} };
+                }
+            });
+            await optApp.mount(optHost);
+
+            const halfObs = observedInstances.find(obs => obs.observedElements.includes(halfChild));
+            const fullObs = observedInstances.find(obs => obs.observedElements.includes(fullChild));
+            const threshObs = observedInstances.find(obs => obs.observedElements.includes(threshChild));
+            const marginObs = observedInstances.find(obs => obs.observedElements.includes(marginChild));
+
+            assert(halfObs && halfObs.options.threshold === 0.5, "I-05: h-intersect.half sets threshold to 0.5");
+            assert(fullObs && fullObs.options.threshold === 1.0, "I-05: h-intersect.full sets threshold to 1.0");
+            assert(threshObs && threshObs.options.threshold === 0.75, "I-05: h-intersect.threshold.75 sets threshold to 0.75");
+            assert(marginObs && marginObs.options.rootMargin === "100px", "I-05: h-intersect.margin.100px sets rootMargin to 100px");
+
+        } finally {
+            global.IntersectionObserver = origIntersectionObserver;
+        }
+
+        // 40g-2. $dispatch and dispatch()
+        let dispatchedEvent = null;
+        const dispatchHost = new MockNode(1, "div");
+        dispatchHost.addEventListener = function(evt, handler) {
+            this._listeners = this._listeners || {};
+            this._listeners[evt] = handler;
+        };
+        dispatchHost.dispatchEvent = function(evt) {
+            if (this._listeners && this._listeners[evt.type]) {
+                this._listeners[evt.type](evt);
+                return true;
+            }
+            return false;
+        };
+
+        let testState = null;
+        const dispatchApp = createApp({
+            setup() {
+                testState = {
+                    $el: dispatchHost,
+                    triggerCustom(ctx) {
+                        ctx.$dispatch("user-login", { username: "HelixHero" });
+                    },
+                    triggerStrict(ctx) {
+                        ctx.$dispatch("strict-event", { id: 99 }, { bubbles: false, composed: false, cancelable: false });
+                    }
+                };
+                return testState;
+            }
+        });
+        dispatchHost.addEventListener("user-login", (e) => {
+            dispatchedEvent = e;
+        });
+        let strictDispatchedEvent = null;
+        dispatchHost.addEventListener("strict-event", (e) => {
+            strictDispatchedEvent = e;
+        });
+        await dispatchApp.mount(dispatchHost);
+        const proxy = getOrCreateAppCtxProxy(testState, dispatchApp);
+        proxy.triggerCustom(proxy);
+        assert(dispatchedEvent && dispatchedEvent.detail && dispatchedEvent.detail.username === "HelixHero", "40g-2: $dispatch / dispatchEvent dispatches CustomEvent with detail");
+        assert(dispatchedEvent.bubbles === true && dispatchedEvent.composed === true && dispatchedEvent.cancelable === true, "40g-2: $dispatch defaults to bubbles=true, composed=true, cancelable=true");
+
+        // D-02: $dispatch option overrides
+        proxy.triggerStrict(proxy);
+        assert(strictDispatchedEvent && strictDispatchedEvent.detail && strictDispatchedEvent.detail.id === 99, "D-02: $dispatch with strict options delivers detail payload");
+        assert(strictDispatchedEvent.bubbles === false, "D-02: $dispatch honors bubbles=false");
+        assert(strictDispatchedEvent.composed === false, "D-02: $dispatch honors composed=false");
+        assert(strictDispatchedEvent.cancelable === false, "D-02: $dispatch honors cancelable=false");
+        assert(strictDispatchedEvent.cancelable === false, "D-02: $dispatch honors cancelable=false");
+
+        // 40g-3. $id helper
+        let generatedId1 = proxy.$id("email");
+        let generatedId2 = proxy.$id("email");
+        assert(generatedId1 && generatedId1.startsWith("email-"), "40g-3: $id generates prefixed id");
+        assert(generatedId1 !== generatedId2, "40g-3: $id generates sequential unique IDs");
 
     } finally {
         global.document = origDoc;

@@ -115,13 +115,13 @@
     if (!queueSet.has(job)) {
       queueSet.add(job);
       job.priority = priority;
-      const id = job.id || 0;
+      const id2 = job.id || 0;
       let inserted = false;
       for (let i = 0; i < queue.length; i++) {
         const existing = queue[i];
         const existingP = existing.priority || 0;
         const existingId = existing.id || 0;
-        if (priority > existingP || priority === existingP && id < existingId) {
+        if (priority > existingP || priority === existingP && id2 < existingId) {
           queue.splice(i, 0, job);
           inserted = true;
           break;
@@ -1797,6 +1797,33 @@
       result[key] = toRef(object, key);
     return result;
   }
+  function proxyRefs(objectWithRefs) {
+    if (typeof objectWithRefs !== "object" || objectWithRefs === null) {
+      return objectWithRefs;
+    }
+    return new Proxy(objectWithRefs, {
+      get(target, key, receiver) {
+        return unref(Reflect.get(target, key, receiver));
+      },
+      set(target, key, value, receiver) {
+        const oldValue = target[key];
+        if (isRef(oldValue) && !isRef(value)) {
+          oldValue.value = value;
+          return true;
+        }
+        return Reflect.set(target, key, value, receiver);
+      },
+      has(target, key) {
+        return key in target;
+      },
+      ownKeys(target) {
+        return Reflect.ownKeys(target);
+      },
+      getOwnPropertyDescriptor(target, key) {
+        return Reflect.getOwnPropertyDescriptor(target, key);
+      }
+    });
+  }
   class ExpressionCache {
     constructor(maxSize = 500) {
       this.maxSize = maxSize;
@@ -1977,6 +2004,46 @@
     return asBoolean ? !!result : result;
   }
   const componentProxyCache = /* @__PURE__ */ new WeakMap();
+  let idCounter = 0;
+  function uniqueId(prefix = "hx") {
+    return `${prefix}-${++idCounter}`;
+  }
+  const id = uniqueId;
+  function dispatchEventHelper(targetOrEvent, eventNameOrDetail, detail = null, options = {}) {
+    let target = null;
+    let eventName = "";
+    let evtDetail = null;
+    let opts = {};
+    if (typeof targetOrEvent === "string") {
+      eventName = targetOrEvent;
+      evtDetail = eventNameOrDetail;
+      target = (this == null ? void 0 : this.$el) || (this == null ? void 0 : this.root) || (typeof document !== "undefined" ? document : null);
+      opts = detail && typeof detail === "object" && !Array.isArray(detail) ? detail : {};
+    } else {
+      target = targetOrEvent;
+      eventName = String(eventNameOrDetail || "");
+      evtDetail = detail;
+      opts = options && typeof options === "object" && !Array.isArray(options) ? options : {};
+    }
+    if (!target || typeof target.dispatchEvent !== "function") {
+      if (typeof document !== "undefined" && typeof document.dispatchEvent === "function") {
+        target = document;
+      } else if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+        target = window;
+      }
+    }
+    if (!target || typeof target.dispatchEvent !== "function" || !eventName)
+      return false;
+    const customEvent = typeof CustomEvent !== "undefined" ? new CustomEvent(eventName, {
+      bubbles: opts.bubbles !== false,
+      composed: opts.composed !== false,
+      cancelable: opts.cancelable !== false,
+      ...opts,
+      detail: evtDetail
+    }) : { type: eventName, detail: evtDetail };
+    return target.dispatchEvent(customEvent);
+  }
+  const dispatch = dispatchEventHelper;
   function getOrCreateAppCtxProxy(baseAppCtx, app) {
     let appMap = componentProxyCache.get(baseAppCtx);
     if (!appMap) {
@@ -1987,13 +2054,31 @@
     if (!proxy) {
       proxy = new Proxy(baseAppCtx, {
         get(target, prop, receiver) {
-          if (prop in target)
-            return target[prop];
-          if (app && prop in app)
-            return app[prop];
+          if (prop in target) {
+            const val = target[prop];
+            return isRef(val) ? val.value : val;
+          }
+          if (prop === "$dispatch") {
+            return (eventName, detail, options) => {
+              const rootEl = (target == null ? void 0 : target.$el) || (target == null ? void 0 : target.root) || (typeof document !== "undefined" ? document : null);
+              return dispatchEventHelper(rootEl, eventName, detail, options);
+            };
+          }
+          if (prop === "$id") {
+            return (p = "id") => uniqueId(p);
+          }
+          if (prop === "$root") {
+            return (target == null ? void 0 : target.$el) || (target == null ? void 0 : target.root) || null;
+          }
+          if (app && prop in app) {
+            const val = app[prop];
+            return isRef(val) ? val.value : val;
+          }
           const globalHelix = typeof window !== "undefined" && window.Helix || typeof globalThis !== "undefined" && globalThis.Helix || null;
-          if (globalHelix && prop in globalHelix)
-            return globalHelix[prop];
+          if (globalHelix && prop in globalHelix) {
+            const val = globalHelix[prop];
+            return isRef(val) ? val.value : val;
+          }
           return void 0;
         },
         set(target, prop, value, receiver) {
@@ -2002,6 +2087,8 @@
         },
         has(target, prop) {
           if (prop in target)
+            return true;
+          if (prop === "$dispatch" || prop === "$id" || prop === "$root")
             return true;
           if (app && prop in app)
             return true;
@@ -3743,6 +3830,102 @@
         }
       }
     };
+    dirs.intersect = {
+      selfManaged: true,
+      mounted(el, { value: val, arg, modifiers = [], ctx, instance, trackCleanup }) {
+        if (!val)
+          return;
+        const isLeave = arg === "leave" || modifiers.includes("leave");
+        const isOnce = modifiers.includes("once");
+        const isHalf = modifiers.includes("half");
+        const isFull = modifiers.includes("full");
+        let threshold = 0;
+        if (isFull)
+          threshold = 1;
+        else if (isHalf)
+          threshold = 0.5;
+        else {
+          const threshMod = modifiers.find((m) => m === "threshold" || m.startsWith("threshold"));
+          if (threshMod) {
+            let numStr = null;
+            if (threshMod.includes(".") || threshMod.includes("-")) {
+              numStr = threshMod.replace(/^threshold[.-]/, "");
+            } else {
+              const idx = modifiers.indexOf(threshMod);
+              numStr = modifiers[idx + 1];
+            }
+            if (numStr) {
+              const parsed = parseFloat(numStr);
+              if (!isNaN(parsed)) {
+                threshold = parsed > 1 ? parsed / 100 : parsed;
+              }
+            }
+          }
+        }
+        threshold = Math.min(1, Math.max(0, threshold));
+        let rootMargin = "0px";
+        const marginMod = modifiers.find((m) => m === "margin" || m.startsWith("margin"));
+        if (marginMod) {
+          let valStr = null;
+          if (marginMod.includes(".") || marginMod.includes("-")) {
+            valStr = marginMod.replace(/^margin[.-]/, "");
+            if (marginMod.startsWith("margin.-") || marginMod.startsWith("margin.--")) {
+              valStr = "-" + marginMod.replace(/^margin\.[-]+/, "");
+            }
+          } else {
+            const idx = modifiers.indexOf(marginMod);
+            valStr = modifiers[idx + 1];
+          }
+          if (valStr) {
+            rootMargin = valStr.replace(/_/g, " ");
+          }
+        }
+        const runHandler = (entry) => {
+          const fn = resolveRaw(val, ctx);
+          if (typeof fn === "function") {
+            try {
+              fn.call(ctx, entry);
+            } catch (err) {
+              handleError(err, `${appConfig.prefix}intersect handler`, instance);
+            }
+          } else {
+            resolveExpression(val, ctx, { contextName: `${appConfig.prefix}intersect`, forceExpression: true });
+          }
+        };
+        if (typeof IntersectionObserver === "undefined") {
+          runHandler({ target: el, isIntersecting: true, intersectionRatio: 1 });
+          return;
+        }
+        let triggered = false;
+        const observer = new IntersectionObserver((entries) => {
+          for (const entry of entries) {
+            const matchesCondition = isLeave ? !entry.isIntersecting : entry.isIntersecting;
+            if (matchesCondition) {
+              if (isOnce) {
+                if (triggered)
+                  break;
+                triggered = true;
+                observer.unobserve(el);
+                observer.disconnect();
+              }
+              runHandler(entry);
+              if (isOnce)
+                break;
+            }
+          }
+        }, {
+          threshold,
+          rootMargin
+        });
+        observer.observe(el);
+        if (trackCleanup) {
+          trackCleanup(() => {
+            observer.unobserve(el);
+            observer.disconnect();
+          });
+        }
+      }
+    };
     dirs.text = {
       selfManaged: true,
       mounted(el, { value: val, ctx, instance, trackCleanup }) {
@@ -4183,19 +4366,19 @@
               if (template.tagName === "TEMPLATE" && template.content) {
                 const clone = template.content.cloneNode(true);
                 activeNodes = Array.from(clone.childNodes);
+                if (placeholder.parentNode)
+                  placeholder.parentNode.insertBefore(clone, placeholder);
                 activeNodes.forEach((n) => {
                   bindNode2(n, ctx, instance, []);
                   const transConfig = n.__hx_transition_config || resolveTransitionConfig(n, appConfig);
                   if (transConfig)
                     enter(n, transConfig);
                 });
-                if (placeholder.parentNode)
-                  placeholder.parentNode.insertBefore(clone, placeholder);
               } else {
                 const node = template.cloneNode(true);
-                bindNode2(node, ctx, instance, []);
                 if (placeholder.parentNode)
                   placeholder.parentNode.insertBefore(node, placeholder);
+                bindNode2(node, ctx, instance, []);
                 activeNodes = [node];
                 const transConfig = node.__hx_transition_config || resolveTransitionConfig(node, appConfig);
                 if (transConfig)
@@ -4971,7 +5154,7 @@ ${rule}`;
         };
         const setupCtx = getOrCreateAppCtxProxy(baseSetupCtx, appConfig);
         if (typeof compDefNormalized.setup === "function") {
-          childCtx = scope.run(() => compDefNormalized.setup(setupCtx));
+          childCtx = scope.run(() => proxyRefs(compDefNormalized.setup(setupCtx)));
         } else {
           childCtx = baseSetupCtx;
         }
@@ -5874,7 +6057,7 @@ ${rule}`;
               if (!res.$refs)
                 res.$refs = {};
             }
-            return res;
+            return proxyRefs(res);
           });
         } catch (err) {
           handleError(err, "Root setup");
@@ -7568,6 +7751,7 @@ ${rule}`;
     toValue,
     toRef,
     toRefs,
+    proxyRefs,
     toRaw,
     isRaw,
     markRaw,
@@ -7650,7 +7834,9 @@ ${rule}`;
     resumeTracking,
     enableTracking,
     resetTracking,
-    untrack,
+    dispatch,
+    id,
+    uniqueId,
     enableHtmx: () => enableHtmxIntegration(globalAPI),
     initHtmx: () => initHtmxIntegration(globalAPI),
     devtools: devtoolsAPI,
@@ -7698,6 +7884,7 @@ ${rule}`;
   exports.devtools = devtoolsAPI;
   exports.directive = directiveGlobal;
   exports.directives = directivesGlobal;
+  exports.dispatch = dispatch;
   exports.dom = domAPI;
   exports.effect = effect;
   exports.effectGroup = createEffectGroup;
@@ -7710,6 +7897,7 @@ ${rule}`;
   exports.getCurrentScope = getCurrentScope;
   exports.getProfileData = getProfileData;
   exports.getTransitionDurations = getTransitionDurations;
+  exports.id = id;
   exports.initHtmx = initHtmxIntegration;
   exports.inject = inject;
   exports.inspectComponent = inspectComponent;
@@ -7749,6 +7937,7 @@ ${rule}`;
   exports.preloadAll = preloadAll;
   exports.profile = profile;
   exports.provide = provide;
+  exports.proxyRefs = proxyRefs;
   exports.queueIdleJob = queueIdleJob;
   exports.queueJob = queueJob;
   exports.queuePostFlushCb = queuePostFlushCb;
@@ -7778,6 +7967,7 @@ ${rule}`;
   exports.toValue = toValue;
   exports.triggerPluginLifecycle = triggerPluginLifecycle;
   exports.triggerRef = triggerRef;
+  exports.uniqueId = uniqueId;
   exports.unref = unref;
   exports.untrack = untrack;
   exports.unuse = unuseGlobal;

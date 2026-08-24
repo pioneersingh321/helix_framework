@@ -20,44 +20,56 @@ export function createAsyncMethods(H, timerCancels) {
         },
 
         debounce(fn, wait = 300, immediate = false) {
-            let timer;
+            let timer = null;
+            const cancel = () => {
+                if (timer != null) {
+                    clearTimeout(timer);
+                    timer = null;
+                }
+                if (timerCancels) timerCancels.delete(cancel);
+            };
             const wrapped = function (...args) {
                 const callNow = immediate && !timer;
-                clearTimeout(timer);
+                if (timer != null) clearTimeout(timer);
                 timer = setTimeout(() => {
                     timer = null;
+                    if (timerCancels) timerCancels.delete(cancel);
                     if (!immediate) fn.apply(this, args);
                 }, wait);
+                if (timerCancels) timerCancels.add(cancel);
                 if (callNow) fn.apply(this, args);
             };
-            wrapped.cancel = () => clearTimeout(timer);
-
-            // Tracked so the plugin's single cleanup() (returned from install())
-            // can cancel any still-pending debounce timers on app unmount.
-            timerCancels.add(wrapped.cancel);
+            wrapped.cancel = cancel;
             return wrapped;
         },
 
         throttle(fn, limit = 300, trailing = true) {
-            let last, timer;
+            let last = undefined, timer = null;
+            const cancel = () => {
+                if (timer != null) {
+                    clearTimeout(timer);
+                    timer = null;
+                }
+                last = undefined;
+                if (timerCancels) timerCancels.delete(cancel);
+            };
             const wrapped = function (...args) {
                 const now = Date.now();
-                if (!last || now - last >= limit) {
+                if (last === undefined || now - last >= limit) {
                     last = now;
                     fn.apply(this, args);
                 } else if (trailing) {
-                    clearTimeout(timer);
+                    if (timer != null) clearTimeout(timer);
                     timer = setTimeout(() => {
                         last = Date.now();
+                        timer = null;
+                        if (timerCancels) timerCancels.delete(cancel);
                         fn.apply(this, args);
                     }, limit - (now - last));
+                    if (timerCancels) timerCancels.add(cancel);
                 }
             };
-            wrapped.cancel = () => clearTimeout(timer);
-
-            // Tracked so the plugin's single cleanup() (returned from install())
-            // can cancel any still-pending throttle timers on app unmount.
-            timerCancels.add(wrapped.cancel);
+            wrapped.cancel = cancel;
             return wrapped;
         },
 

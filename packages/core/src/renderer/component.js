@@ -1,6 +1,55 @@
 import { resolvePath } from '../compiler/compiler.js';
+import { isRef } from '../reactivity/ref.js';
 
 const componentProxyCache = new WeakMap();
+
+let idCounter = 0;
+export function uniqueId(prefix = "hx") {
+    return `${prefix}-${++idCounter}`;
+}
+export const id = uniqueId;
+
+export function dispatchEventHelper(targetOrEvent, eventNameOrDetail, detail = null, options = {}) {
+    let target = null;
+    let eventName = "";
+    let evtDetail = null;
+    let opts = {};
+
+    if (typeof targetOrEvent === "string") {
+        eventName = targetOrEvent;
+        evtDetail = eventNameOrDetail;
+        target = this?.$el || this?.root || (typeof document !== "undefined" ? document : null);
+        opts = (detail && typeof detail === "object" && !Array.isArray(detail)) ? detail : {};
+    } else {
+        target = targetOrEvent;
+        eventName = String(eventNameOrDetail || "");
+        evtDetail = detail;
+        opts = (options && typeof options === "object" && !Array.isArray(options)) ? options : {};
+    }
+
+    if (!target || typeof target.dispatchEvent !== "function") {
+        if (typeof document !== "undefined" && typeof document.dispatchEvent === "function") {
+            target = document;
+        } else if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+            target = window;
+        }
+    }
+
+    if (!target || typeof target.dispatchEvent !== "function" || !eventName) return false;
+
+    const customEvent = typeof CustomEvent !== "undefined"
+        ? new CustomEvent(eventName, {
+            bubbles: opts.bubbles !== false,
+            composed: opts.composed !== false,
+            cancelable: opts.cancelable !== false,
+            ...opts,
+            detail: evtDetail
+        })
+        : { type: eventName, detail: evtDetail };
+
+    return target.dispatchEvent(customEvent);
+}
+export const dispatch = dispatchEventHelper;
 
 export function getOrCreateAppCtxProxy(baseAppCtx, app) {
     let appMap = componentProxyCache.get(baseAppCtx);
@@ -12,10 +61,31 @@ export function getOrCreateAppCtxProxy(baseAppCtx, app) {
     if (!proxy) {
         proxy = new Proxy(baseAppCtx, {
             get(target, prop, receiver) {
-                if (prop in target) return target[prop];
-                if (app && prop in app) return app[prop];
+                if (prop in target) {
+                    const val = target[prop];
+                    return isRef(val) ? val.value : val;
+                }
+                if (prop === "$dispatch") {
+                    return (eventName, detail, options) => {
+                        const rootEl = target?.$el || target?.root || (typeof document !== "undefined" ? document : null);
+                        return dispatchEventHelper(rootEl, eventName, detail, options);
+                    };
+                }
+                if (prop === "$id") {
+                    return (p = "id") => uniqueId(p);
+                }
+                if (prop === "$root") {
+                    return target?.$el || target?.root || null;
+                }
+                if (app && prop in app) {
+                    const val = app[prop];
+                    return isRef(val) ? val.value : val;
+                }
                 const globalHelix = typeof window !== "undefined" && window.Helix || typeof globalThis !== "undefined" && globalThis.Helix || null;
-                if (globalHelix && prop in globalHelix) return globalHelix[prop];
+                if (globalHelix && prop in globalHelix) {
+                    const val = globalHelix[prop];
+                    return isRef(val) ? val.value : val;
+                }
                 return undefined;
             },
             set(target, prop, value, receiver) {
@@ -24,6 +94,7 @@ export function getOrCreateAppCtxProxy(baseAppCtx, app) {
             },
             has(target, prop) {
                 if (prop in target) return true;
+                if (prop === "$dispatch" || prop === "$id" || prop === "$root") return true;
                 if (app && prop in app) return true;
                 const globalHelix = typeof window !== "undefined" && window.Helix || typeof globalThis !== "undefined" && globalThis.Helix || null;
                 if (globalHelix && prop in globalHelix) return true;

@@ -60,8 +60,10 @@ export function resolvePath(app, ctx, path, fallback) {
     if (typeof path !== 'string') return path;
 
     if (app && typeof app.resolvePath === 'function') {
-        const res = app.resolvePath(path, ctx);
-        if (res !== undefined) return res;
+        try {
+            const res = app.resolvePath(path, ctx);
+            if (res !== undefined) return res;
+        } catch (e) {}
     }
 
     const parts = path.replace(/\[['"]?([^'"\]]+)['"]?\]/g, '.$1').split('.').filter(Boolean);
@@ -86,6 +88,16 @@ export function resolveBool(app, ctx, path) {
 export function evaluateArgs(app, ctx, argList, extra = {}) {
     return argList.map(a => {
         if (a === '$event') return extra.event;
+        if (a.startsWith('$event.')) {
+            const eventPath = a.slice(7);
+            const parts = eventPath.replace(/\[['"]?([^'"\]]+)['"]?\]/g, '.$1').split('.').filter(Boolean);
+            let val = extra.event;
+            for (const p of parts) {
+                if (val == null) break;
+                val = val[p];
+            }
+            if (val !== undefined) return val;
+        }
         const resolved = resolvePath(app, ctx, a);
         if (resolved !== undefined) return resolved;
         try { return JSON.parse(a); } catch {}

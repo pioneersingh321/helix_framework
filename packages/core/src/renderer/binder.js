@@ -30,6 +30,7 @@ import {
     triggerRef,
     unref,
     toValue,
+    proxyRefs,
     customRef
 } from '../reactivity/ref.js';
 import {
@@ -469,7 +470,7 @@ export function makeBindNode(appContext) {
             };
             const setupCtx = getOrCreateAppCtxProxy(baseSetupCtx, appConfig);
             if (typeof compDefNormalized.setup === "function") {
-                childCtx = scope.run(() => compDefNormalized.setup(setupCtx));
+                childCtx = scope.run(() => proxyRefs(compDefNormalized.setup(setupCtx)));
             } else {
                 childCtx = baseSetupCtx;
             }

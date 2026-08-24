@@ -14,10 +14,6 @@ export function parseDebounceValue(raw) {
     if (raw.startsWith('[') && raw.endsWith(']')) {
         const inner = raw.slice(1, -1);
         const parts = splitTopLevel(inner);
-        // Only treat the last part as a delay override when there are exactly
-        // two top-level parts and the second is a bare integer or a simple path syntax
-        // — otherwise a wrapped call's own arguments (which also split on
-        // top-level commas) would be misread as [expression, delay].
         if (parts.length === 2) {
             const secondPart = parts[1].trim();
             if (/^\d+$/.test(secondPart) || (!secondPart.includes('(') && !secondPart.includes(')'))) {
@@ -63,6 +59,7 @@ export function createDebounceDirective(app, config = {}) {
                 delay,
                 callData,
                 expression,
+                ctx,
                 timeout: null,
                 handler: null
             };
@@ -76,7 +73,7 @@ export function createDebounceDirective(app, config = {}) {
                     if (/^\d+$/.test(state.delay)) {
                         delayVal = parseInt(state.delay, 10);
                     } else {
-                        const resolvedDelay = resolvePath(app, ctx, state.delay);
+                        const resolvedDelay = resolvePath(app, state.ctx, state.delay);
                         if (typeof resolvedDelay === 'number') {
                             delayVal = resolvedDelay;
                         } else if (resolvedDelay !== undefined) {
@@ -88,50 +85,51 @@ export function createDebounceDirective(app, config = {}) {
                 log('event fired:', state.evtType, '— waiting', delayVal, 'ms');
                 clearTimeout(state.timeout);
                 state.timeout = setTimeout(() => {
+                    state.timeout = null;
                     if (!state.callData) {
                         log('no callData parsed from expression — nothing to run');
                         return;
                     }
-                    const fn = resolvePath(app, ctx, state.callData.fnPath);
+                    const fn = resolvePath(app, state.ctx, state.callData.fnPath);
                     log('resolved', JSON.stringify(state.callData.fnPath), '->', typeof fn, fn);
                     if (typeof fn === 'function') {
                         const argsToPass = state.callData.args.length > 0
-                            ? evaluateArgs(app, ctx, state.callData.args, { event: e })
+                            ? evaluateArgs(app, state.ctx, state.callData.args, { event: e })
                             : [e];
                         log('calling with args:', argsToPass);
-                        fn.apply(ctx, argsToPass);
-                    } else if (app.config && app.config.allowInlineExpressions) {
+                        fn.apply(state.ctx, argsToPass);
+                    } else if (app && app.config && app.config.allowInlineExpressions) {
                         try {
-                            new Function("$ctx", "$event", `with($ctx) { ${state.expression} }`)(ctx, e);
+                            new Function("$ctx", "$event", `with($ctx) { ${state.expression} }`)(state.ctx, e);
                         } catch (err) {
                             console.error(`[directives] [debounce] Error running inline expression:`, err);
                         }
-                    } else if (typeof Helix !== 'undefined' && typeof Helix.evaluate === 'function') {
-                        try {
-                            Helix.evaluate(state.expression, ctx, { $event: e });
-                        } catch (err) {
-                            console.error(err);
-                        }
                     } else {
-                        console.warn(`[directives] [debounce] Cannot resolve function "${state.callData.fnPath}" on context.`, { ctx });
+                        console.warn(`[directives] [debounce] Cannot resolve function "${state.callData.fnPath}" on context.`, { ctx: state.ctx });
                     }
                 }, delayVal);
             };
 
             el.addEventListener(evtType, state.handler);
-            trackCleanup(() => {
-                log('cleanup — removing listener', state.evtType);
-                el.removeEventListener(state.evtType, state.handler);
-                clearTimeout(state.timeout);
-                debounceStates.delete(el);
-            });
+            if (typeof trackCleanup === 'function') {
+                trackCleanup(() => {
+                    log('cleanup — removing listener', state.evtType);
+                    el.removeEventListener(state.evtType, state.handler);
+                    clearTimeout(state.timeout);
+                    debounceStates.delete(el);
+                });
+            }
         },
 
         updated(el, binding) {
             const state = debounceStates.get(el);
             if (!state) return;
 
-            const { value, arg } = binding;
+            // Clear any in-flight timer so previous expression/context does not execute
+            clearTimeout(state.timeout);
+            state.timeout = null;
+
+            const { value, arg, ctx } = binding;
             const newEvtType = arg || DEBOUNCE_DEFAULT_EVENT;
 
             const raw = (typeof value === 'string' ? value : String(value ?? '')).trim();
@@ -141,6 +139,7 @@ export function createDebounceDirective(app, config = {}) {
             state.delay = delay;
             state.callData = callData;
             state.expression = expression;
+            state.ctx = ctx;
 
             if (newEvtType !== state.evtType) {
                 log('event type updated from', state.evtType, 'to', newEvtType);
