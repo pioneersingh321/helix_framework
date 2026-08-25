@@ -325,6 +325,9 @@ const hasDOM = typeof Node !== "undefined";
 export function isRaw(value) {
     if (!value || typeof value !== "object") return false;
     if (value[SKIP]) return true;
+    if (value.nodeType !== undefined || value.window === value || (value.target !== undefined && (value.srcElement !== undefined || value.currentTarget !== undefined))) {
+        return true;
+    }
     const ctorName = value.constructor ? value.constructor.name : "";
     if (
         ctorName === "EffectScope" ||

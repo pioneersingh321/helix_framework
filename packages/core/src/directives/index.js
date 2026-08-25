@@ -473,15 +473,28 @@ export function createBuiltinDirectives(appConfig) {
 
                 if (effectiveArg === "class") {
                     el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.CLASS;
+                    if (el.__hx_initial_class === undefined) {
+                        el.__hx_initial_class = el.className || "";
+                    }
+                    const staticClass = el.__hx_initial_class;
+
                     if (typeof result === "object" && result !== null) {
-                        Object.keys(result).forEach((k) => {
-                            k.split(/\s+/).filter(Boolean).forEach((cls) => {
-                                el.classList.toggle(cls, !!result[k]);
+                        if (Array.isArray(result)) {
+                            const dynamicClasses = result.filter(Boolean).join(" ");
+                            const combined = [staticClass, dynamicClasses].filter(Boolean).join(" ");
+                            if (el.className !== combined) el.className = combined;
+                        } else {
+                            el.className = staticClass;
+                            Object.keys(result).forEach((k) => {
+                                k.split(/\s+/).filter(Boolean).forEach((cls) => {
+                                    el.classList.toggle(cls, !!result[k]);
+                                });
                             });
-                        });
+                        }
                     } else {
-                        const newClass = result || "";
-                        if (el.className !== newClass) el.className = newClass;
+                        const dynamicClass = (result || "").trim();
+                        const combined = [staticClass, dynamicClass].filter(Boolean).join(" ");
+                        if (el.className !== combined) el.className = combined;
                     }
                 } else if (effectiveArg === "style") {
                     el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.STYLE;

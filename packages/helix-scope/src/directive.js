@@ -1,8 +1,27 @@
 import { getPrefix } from './utils.js';
 import { parseDefaults } from './defaults.js';
 import { ScopeController } from './controller.js';
-import { onComponentMount } from '../../core/src/lifecycle.js';
-import { parseAttribute, cleanAttributes } from '../../core/src/dom.js';
+
+function onComponentMount(instance, callback) {
+    if (instance && instance.hooks && Array.isArray(instance.hooks.mount)) {
+        instance.hooks.mount.push(callback);
+    } else if (typeof callback === 'function') {
+        if (typeof queueMicrotask === 'function') {
+            queueMicrotask(callback);
+        } else {
+            setTimeout(callback, 0);
+        }
+    }
+}
+
+function parseAttribute(el, attrName) {
+    return el.getAttribute(attrName);
+}
+
+function cleanAttributes(el, attrs) {
+    if (!el || !Array.isArray(attrs)) return;
+    attrs.forEach(a => el.removeAttribute(a));
+}
 
 export function createScopeDirective(app) {
     return {
@@ -50,8 +69,6 @@ export function createScopeDirective(app) {
                     scopeDefs.push({ name: sName, expression: sExpr });
                 }
             }
-
-
 
             const childCtx = {};
             Object.setPrototypeOf(childCtx, ctx);

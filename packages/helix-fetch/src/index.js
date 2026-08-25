@@ -4,7 +4,7 @@ import { makeCreateRequest } from './request.js';
 
 const HelixFetchPlugin = {
     name: 'fetch',
-    version: import.meta.env.VITE_FETCH_VERSION || '0.0.0',
+    version: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_FETCH_VERSION) || '2.8.7',
 
     install(app, options = {}) {
         const { reactive } = (typeof Helix !== 'undefined' ? Helix : app);

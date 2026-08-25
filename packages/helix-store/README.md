@@ -340,12 +340,57 @@ componentScope.stop();
 
 ---
 
+## 🌐 HTML Template Auto-Binding & Direct Mutations
+
+All registered stores are automatically exposed globally to your HTML templates under both `$store.<id>` and `store.<id>` namespaces:
+
+```html
+<!-- Direct property access & in-template mutations -->
+<div class="card p-3">
+  <h3>Cart Total: $<span hx-text="store.cart.total"></span></h3>
+  <p>Items in cart: <strong hx-text="$store.cart.itemCount"></strong></p>
+
+  <!-- In-template direct state mutations -->
+  <button class="btn btn-sm btn-primary" @click="store.cart.quantity++">Increment (+1)</button>
+  <button class="btn btn-sm btn-secondary" @click="store.cart.quantity--">Decrement (-1)</button>
+
+  <!-- Calling store actions with parameter forwarding -->
+  <div hx-for="item in catalogItems" :key="item.id">
+    <span hx-text="item.name"></span> - $<span hx-text="item.price"></span>
+    <button class="btn btn-xs btn-success ms-2" @click="addToCart(item)">Add to Cart</button>
+  </div>
+</div>
+```
+
+---
+
+## 🔍 Setup Store `$state` & DevTools Inspection
+
+Setup stores automatically aggregate their underlying reactive `ref` variables into the `$state` property, allowing direct inspection, serialization, and snapshotting:
+
+```javascript
+const useCounter = defineStore('counter', () => {
+  const count = Helix.ref(0);
+  const name = Helix.ref('Alpha');
+  const double = Helix.computed(() => count.value * 2);
+
+  return { count, name, double };
+});
+
+const counter = useCounter();
+console.log(counter.$state); // { count: 0, name: 'Alpha' }
+console.log(JSON.stringify(counter.$state)); // Seamless serialization for DevTools & debugging!
+```
+
+---
+
 ## 🛠️ API Reference Table
 
 | Method / Property | Type | Description |
 | :--- | :--- | :--- |
 | `Helix.store(id, state)` | `Function` | Resolves or creates a simple store instance |
 | `Helix.defineStore(id, def)` | `Function` | Creates a reusable store hook `use<Name>Store()` |
+| `Helix.$store` / `$store` | `Object` | Global template registry containing all active store instances |
 | `storeToRefs(store)` | `Function` | Extracts state properties and getters as reactive `refs` |
 | `bindScopeStore(scope, ...)` | `Function` | Binds a store instance to an `EffectScope` with auto-cleanup |
 | `store.$id` | `string` | Unique store identifier |

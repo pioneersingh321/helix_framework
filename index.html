@@ -1,47 +1,85 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🧬 Helix.js Developer Console</title>
+  <title>🧬 Helix.js Developer Console & Reactive Playground</title>
 
-  <!-- Bootstrap 5 -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <!-- Font Awesome 6.5 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-    rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <!-- Core Helix JS -->
+  <!-- SweetAlert2 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
+  <!-- Axios CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+  <!-- Core Helix JS & Plugins -->
   <script src="./dist/helix.js"></script>
   <script src="./plugins/scope/helix-scope.js"></script>
 
   <style>
     :root {
-      --bg-color: #f8fafc;
+      --bg-canvas: #f8fafc;
       --card-bg: #ffffff;
       --card-border: #e2e8f0;
-      --accent-color: #2563eb;
-      --accent-glow: rgba(37, 99, 235, 0.08);
+      --card-border-hover: #cbd5e1;
+      --accent-primary: #4f46e5;
+      --accent-primary-hover: #4338ca;
+      --accent-light: #eef2ff;
+      --accent-glow: rgba(79, 70, 229, 0.12);
       --success-color: #10b981;
-      --success-glow: rgba(16, 185, 129, 0.08);
       --danger-color: #ef4444;
-      --danger-glow: rgba(239, 68, 68, 0.08);
       --warning-color: #f59e0b;
-      --warning-glow: rgba(245, 158, 11, 0.08);
-      --text-primary: #0f172a;
-      --text-secondary: #475569;
-      --sidebar-width: 280px;
+      --info-color: #06b6d4;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --sidebar-width: 290px;
+    }
+
+    * {
+      box-sizing: border-box;
     }
 
     body {
-      background-color: var(--bg-color);
-      color: var(--text-primary);
-      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
       overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Scroll Margin for Smooth Nav Anchors */
+    section {
+      scroll-margin-top: 1.5rem;
+    }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
     }
 
     /* Sidebar Styling */
@@ -50,133 +88,266 @@
       position: fixed;
       width: var(--sidebar-width);
       overflow-y: auto;
-      background-color: #ffffff;
+      background: #ffffff;
       border-right: 1px solid var(--card-border);
-      z-index: 100;
-      padding: 1.5rem;
+      z-index: 1000;
+      padding: 1.25rem;
+      box-shadow: 2px 0 16px -4px rgba(15, 23, 42, 0.04);
     }
 
     .sidebar-header {
       font-weight: 800;
       letter-spacing: -0.5px;
-      color: var(--text-primary);
+      color: var(--text-main);
+    }
+
+    .nav-category {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #94a3b8;
+      padding: 0.75rem 0.75rem 0.35rem;
+      margin-top: 0.5rem;
     }
 
     .nav-link {
-      color: var(--text-secondary);
-      font-weight: 500;
-      border-radius: 8px;
-      padding: 0.6rem 1rem;
-      margin-bottom: 0.3rem;
-      transition: all 0.2s ease;
+      color: var(--text-muted);
+      font-size: 0.815rem;
+      font-weight: 600;
+      border-radius: 0.625rem;
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 0.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .nav-link i {
+      font-size: 0.95rem;
+      width: 18px;
+      text-align: center;
+      color: #94a3b8;
+      transition: color 0.18s ease;
     }
 
     .nav-link:hover {
-      color: var(--text-primary);
-      background-color: #f1f5f9;
+      color: var(--accent-primary);
+      background-color: var(--accent-light);
+      transform: translateX(2px);
+    }
+
+    .nav-link:hover i {
+      color: var(--accent-primary);
     }
 
     .nav-link.active {
       color: #ffffff !important;
-      background-color: var(--accent-color) !important;
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+      background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.28);
+      font-weight: 700;
+    }
+
+    .nav-link.active i {
+      color: #ffffff !important;
     }
 
     /* Main Content Area */
     .content {
       margin-left: var(--sidebar-width);
-      padding: 2.5rem;
+      padding: 2.25rem 2.5rem 4rem;
+      max-width: 1400px;
+    }
+
+    /* Hero Banner */
+    .studio-hero {
+      background: #ffffff;
+      border: 1px solid var(--card-border);
+      border-radius: 1.25rem;
+      padding: 1.75rem 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px -4px rgba(15, 23, 42, 0.05);
+      position: relative;
+      overflow: hidden;
+    }
+    .studio-hero::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #4f46e5 0%, #8b5cf6 50%, #06b6d4 100%);
     }
 
     /* Cards & Layout */
     .glass-card {
       background-color: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 16px;
+      border-radius: 1.25rem;
       padding: 2rem;
-      margin-bottom: 2.5rem;
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.03), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
-      transition: box-shadow 0.2s ease;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.03), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+      transition: all 0.22s ease;
+      position: relative;
     }
 
     .glass-card:hover {
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 12px 28px -6px rgba(15, 23, 42, 0.07);
+      border-color: #cbd5e1;
     }
 
     .sandbox-box {
-      background-color: #f8fafc;
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
+      background-color: #fafbfe;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.875rem;
+      padding: 1.35rem;
+      margin-bottom: 1.25rem;
+      transition: all 0.2s ease;
     }
 
-    h2 {
-      font-weight: 700;
+    .sandbox-box:hover {
+      border-color: #d1d5db;
+      background-color: #ffffff;
+      box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+    }
+
+    /* Section Headers */
+    .section-title {
+      font-weight: 800;
       letter-spacing: -0.5px;
-      color: var(--text-primary);
-      border-bottom: 2px solid var(--card-border);
-      padding-bottom: 0.75rem;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
       margin-bottom: 1.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 2px solid #f1f5f9;
+      font-size: 1.35rem;
     }
 
-    h3 {
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 1rem;
-      border-bottom: 1px solid var(--card-border);
-      padding-bottom: 0.5rem;
+    .section-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: var(--accent-light);
+      color: var(--accent-primary);
     }
 
     h4 {
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 1rem;
+      font-weight: 700;
+      font-size: 0.975rem;
+      color: var(--text-main);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
     }
 
     .text-muted-custom {
-      color: var(--text-secondary);
+      color: var(--text-muted);
+      font-size: 0.835rem;
+      margin-bottom: 0.875rem;
+      line-height: 1.5;
     }
 
     /* Code Blocks */
+    .code-container {
+      border-radius: 0.875rem;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+      box-shadow: 0 4px 14px -2px rgba(15, 23, 42, 0.2);
+    }
+    .code-header {
+      background: #0b1120;
+      padding: 0.5rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e293b;
+      font-size: 0.725rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: #94a3b8;
+    }
     pre {
       background-color: #0f172a !important;
-      border: 1px solid #1e293b;
-      border-radius: 8px;
-      padding: 1rem;
-      color: #f8fafc;
+      padding: 1.15rem;
+      color: #f1f5f9;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.85rem;
+      font-size: 0.815rem;
       margin: 0;
+      line-height: 1.65;
       overflow-x: auto;
     }
 
-    /* Controls */
+    /* Controls & Form Styles */
     .form-control,
     .form-select {
       background-color: #ffffff;
-      border: 1px solid var(--card-border);
-      color: var(--text-primary);
-      border-radius: 6px;
+      border: 1.5px solid var(--card-border);
+      color: var(--text-main);
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      padding: 0.5rem 0.75rem;
+      transition: all 0.15s ease;
     }
 
     .form-control:focus,
     .form-select:focus {
       background-color: #ffffff;
-      border-color: var(--accent-color);
-      color: var(--text-primary);
+      border-color: var(--accent-primary);
+      color: var(--text-main);
       box-shadow: 0 0 0 3px var(--accent-glow);
     }
 
+    /* Buttons */
+    .btn {
+      font-weight: 600;
+      font-size: 0.825rem;
+      border-radius: 0.5rem;
+      padding: 0.45rem 0.85rem;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
     .btn-primary {
-      background-color: var(--accent-color);
-      border-color: var(--accent-color);
-      box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
+      background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+      border: none;
+      color: #ffffff;
+      box-shadow: 0 3px 10px rgba(79, 70, 229, 0.25);
     }
 
     .btn-primary:hover {
-      background-color: #1d4ed8;
-      border-color: #1d4ed8;
+      background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%);
+      box-shadow: 0 6px 14px rgba(79, 70, 229, 0.35);
+      color: #ffffff;
+    }
+
+    .btn-secondary {
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+    }
+    .btn-secondary:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    /* Badges */
+    .badge {
+      font-weight: 700;
+      font-size: 0.725rem;
+      padding: 0.35em 0.65em;
+      border-radius: 0.375rem;
     }
 
     /* Custom directive highlights */
@@ -211,36 +382,102 @@
 
   <!-- Navigation Sidebar -->
   <div class="sidebar">
-    <div class="mb-4">
-      <h3 class="sidebar-header d-flex align-items-center gap-2">
-        <span>🧬 Helix.js</span>
-      </h3>
-      <span class="badge bg-secondary" id="helix-version-badge">Loading version...</span>
+    <div class="mb-3 pb-3 border-bottom">
+      <div class="d-flex align-items-center justify-content-between mb-1">
+        <h5 class="sidebar-header d-flex align-items-center gap-2 mb-0">
+          <span class="text-primary">🧬</span>
+          <span>Helix.js</span>
+        </h5>
+        <span class="badge bg-indigo text-white font-mono" id="helix-version-badge" style="background-color: #4f46e5;">v11.1.21</span>
+      </div>
+      <small class="text-muted" style="font-size: 0.725rem;">Developer Console & Playground</small>
     </div>
+
+    <!-- Quick Sibling App Launchers -->
+    <div class="mb-3 p-2 bg-light rounded-3 border">
+      <div class="text-uppercase text-muted font-weight-bold mb-1" style="font-size: 0.65rem;">Studio Apps</div>
+      <div class="d-flex flex-column gap-1">
+        <a href="index-store.html" class="text-decoration-none text-dark d-flex align-items-center justify-content-between p-1.5 rounded hover-bg" style="font-size: 0.75rem; font-weight: 600;">
+          <span><i class="fa-solid fa-store text-indigo me-1.5" style="color: #4f46e5;"></i> Store Studio</span>
+          <i class="bi bi-arrow-right-short text-muted"></i>
+        </a>
+        <a href="index-builder.html" class="text-decoration-none text-dark d-flex align-items-center justify-content-between p-1.5 rounded hover-bg" style="font-size: 0.75rem; font-weight: 600;">
+          <span><i class="fa-solid fa-cubes text-indigo me-1.5" style="color: #4f46e5;"></i> Bundle Builder</span>
+          <i class="bi bi-arrow-right-short text-muted"></i>
+        </a>
+      </div>
+    </div>
+
     <ul class="nav flex-column">
-      <li class="nav-item"><a class="nav-link active" href="#reactivity">⚡ Core Reactivity</a></li>
-      <li class="nav-item"><a class="nav-link" href="#styling">🎨 Dynamic Bindings</a></li>
-      <li class="nav-item"><a class="nav-link" href="#lists">📋 Loops & Conditionals</a></li>
-      <li class="nav-item"><a class="nav-link" href="#model">✍️ Form Controls</a></li>
-      <li class="nav-item"><a class="nav-link" href="#components">🧱 Components & Events</a></li>
-      <li class="nav-item"><a class="nav-link" href="#async-scopes">📡 Async Scopes</a></li>
-      <li class="nav-item"><a class="nav-link" href="#directives">🧩 Custom Directives</a></li>
-      <li class="nav-item"><a class="nav-link" href="#fallbacks">🛡️ Directive Fallbacks</a></li>
-      <li class="nav-item"><a class="nav-link" href="#v11-features">🚀 v11.1.16 Features</a></li>
-      <li class="nav-item"><a class="nav-link" href="#dom-events">🎯 DOM Event Modifiers</a></li>
-      <li class="nav-item"><a class="nav-link" href="#phase3-directives">📜 Template Directives (Phase 3)</a></li>
-      <li class="nav-item"><a class="nav-link" href="#transitions">🎬 Transitions & FLIP (Phase 4)</a></li>
-      <li class="nav-item"><a class="nav-link" href="#teleport">🚪 Teleport Engine (Phase 5)</a></li>
+      <li class="nav-category">Core Engine</li>
+      <li class="nav-item"><a class="nav-link active" href="#reactivity"><i class="fa-solid fa-bolt"></i> 1. Core Reactivity</a></li>
+      <li class="nav-item"><a class="nav-link" href="#styling"><i class="fa-solid fa-palette"></i> 2. Dynamic Bindings</a></li>
+      <li class="nav-item"><a class="nav-link" href="#lists"><i class="fa-solid fa-list-check"></i> 3. Loops & Conditionals</a></li>
+      <li class="nav-item"><a class="nav-link" href="#model"><i class="fa-solid fa-pen-to-square"></i> 4. Form Controls</a></li>
+      
+      <li class="nav-category">Components & Directives</li>
+      <li class="nav-item"><a class="nav-link" href="#components"><i class="fa-solid fa-cube"></i> 5. Components & Slots</a></li>
+      <li class="nav-item"><a class="nav-link" href="#async-scopes"><i class="fa-solid fa-network-wired"></i> 6. Async Scopes</a></li>
+      <li class="nav-item"><a class="nav-link" href="#directives"><i class="fa-solid fa-puzzle-piece"></i> 7. Custom Directives</a></li>
+      <li class="nav-item"><a class="nav-link" href="#fallbacks"><i class="fa-solid fa-shield-halved"></i> 8. Diagnostic Fallbacks</a></li>
+      
+      <li class="nav-category">Advanced Runtime (v11)</li>
+      <li class="nav-item"><a class="nav-link" href="#v11-features"><i class="fa-solid fa-rocket"></i> 9. v11 Advanced Features</a></li>
+      <li class="nav-item"><a class="nav-link" href="#dom-events"><i class="fa-solid fa-bullseye"></i> 10. DOM Event Modifiers</a></li>
+      <li class="nav-item"><a class="nav-link" href="#phase3-directives"><i class="fa-solid fa-scroll"></i> 11. Phase 3 Directives</a></li>
+      <li class="nav-item"><a class="nav-link" href="#transitions"><i class="fa-solid fa-film"></i> 12. Transitions & FLIP</a></li>
+      <li class="nav-item"><a class="nav-link" href="#teleport"><i class="fa-solid fa-door-open"></i> 13. Teleport Portals</a></li>
     </ul>
   </div>
 
   <!-- Main Content View -->
   <div class="content" id="content">
 
+    <!-- Top Studio Hero Banner -->
+    <div class="studio-hero">
+      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+        <div>
+          <div class="d-flex align-items-center gap-2 mb-1.5">
+            <span class="badge" style="background: rgba(79, 70, 229, 0.1); color: #4f46e5; border: 1px solid rgba(79, 70, 229, 0.2);">
+              <i class="fa-solid fa-microchip me-1"></i> Reactive Framework Runtime
+            </span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle">
+              <i class="fa-solid fa-circle-check me-1"></i> All 13 Test Suites Ready
+            </span>
+          </div>
+          <h2 class="mb-1 fw-bold" style="font-size: 1.65rem; letter-spacing: -0.5px;">
+            🧬 Helix.js Developer Console & Playground
+          </h2>
+          <p class="text-muted mb-0" style="font-size: 0.875rem;">
+            Real-time interactive environment testing fine-grained signals, custom directives, web components, FLIP animations, and portal teleportation.
+          </p>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <a href="index-store.html" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-1.5">
+            <i class="fa-solid fa-store"></i> Store Studio
+          </a>
+          <a href="index-builder.html" class="btn btn-primary btn-sm d-flex align-items-center gap-1.5">
+            <i class="fa-solid fa-boxes-stacked"></i> Bundle Builder
+          </a>
+        </div>
+      </div>
+
+      <!-- Quick Feature Metrics Strip -->
+      <div class="mt-3 pt-3 border-top d-flex align-items-center gap-4 flex-wrap" style="font-size: 0.775rem;">
+        <span class="text-muted"><strong class="text-dark">Reactivity:</strong> Fine-Grained Signals</span>
+        <span class="text-muted"><strong class="text-dark">Scheduler:</strong> Microtask Batching</span>
+        <span class="text-muted"><strong class="text-dark">Prefix:</strong> <code>hx-</code> (Configurable)</span>
+        <span class="text-muted"><strong class="text-dark">Footprint:</strong> ~36 KB Core</span>
+      </div>
+    </div>
+
     <!-- ⚡ Core Reactivity -->
-    <section id="reactivity" class="mb-5 pt-4">
+    <section id="reactivity" class="mb-4">
       <div class="glass-card">
-        <h2>⚡ Section 1: Core Reactivity</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 01</span>
+          <span>⚡ Core Fine-Grained Reactivity</span>
+        </div>
         <div class="row">
           <div class="col-lg-6">
 
@@ -307,9 +544,12 @@ const state = reactive({
     </section>
 
     <!-- 🎨 Dynamic Bindings & Styling -->
-    <section id="styling" class="mb-5">
+    <section id="styling" class="mb-4">
       <div class="glass-card">
-        <h2>🎨 Section 2: Dynamic Bindings & Styling</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 02</span>
+          <span>🎨 Dynamic Bindings & Reactive Styling</span>
+        </div>
         <div class="row">
           <div class="col-lg-6">
 
@@ -384,9 +624,12 @@ const state = reactive({
     </section>
 
     <!-- 📋 Loops & Conditionals -->
-    <section id="lists" class="mb-5">
+    <section id="lists" class="mb-4">
       <div class="glass-card">
-        <h2>📋 Section 3: Loops & Conditionals</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 03</span>
+          <span>📋 Structural Loops & Keyed Conditionals</span>
+        </div>
         <div class="row">
           <div class="col-lg-6">
 
@@ -464,9 +707,12 @@ const state = reactive({
     </section>
 
     <!-- ✍️ Form Controls & Two-Way Modeling -->
-    <section id="model" class="mb-5">
+    <section id="model" class="mb-4">
       <div class="glass-card">
-        <h2>✍️ Section 4: Form Controls & Two-Way Modeling</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 04</span>
+          <span>✍️ Two-Way Form Controls & Modifiers</span>
+        </div>
         <div class="row">
           <div class="col-lg-6">
 
@@ -600,9 +846,12 @@ const state = reactive({
     </section>
 
     <!-- 🧱 Components & Events -->
-    <section id="components" class="mb-5">
+    <section id="components" class="mb-4">
       <div class="glass-card">
-        <h2>🧱 Section 5: Components & Events</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 05</span>
+          <span>🧱 Web Components, Slots & Event Bus</span>
+        </div>
         <div class="row">
           <div class="col-lg-6">
 
@@ -670,9 +919,12 @@ Helix.component("user-form", {
     </section>
 
     <!-- 📡 Async Scopes -->
-    <section id="async-scopes" class="mb-5">
+    <section id="async-scopes" class="mb-4">
       <div class="glass-card">
-        <h2>📡 Section 6: Async Data Scopes (hx-scope)</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 06</span>
+          <span>📡 Async Scopes & Micro-App Promises</span>
+        </div>
         <div class="row">
           <div class="col-lg-6">
 
@@ -739,9 +991,12 @@ Helix.component("user-form", {
     </section>
 
     <!-- 🧩 Custom Directives -->
-    <section id="directives" class="mb-5">
+    <section id="directives" class="mb-4">
       <div class="glass-card">
-        <h2>🧩 Section 7: Custom Directives</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 07</span>
+          <span>🧩 Custom Directives & Node Lifecycle Hooks</span>
+        </div>
         <div class="row">
           <div class="col-lg-6">
             <p class="text-muted-custom">Helix.js features an extensible directive system. Custom directives can be
@@ -791,9 +1046,12 @@ app.directive('debug', {
     </section>
 
     <!-- 🛡️ Directive Fallbacks -->
-    <section id="fallbacks" class="mb-5">
+    <section id="fallbacks" class="mb-4">
       <div class="glass-card">
-        <h2>🛡️ Section 8: Directive Fallbacks</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 08</span>
+          <span>🛡️ Directive Fallbacks & Crash-Proof Safety</span>
+        </div>
         <p class="text-muted-custom">Demonstrates safety features of the `helix-next.js` (v11.1.12) release: automatic
           path traversal protection prevents crash loops when mid-paths evaluate to null/undefined.</p>
 
@@ -910,9 +1168,12 @@ function resolveExpression(val, ctx, options) {
     </section>
 
     <!-- 🚀 Section 9: v11.1.17 Core Features -->
-    <section id="v11-features" class="mb-5">
+    <section id="v11-features" class="mb-4">
       <div class="glass-card">
-        <h2>🚀 Section 9: v11.1.17 Core Enhancements</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 09</span>
+          <span>🚀 v11 Core Runtime Engines & DevTools</span>
+        </div>
         <div class="row">
           <div class="col-lg-6">
 
@@ -1070,9 +1331,12 @@ Helix.watch([refA, refB], ([a, b]) => {
     </section>
  
     <!-- 🎯 Section 10: DOM Events & Modifiers (Phase 1) -->
-    <section id="dom-events" class="mb-5">
+    <section id="dom-events" class="mb-4">
       <div class="glass-card">
-        <h2>🎯 Section 10: DOM Events & Modifiers (Phase 1)</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 10</span>
+          <span>🎯 DOM Events & Vue-Style Modifiers</span>
+        </div>
         <p class="text-muted-custom">
           Helix Core provides Vue-style DOM event modifiers with a unified event handling pipeline. Modifiers filter events by key, mouse button, system keys, exact match, self-target, and configure native listener lifecycle options.
         </p>
@@ -1189,10 +1453,15 @@ Helix.watch([refA, refB], ([a, b]) => {
           </div>
         </div>
       </div>
+    </section>
+
     <!-- 📜 Template Directives & Dynamic Compilation (Phase 3) -->
-    <section id="phase3-directives" class="mb-5">
+    <section id="phase3-directives" class="mb-4">
       <div class="glass-card">
-        <h2>📜 Section 11: Template Directives & Compilation (Phase 3)</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 11</span>
+          <span>📜 Dynamic Arguments & Static Compiler Passes</span>
+        </div>
         <p class="text-muted-custom">Demonstrating Vue-style Dynamic Arguments (<code>:[attr]</code> & <code>@[event]</code>), Static Subtree Optimization (<code>hx-once</code>), Raw Escape (<code>hx-pre</code>), and Checkbox Custom Values.</p>
 
         <div class="row">
@@ -1296,9 +1565,12 @@ Helix.watch([refA, refB], ([a, b]) => {
     </section>
 
     <!-- 🎬 Section 12: Built-in Transition & Animation Engine -->
-    <section id="transitions" class="mb-5">
+    <section id="transitions" class="mb-4">
       <div class="glass-card">
-        <h2>🎬 Section 12: Built-in Transition & FLIP Animation Engine</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 12</span>
+          <span>🎬 Transitions & FLIP Animation System</span>
+        </div>
         <div class="row">
           <div class="col-lg-6">
 
@@ -1403,9 +1675,12 @@ Helix.watch([refA, refB], ([a, b]) => {
     </section>
 
     <!-- 🚪 Section 13: Built-in Teleport Engine -->
-    <section id="teleport" class="mb-5 pt-4">
+    <section id="teleport" class="mb-4">
       <div class="glass-card">
-        <h2>🚪 Section 13: Built-in Teleport Engine (Phase 5)</h2>
+        <div class="section-title">
+          <span class="section-badge">Section 13</span>
+          <span>🚪 Portal & Teleport Subtree Engine</span>
+        </div>
         <p class="text-secondary">
           Render and transport DOM subtrees into external portal targets (e.g. <code>body</code>, <code>#modal-portal-target</code>) 
           while preserving complete reactive context, event bubbling, and lifecycle-bound cleanup.
@@ -1414,44 +1689,48 @@ Helix.watch([refA, refB], ([a, b]) => {
         <div class="row g-4 mt-2">
           <!-- Live Interactive Portal Demo -->
           <div class="col-lg-6">
-            <div class="p-4 rounded-3" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);">
-              <h5 class="text-info mb-3">🎮 Interactive Modal & Portal Showcase</h5>
+            <div class="sandbox-box">
+              <h4><i class="fa-solid fa-gamepad text-primary me-1"></i> Interactive Modal & Portal Showcase</h4>
+              <p class="text-muted-custom">Launch a modal transported into an external portal container outside the main app subtree.</p>
 
-              <div class="mb-3">
-                <button class="btn btn-primary" @click="state.teleportDemo.isModalOpen = true">
-                  🚀 Launch Teleported Modal
+              <div class="mb-3 d-flex gap-2 flex-wrap">
+                <button class="btn btn-primary btn-sm" @click="state.teleportDemo.isModalOpen = true">
+                  <i class="fa-solid fa-rocket me-1"></i> Launch Teleported Modal
                 </button>
-                <button class="btn btn-outline-secondary ms-2" @click="state.teleportDemo.isInline = !state.teleportDemo.isInline">
-                  Toggle Teleport Disabled: <span class="badge bg-secondary" hx-text="state.teleportDemo.isInline ? 'Inline (Disabled)' : 'Teleported'"></span>
+                <button class="btn btn-outline-secondary btn-sm" @click="state.teleportDemo.isInline = !state.teleportDemo.isInline">
+                  Toggle Disabled: <span class="badge bg-secondary" hx-text="state.teleportDemo.isInline ? 'Inline (Disabled)' : 'Teleported'"></span>
                 </button>
               </div>
 
-              <div class="p-3 mb-3 rounded-2" style="background: rgba(0,0,0,0.3); border: 1px dashed rgba(255,255,255,0.15);">
-                <small class="text-muted d-block mb-1">Host Component Container Content:</small>
+              <div class="p-3 mb-3 rounded-3 bg-white border border-light-subtle shadow-xs">
+                <small class="text-muted d-block mb-1.5 fw-bold" style="font-size: 0.75rem;">Host Component State Binding:</small>
                 <div class="d-flex align-items-center gap-2">
-                  <span class="badge bg-info">Live Input:</span>
-                  <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" hx-model="state.teleportDemo.modalTitle" style="max-width: 250px;" />
+                  <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Modal Title:</span>
+                  <input type="text" class="form-control form-control-sm" hx-model="state.teleportDemo.modalTitle" style="max-width: 250px;" />
                 </div>
               </div>
 
               <!-- Teleport Directive -->
               <div hx-teleport="#modal-portal-target" hx-show="state.teleportDemo.isModalOpen" hx-transition="fade">
                 <div class="modal-backdrop-custom d-flex align-items-center justify-content-center" 
-                     style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 9999;">
-                  <div class="p-4 rounded-4 shadow-lg text-light" 
-                       style="background: #1e1e2e; border: 1px solid rgba(255,255,255,0.15); max-width: 480px; width: 90%;">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                      <h4 class="m-0 text-info" hx-text="state.teleportDemo.modalTitle"></h4>
-                      <button class="btn btn-sm btn-outline-light" @click="state.teleportDemo.isModalOpen = false">✕</button>
+                     style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(6px); z-index: 9999;">
+                  <div class="p-4 rounded-4 shadow-2xl text-dark bg-white" 
+                       style="border: 1px solid #e2e8f0; max-width: 500px; width: 92%; box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);">
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                      <h5 class="m-0 fw-bold text-dark d-flex align-items-center gap-2">
+                        <span class="text-primary">🚪</span>
+                        <span hx-text="state.teleportDemo.modalTitle"></span>
+                      </h5>
+                      <button class="btn btn-sm btn-light border py-0 px-2 rounded-circle" @click="state.teleportDemo.isModalOpen = false">&times;</button>
                     </div>
-                    <p class="text-secondary" hx-text="state.teleportDemo.message"></p>
-                    <div class="p-2 mb-3 rounded" style="background: rgba(0,0,0,0.4);">
-                      <small class="text-muted">Target Layer: <code>#modal-portal-target</code> (rendered outside root app container)</small>
+                    <p class="text-secondary small mb-3" hx-text="state.teleportDemo.message"></p>
+                    <div class="p-2.5 mb-3 rounded-3 bg-light border text-muted" style="font-size: 0.775rem;">
+                      <i class="fa-solid fa-layer-group text-primary me-1"></i> Target Layer: <code>#modal-portal-target</code> (rendered outside root app container)
                     </div>
                     <div class="d-flex justify-content-end gap-2">
                       <button class="btn btn-secondary btn-sm" @click="state.teleportDemo.isModalOpen = false">Close</button>
-                      <button class="btn btn-success btn-sm" @click="state.teleportDemo.clickCount++; state.teleportDemo.modalTitle = 'Clicked ' + state.teleportDemo.clickCount + ' times!'">
-                        Interactive Action (<span hx-text="state.teleportDemo.clickCount"></span>)
+                      <button class="btn btn-primary btn-sm" @click="state.teleportDemo.clickCount++; state.teleportDemo.modalTitle = 'Clicked ' + state.teleportDemo.clickCount + ' times!'">
+                        <i class="fa-solid fa-bolt me-1"></i> Interactive Action (<span hx-text="state.teleportDemo.clickCount"></span>)
                       </button>
                     </div>
                   </div>

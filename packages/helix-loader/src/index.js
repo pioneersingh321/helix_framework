@@ -5,7 +5,7 @@ import { buildIcon } from './icon.js';
 
 const HelixLoaderPlugin = {
     name: 'loader',
-    version: import.meta.env.VITE_LOADER_VERSION || '0.0.0',
+    version: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_LOADER_VERSION) || '2.2.0',
     requires: {
         helix: '>=11.1.5'
     },
@@ -389,6 +389,14 @@ const HelixLoaderPlugin = {
 
         if (app.provide) {
             app.provide('$loader', $loader);
+        }
+
+        const GlobalHelix = (typeof window !== 'undefined' && window.Helix) ||
+            (typeof globalThis !== 'undefined' && globalThis.Helix) ||
+            (typeof Helix !== 'undefined' ? Helix : null);
+
+        if (GlobalHelix) {
+            GlobalHelix.$loader = $loader;
         }
 
         log('Plugin installed.');

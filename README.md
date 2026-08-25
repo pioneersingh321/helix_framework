@@ -77,8 +77,13 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 
 ```
 helix_framework/
-├── dist/                 # Production distribution builds
-│   └── helix.js          # Core framework library (v11.1.8 Zenith Edition)
+├── dist/                 # Production distribution builds (Single-file & unified bundles)
+│   ├── helix.js          # Core framework library (v11.1.21)
+│   ├── helix.all.js      # Unified complete bundle (Core + all official plugins)
+│   ├── helix.essentials.js # Core + Store + Fetch + Notify
+│   ├── helix.ui.js       # Core + Tooltip + Loader + Notify
+│   └── helix.forms.js    # Core + Validation + Model + Fetch
+├── bundle/               # Production mirrored bundles (identical to dist/)
 ├── packages/             # Framework and plugin source packages
 │   ├── core/             # Framework core reactive engine
 │   └── helix-store/      # Signal-native reactive state management package (v1.0.0)
@@ -88,15 +93,17 @@ helix_framework/
 │   ├── fetch/            # Fetch client wrapper plugin
 │   ├── loader/           # Global/Local loading spinner & overlays
 │   ├── model/            # Client-side AST database queries
-│   ├── notify/           # SweetAlert2 toast & modal wrapper
+│   ├── notify/           # SweetAlert2 toast & modal wrapper (Self-hydrating CDN)
 │   ├── scope/            # Isolated scope lifecycle plugin
 │   ├── store/            # Signal-native Store plugin (v1.0.0)
 │   ├── tooltip/          # Lightweight tooltip plugin
 │   └── validation/       # Zero-config form & field validation
+├── scripts/              # Unified build & bundling tooling
+│   └── bundle.js         # Unified bundler script with presets & dual distribution
 ├── archive/              # Safe historical repository copy (Legacy versions)
-│   ├── core/             # Deprecated framework base versions (v11.1.4 to v11.1.7-base)
-│   └── plugins/          # Legacy plugin versions
-├── index.html            # Helix Core & reactivity playground
+├── index.html            # Helix Core developer console & 13-section playground
+├── index-store.html      # Helix Store Studio with live DevTools & 10 interactive sections
+├── index-builder.html    # Helix Bundle Builder with Quick Start presets & live sandbox
 ├── index-validation.html # Helix Validate integration playground
 ├── helix_banner.png      # Framework banner asset
 └── .gitignore            # Git exclusion configs
@@ -339,11 +346,15 @@ Binds reactive state to standard element attributes (e.g., `:href`, `:src`, `:di
 ```
 
 #### Advanced Bindings:
-*   **Classes (Accepts Objects):** Automatically parses class lists (supports multi-class keys).
+*   **Classes (Accepts Objects, Arrays, or Strings):** Automatically parses class lists (supports multi-class space-separated keys). Static classes in the element's original HTML (`class="btn p-5 group"`) are cached (`el.__hx_initial_class`) and preserved across dynamic toggles:
     ```html
+    <!-- Static class "preset-btn p-5" is preserved when active toggles -->
+    <button class="preset-btn p-5" :class="{ 'active ring-2': isActive }" @click="toggle">
+      Select Option
+    </button>
     <i :class="{ 'ri-heart-fill text-danger': isLiked, 'ri-heart-line': !isLiked }"></i>
     ```
-*   **Styles (Accepts Objects):**
+*   **Styles (Accepts Objects or Strings):**
     ```html
     <div :style="{ color: activeColor, fontSize: fontSize + 'px' }"></div>
     ```
@@ -1024,7 +1035,7 @@ Expand the sections below to explore the official plugins shipped within the `pl
 <summary>📂 1. Helix Store (plugins/store/helix-store.js / helix-store.min.js - v1.0.0)</summary>
 <br>
 
-A modular, signal-native reactive state management architecture built specifically for **Helix.js**. Supports instant simple stores (`Helix.store`), enterprise domain stores (`Helix.defineStore`), global template auto-binding (`$store` / `store`), deterministic undo/redo, deep mutation tracking, and pluggable persistence.
+A modular, signal-native reactive state management architecture built specifically for **Helix.js**. Supports instant simple stores (`Helix.store`), structured domain stores (`Helix.defineStore`), composable setup stores, global template auto-binding (`$store` / `store`), direct in-template property mutations, deterministic undo/redo, deep mutation tracking, and pluggable persistence.
 
 #### Key Store Flavors:
 ```javascript
@@ -1048,16 +1059,35 @@ const useAuthStore = Helix.defineStore('auth', {
       this.token = res.data.token;
     }
   },
-  persist: { driver: 'localStorage', paths: ['token', 'user'] }
+  persist: { driver: 'localStorage', paths: ['token', 'user'] },
+  history: true // Enables $undo() / $redo()
+});
+
+// 3. Composable Setup Store (Complex Logic, Custom Refs)
+const useCartStore = Helix.defineStore('cart', () => {
+  const items = Helix.reactive([]);
+  const discount = Helix.ref(0);
+  const total = Helix.computed(() => items.reduce((sum, i) => sum + i.price, 0) - discount.value);
+  const addItem = (item) => items.push(item);
+  return { items, discount, total, addItem };
 });
 ```
 
 #### Global Template Directives Binding:
 ```html
 <div id="app">
-  <!-- Zero-boilerplate global template auto-binding -->
-  <span hx-text="$store.builderStore.stages.length"></span>
-  <button @click="$store.builderStore.openSettings(stg)">Settings</button>
+  <!-- Zero-boilerplate global template auto-binding (via $store or store) -->
+  <span hx-text="store.builderStore.stages.length"></span>
+  <p>Total: $<strong hx-text="$store.cart.total"></strong></p>
+
+  <!-- Direct in-template state mutations -->
+  <button @click="store.counter.count++">+1</button>
+  <button @click="store.counter.count--">-1</button>
+
+  <!-- Action invocations with loop arguments -->
+  <div hx-for="item in catalogItems" :key="item.id">
+    <button @click="addToCart(item)">Add to Cart</button>
+  </div>
 </div>
 ```
 </details>
@@ -1230,10 +1260,10 @@ Helix.$loader.hide();
 <summary>📂 8. Helix Notify (helix-notify.js - v2.1)</summary>
 <br>
 
-Integrates SweetAlert2 to manage toast queues, notification alerts, and Promise-based confirm dialogs.
+Integrates SweetAlert2 to manage toast queues, notification alerts, and Promise-based confirm dialogs. Features **self-hydrating CDN auto-injection** that automatically detects missing `window.Swal` instances and dynamically loads the CDN script into `document.head`.
 
 ```javascript
-// Trigger a non-blocking toast
+// Trigger a non-blocking toast (auto-loads SweetAlert2 CDN if missing)
 Helix.$notify.toast('Database updated successfully', { type: 'success' });
 
 // Prompts and confirm dialogs
@@ -1278,9 +1308,29 @@ const admins = DB
 
 ---
 
+## 📦 Unified Bundler CLI (`scripts/bundle.js`)
+
+Build custom standalone, zero-dependency unified bundles combining Helix Core with your desired official plugins:
+
+```bash
+# Build complete unified bundle (Core + all 10 plugins)
+node scripts/bundle.js --all
+
+# Build specific pre-configured presets
+node scripts/bundle.js --preset=essentials  # Core + Store + Fetch + Notify
+node scripts/bundle.js --preset=ui          # Core + Tooltip + Loader + Notify
+node scripts/bundle.js --preset=forms       # Core + Validation + Model + Fetch
+
+# Build custom selected plugins with auto-minification & ESM outputs
+node scripts/bundle.js --plugins=store,notify,fetch --out=custom-bundle.js
+```
+*Generated bundles are automatically synchronized and mirrored to both `./dist/` and `./bundle/` targets.*
+
+---
+
 ## 🔬 Advanced Design Patterns
 
-These architectural patterns demonstrate how to build robust, scalable architectures with Helix.js (as seen in `index.html`).
+These architectural patterns demonstrate how to build robust, scalable architectures with Helix.js (as seen in `index.html` and `index-store.html`).
 
 ### 1. Global Standalone Reactive Stores
 Isolate state logic from UI rendering components. Declare external global stores that can be imported and shared across multiple apps or widgets.
@@ -1347,17 +1397,21 @@ Helix.component("profile-editor", {
 
 ## 🧪 Testing & Local Demos
 
-To play with the examples and verify features locally:
+To explore the framework interactively, open any of the developer studio playgrounds:
 
 ### Option 1: Direct File Access (No Server Required)
 Simply open the HTML files directly in your browser:
-*   **Helix playground & API demos:** Open [index.html](file:///d:/mamp/htdocs/helix_framework/index.html) directly in your browser.
-*   **Zero-Config validation playground:** Open [index-validation.html](file:///d:/mamp/htdocs/helix_framework/index-validation.html) directly in your browser.
+*   **🧬 Developer Console (13 Interactive Sections):** Open [index.html](file:///d:/mamp/htdocs/helix_framework/index.html) directly in your browser.
+*   **🏪 Store Studio & DevTools (10 Interactive Sections):** Open [index-store.html](file:///d:/mamp/htdocs/helix_framework/index-store.html) directly in your browser.
+*   **📦 Visual Bundle Builder & Sandbox:** Open [index-builder.html](file:///d:/mamp/htdocs/helix_framework/index-builder.html) directly in your browser.
+*   **✅ Zero-Config Validation Playground:** Open [index-validation.html](file:///d:/mamp/htdocs/helix_framework/index-validation.html) directly in your browser.
 
 ### Option 2: Local Web Server (MAMP / PHP)
 If you are hosting the workspace under a local web server like MAMP, access them via localhost:
-*   **Helix playground & API demos:** [http://localhost/helix_framework/index.html](http://localhost/helix_framework/index.html)
-*   **Zero-Config validation playground:** [http://localhost/helix_framework/index-validation.html](http://localhost/helix_framework/index-validation.html)
+*   **Developer Console:** [http://localhost/helix_framework/index.html](http://localhost/helix_framework/index.html)
+*   **Store Studio:** [http://localhost/helix_framework/index-store.html](http://localhost/helix_framework/index-store.html)
+*   **Bundle Builder:** [http://localhost/helix_framework/index-builder.html](http://localhost/helix_framework/index-builder.html)
+*   **Validation Playground:** [http://localhost/helix_framework/index-validation.html](http://localhost/helix_framework/index-validation.html)
 
 ---
 
@@ -1366,5 +1420,6 @@ If you are hosting the workspace under a local web server like MAMP, access them
 - 📦 **Release Archive**: [helix-v11.1.21.zip](file:///d:/mamp/htdocs/helix_framework/dist/helix-v11.1.21.zip)
 - 📄 **Development Bundle**: [dist/helix.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.js) (154 KB)
 - ⚡ **Production Minified**: [dist/helix.min.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.min.js) (68 KB)
+- 📦 **Unified All-In-One**: [dist/helix.all.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.all.js) (240 KB)
 - 📋 **Full Changelog**: [dist/Changelog.md](file:///d:/mamp/htdocs/helix_framework/dist/Changelog.md)
 - 🏷️ **GitHub Tag & Release**: [v11.1.21](https://github.com/pioneersingh321/helix_framework/releases/tag/v11.1.21)

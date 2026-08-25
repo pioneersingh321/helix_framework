@@ -1,4 +1,4 @@
-import { nextTick } from '../shared/shared.js';
+import { nextTick, RAW } from '../shared/shared.js';
 import { globalConfig } from '../app/config.js';
 
 export function nextFrame(fn) {
@@ -62,11 +62,12 @@ export function removeClasses(el, classes) {
 }
 
 export function getTransitionDurations(el) {
-    if (typeof window === 'undefined' || !window.getComputedStyle || !el || el.nodeType !== 1) {
+    const rawEl = el && el[RAW] ? el[RAW] : el;
+    if (typeof window === 'undefined' || !window.getComputedStyle || !rawEl || rawEl.nodeType !== 1) {
         return { duration: 0, delay: 0, total: 0, longestProperties: [], allProperties: [], longestAnimationNames: [] };
     }
     try {
-        const styles = window.getComputedStyle(el);
+        const styles = window.getComputedStyle(rawEl);
 
         // Transitions
         const rawTransDur = styles.transitionDuration || '0s';
@@ -498,8 +499,11 @@ export function recordPositions(nodes) {
     const map = new Map();
     if (!nodes) return map;
     nodes.forEach((node) => {
-        if (node && node.nodeType === 1 && typeof node.getBoundingClientRect === 'function') {
-            map.set(node, node.getBoundingClientRect());
+        const rawNode = node && node[RAW] ? node[RAW] : node;
+        if (rawNode && rawNode.nodeType === 1 && typeof rawNode.getBoundingClientRect === 'function') {
+            try {
+                map.set(rawNode, rawNode.getBoundingClientRect());
+            } catch (_) {}
         }
     });
     return map;
@@ -509,15 +513,21 @@ export function applyFlip(oldPositions, moveClass = 'h-move') {
     if (!oldPositions || oldPositions.size === 0) return;
     const movedNodes = [];
     oldPositions.forEach((oldRect, node) => {
-        if (!node.parentNode || typeof node.getBoundingClientRect !== 'function') return;
-        const newRect = node.getBoundingClientRect();
+        const rawNode = node && node[RAW] ? node[RAW] : node;
+        if (!rawNode || !rawNode.parentNode || typeof rawNode.getBoundingClientRect !== 'function') return;
+        let newRect;
+        try {
+            newRect = rawNode.getBoundingClientRect();
+        } catch (_) {
+            return;
+        }
         const dx = oldRect.left - newRect.left;
         const dy = oldRect.top - newRect.top;
         if (dx !== 0 || dy !== 0) {
-            cancelFlip(node);
-            movedNodes.push({ node, dx, dy });
-            node.style.transform = `translate(${dx}px, ${dy}px)`;
-            node.style.transitionDuration = '0s';
+            cancelFlip(rawNode);
+            movedNodes.push({ node: rawNode, dx, dy });
+            rawNode.style.transform = `translate(${dx}px, ${dy}px)`;
+            rawNode.style.transitionDuration = '0s';
         }
     });
 

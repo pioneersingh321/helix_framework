@@ -3,7 +3,7 @@ import { ScopeManager } from './manager.js';
 
 const HelixScopePlugin = {
     name: 'scope',
-    version: import.meta.env.VITE_SCOPE_VERSION || '0.0.0',
+    version: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SCOPE_VERSION) || '1.0.0',
     install(app, options = {}) {
         app.directive('scope', createScopeDirective(app));
 

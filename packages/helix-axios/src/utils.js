@@ -1,6 +1,4 @@
-import { sleep } from '../../core/src/utils.js';
-
-export { sleep };
+export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 export function getAxiosLib() {
     return typeof window !== 'undefined' && window.axios ? window.axios : (typeof globalThis !== 'undefined' && globalThis.axios ? globalThis.axios : null);

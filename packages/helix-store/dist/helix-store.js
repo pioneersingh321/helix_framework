@@ -12,6 +12,14 @@
   function deepClone(obj) {
     if (obj === null || typeof obj !== "object")
       return obj;
+    if (typeof Node !== "undefined" && obj instanceof Node)
+      return obj;
+    if (typeof Event !== "undefined" && obj instanceof Event)
+      return obj;
+    if (typeof Window !== "undefined" && obj instanceof Window)
+      return obj;
+    if (typeof Document !== "undefined" && obj instanceof Document)
+      return obj;
     if (typeof structuredClone === "function") {
       try {
         return structuredClone(obj);
@@ -325,22 +333,41 @@
   function createHistoryManager(historyConfig, restoreStateFn) {
     const isEnabled = historyConfig === true || typeof historyConfig === "object" && historyConfig !== null && historyConfig.enabled !== false;
     const maxHistory = typeof historyConfig === "object" && (historyConfig == null ? void 0 : historyConfig.max) ? historyConfig.max : 50;
+    const canUndoRef = typeof Helix !== "undefined" && typeof Helix.ref === "function" ? Helix.ref(false) : { value: false };
+    const canRedoRef = typeof Helix !== "undefined" && typeof Helix.ref === "function" ? Helix.ref(false) : { value: false };
     let undoStack = [];
     let redoStack = [];
     let isPerformingUndoRedo = false;
-    function record({ title = "Action", before, after }) {
-      if (!isEnabled || isPerformingUndoRedo)
-        return;
-      undoStack.push({
-        title,
-        before: deepClone(before),
-        after: deepClone(after),
-        timestamp: Date.now()
-      });
-      if (undoStack.length > maxHistory) {
-        undoStack.shift();
+    function syncFlags() {
+      const nextCanUndo = Boolean(isEnabled && undoStack.length > 0);
+      const nextCanRedo = Boolean(isEnabled && redoStack.length > 0);
+      if (canUndoRef.value !== nextCanUndo) {
+        canUndoRef.value = nextCanUndo;
       }
-      redoStack = [];
+      if (canRedoRef.value !== nextCanRedo) {
+        canRedoRef.value = nextCanRedo;
+      }
+    }
+    let isRecording = false;
+    function record({ title = "Action", before, after }) {
+      if (!isEnabled || isPerformingUndoRedo || isRecording)
+        return;
+      isRecording = true;
+      try {
+        undoStack.push({
+          title,
+          before: deepClone(before),
+          after: deepClone(after),
+          timestamp: Date.now()
+        });
+        if (undoStack.length > maxHistory) {
+          undoStack.shift();
+        }
+        redoStack = [];
+        syncFlags();
+      } finally {
+        isRecording = false;
+      }
     }
     function undo() {
       if (!isEnabled || undoStack.length === 0)
@@ -353,6 +380,7 @@
         return true;
       } finally {
         isPerformingUndoRedo = false;
+        syncFlags();
       }
     }
     function redo() {
@@ -366,17 +394,19 @@
         return true;
       } finally {
         isPerformingUndoRedo = false;
+        syncFlags();
       }
     }
     function getCanUndo() {
-      return isEnabled && undoStack.length > 0;
+      return canUndoRef.value;
     }
     function getCanRedo() {
-      return isEnabled && redoStack.length > 0;
+      return canRedoRef.value;
     }
     function clear() {
       undoStack = [];
       redoStack = [];
+      syncFlags();
     }
     return {
       record,
@@ -832,6 +862,13 @@
         return persistenceAdapter && persistenceAdapter.ready ? persistenceAdapter.ready.then(() => storeProxy) : Promise.resolve(storeProxy);
       },
       get $state() {
+        if (isSetupStore) {
+          const out = { ...state };
+          computedGetters.forEach((refVal, key) => {
+            out[key] = refVal && typeof refVal === "object" && "value" in refVal ? refVal.value : refVal;
+          });
+          return out;
+        }
         return state;
       },
       set $state(newState) {
@@ -855,8 +892,8 @@
       $emit: eventBus.emit,
       $on: eventBus.on,
       $off: eventBus.off,
-      $undo: historyManager.undo,
-      $redo: historyManager.redo,
+      $undo: () => historyManager.undo(),
+      $redo: () => historyManager.redo(),
       get $canUndo() {
         return historyManager.getCanUndo();
       },
@@ -904,6 +941,13 @@
         if (computedGetters.has(prop)) {
           console.error(`[Helix:Store] Cannot assign to computed getter "${String(prop)}" on store "${storeId}".`);
           return false;
+        }
+        if (typeof state[prop] === "number") {
+          if (typeof value === "string" && value.trim() !== "" && !isNaN(Number(value))) {
+            value = Number(value);
+          } else if (typeof value === "number" && isNaN(value)) {
+            value = 0;
+          }
         }
         setupStateKeys.add(prop);
         state[prop] = value;
@@ -1082,10 +1126,25 @@
       }
       const resolvedAppContext = getActiveAppContext(appContext);
       const registry = getRegistry(resolvedAppContext);
+      if (initialState && isObject(initialState)) {
+        definitions.set(id, {
+          state: () => isFunction(initialState.state) ? initialState.state() : isObject(initialState.state) ? initialState.state : initialState,
+          actions: initialState.actions || {},
+          getters: initialState.getters || {},
+          persist: initialState.persist || null,
+          history: initialState.history || null
+        });
+      }
       if (registry.has(id)) {
         const existing = registry.get(id);
         if (!existing.$disposed) {
           return existing;
+        }
+      }
+      if (registry !== globalRegistry && globalRegistry.has(id) && !initialState) {
+        const globalExisting = globalRegistry.get(id);
+        if (!globalExisting.$disposed) {
+          return globalExisting;
         }
       }
       const initializingStores = getInitLocks(resolvedAppContext);

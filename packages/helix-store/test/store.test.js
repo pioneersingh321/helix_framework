@@ -27,11 +27,12 @@ function createMockHelix() {
   }
 
   function ref(initial) {
+    const refListeners = new Set();
     const obj = {
       _isRef: true,
       _val: initial,
       get value() { return this._val; },
-      set value(v) { this._val = v; listeners.forEach(cb => cb()); }
+      set value(v) { this._val = v; refListeners.forEach(cb => cb()); }
     };
     return obj;
   }

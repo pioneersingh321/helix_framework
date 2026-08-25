@@ -1,0 +1,33 @@
+{
+  "name": "helix-framework",
+  "version": "11.1.21",
+  "description": "Signal-native reactive frontend framework and official plugin ecosystem",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "bundle": "node scripts/bundle.js",
+    "bundle:all": "node scripts/bundle.js --all",
+    "bundle:essentials": "node scripts/bundle.js --preset=essentials",
+    "bundle:ui": "node scripts/bundle.js --preset=ui",
+    "bundle:forms": "node scripts/bundle.js --preset=forms",
+    "bundle:minimal": "node scripts/bundle.js --preset=minimal",
+    "build:core": "npm run build --prefix packages/core",
+    "build:directives": "npm run build --prefix packages/helix-directives",
+    "build:helpers": "npm run build --prefix packages/helix-helpers",
+    "build:all": "npm run build:core && npm run build:directives && npm run build:helpers && npm run bundle:all",
+    "test:core": "npm test --prefix packages/core",
+    "test:directives": "npm test --prefix packages/helix-directives",
+    "test:helpers": "npm test --prefix packages/helix-helpers",
+    "test:bundle": "node test-bundle.js",
+    "test:all": "npm run test:core && npm run test:directives && npm run test:helpers && npm run test:bundle"
+  },
+  "keywords": [
+    "helix",
+    "signals",
+    "reactivity",
+    "framework",
+    "ui"
+  ],
+  "author": "Pioneer Singh",
+  "license": "MIT"
+}

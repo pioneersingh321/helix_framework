@@ -15,7 +15,8 @@
     "./events": "./src/events/index.js"
   },
   "scripts": {
-    "build": "vite build && vite build --mode min && node post-build.js"
+    "build": "vite build && vite build --mode min && node post-build.js",
+    "test": "node test-improvements.js"
   },
   "devDependencies": {
     "vite": "^4.0.0"

@@ -1,4 +1,14 @@
-import { ControllerRegistry } from '../../core/src/registry.js';
+export class ControllerRegistry {
+    constructor() {
+        this.registry = new Map();
+    }
+    register(name, controller) {
+        this.registry.set(name, controller);
+    }
+    unregister(name) {
+        this.registry.delete(name);
+    }
+}
 
 export const coreRegistry = new ControllerRegistry();
 

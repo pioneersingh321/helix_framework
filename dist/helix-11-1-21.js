@@ -1388,6 +1388,9 @@
       return false;
     if (value[SKIP])
       return true;
+    if (value.nodeType !== void 0 || value.window === value || value.target !== void 0 && (value.srcElement !== void 0 || value.currentTarget !== void 0)) {
+      return true;
+    }
     const ctorName = value.constructor ? value.constructor.name : "";
     if (ctorName === "EffectScope" || ctorName === "WeakSet" || ctorName === "WeakMap" || ctorName === "RegExp" || ctorName === "Promise" || value instanceof WeakSet || value instanceof WeakMap || value instanceof RegExp || value instanceof Promise || value instanceof EffectScope) {
       return true;
@@ -2997,6 +3000,9 @@
           args = rawArgs.map((a) => {
             if (a === "$event")
               return e;
+            if (a.startsWith('"') && a.endsWith('"') || a.startsWith("'") && a.endsWith("'")) {
+              return a.slice(1, -1);
+            }
             const resolved = resolvePath(a, ctx);
             if (resolved !== void 0)
               return resolved;
@@ -3004,8 +3010,11 @@
               return JSON.parse(a);
             } catch {
             }
-            if (a.startsWith('"') && a.endsWith('"') || a.startsWith("'") && a.endsWith("'")) {
-              return a.slice(1, -1);
+            try {
+              const evalResult = resolveExpression(a, ctx);
+              if (evalResult !== void 0)
+                return evalResult;
+            } catch {
             }
             return a;
           });
@@ -3170,11 +3179,12 @@
     }
   }
   function getTransitionDurations(el) {
-    if (typeof window === "undefined" || !window.getComputedStyle || !el || el.nodeType !== 1) {
+    const rawEl = el && el[RAW] ? el[RAW] : el;
+    if (typeof window === "undefined" || !window.getComputedStyle || !rawEl || rawEl.nodeType !== 1) {
       return { duration: 0, delay: 0, total: 0, longestProperties: [], allProperties: [], longestAnimationNames: [] };
     }
     try {
-      const styles = window.getComputedStyle(el);
+      const styles = window.getComputedStyle(rawEl);
       const rawTransDur = styles.transitionDuration || "0s";
       const rawTransDelay = styles.transitionDelay || "0s";
       const rawTransProp = styles.transitionProperty || "all";
@@ -3562,8 +3572,12 @@
     if (!nodes)
       return map;
     nodes.forEach((node) => {
-      if (node && node.nodeType === 1 && typeof node.getBoundingClientRect === "function") {
-        map.set(node, node.getBoundingClientRect());
+      const rawNode = node && node[RAW] ? node[RAW] : node;
+      if (rawNode && rawNode.nodeType === 1 && typeof rawNode.getBoundingClientRect === "function") {
+        try {
+          map.set(rawNode, rawNode.getBoundingClientRect());
+        } catch (_) {
+        }
       }
     });
     return map;
@@ -3573,16 +3587,22 @@
       return;
     const movedNodes = [];
     oldPositions.forEach((oldRect, node) => {
-      if (!node.parentNode || typeof node.getBoundingClientRect !== "function")
+      const rawNode = node && node[RAW] ? node[RAW] : node;
+      if (!rawNode || !rawNode.parentNode || typeof rawNode.getBoundingClientRect !== "function")
         return;
-      const newRect = node.getBoundingClientRect();
+      let newRect;
+      try {
+        newRect = rawNode.getBoundingClientRect();
+      } catch (_) {
+        return;
+      }
       const dx = oldRect.left - newRect.left;
       const dy = oldRect.top - newRect.top;
       if (dx !== 0 || dy !== 0) {
-        cancelFlip(node);
-        movedNodes.push({ node, dx, dy });
-        node.style.transform = `translate(${dx}px, ${dy}px)`;
-        node.style.transitionDuration = "0s";
+        cancelFlip(rawNode);
+        movedNodes.push({ node: rawNode, dx, dy });
+        rawNode.style.transform = `translate(${dx}px, ${dy}px)`;
+        rawNode.style.transitionDuration = "0s";
       }
     });
     if (movedNodes.length === 0)
@@ -4178,16 +4198,29 @@
           }
           if (effectiveArg === "class") {
             el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.CLASS;
+            if (el.__hx_initial_class === void 0) {
+              el.__hx_initial_class = el.className || "";
+            }
+            const staticClass = el.__hx_initial_class;
             if (typeof result === "object" && result !== null) {
-              Object.keys(result).forEach((k) => {
-                k.split(/\s+/).filter(Boolean).forEach((cls) => {
-                  el.classList.toggle(cls, !!result[k]);
+              if (Array.isArray(result)) {
+                const dynamicClasses = result.filter(Boolean).join(" ");
+                const combined = [staticClass, dynamicClasses].filter(Boolean).join(" ");
+                if (el.className !== combined)
+                  el.className = combined;
+              } else {
+                el.className = staticClass;
+                Object.keys(result).forEach((k) => {
+                  k.split(/\s+/).filter(Boolean).forEach((cls) => {
+                    el.classList.toggle(cls, !!result[k]);
+                  });
                 });
-              });
+              }
             } else {
-              const newClass = result || "";
-              if (el.className !== newClass)
-                el.className = newClass;
+              const dynamicClass = (result || "").trim();
+              const combined = [staticClass, dynamicClass].filter(Boolean).join(" ");
+              if (el.className !== combined)
+                el.className = combined;
             }
           } else if (effectiveArg === "style") {
             el.__hx_patchFlag = (el.__hx_patchFlag || 0) | PatchFlags.STYLE;
@@ -5646,26 +5679,27 @@ ${rule}`;
       config: appConfig,
       $bus: createBus(),
       rebind(node, options) {
-        if (typeof node === "string") {
-          node = document.querySelector(node);
+        let target = node;
+        if (typeof target === "string" && typeof document !== "undefined") {
+          target = rootElement && rootElement.querySelector(target) || document.querySelector(target);
         }
-        if (node && !node.nodeType && (typeof node.length === "number" || typeof node[Symbol.iterator] === "function")) {
-          Array.from(node).forEach((n) => this.rebind(n, options));
-          return;
+        if (target && !target.nodeType && (typeof target.length === "number" || typeof target[Symbol.iterator] === "function")) {
+          Array.from(target).forEach((n) => this.rebind(n, options));
+          return app;
         }
-        if (!node || node.nodeType !== 1)
-          return;
-        const binding = node.__hx_binding;
+        if (!target || target.nodeType !== 1)
+          return app;
+        const binding = target.__hx_binding;
         const instance = options && typeof options === "object" && options.instance || binding && binding.instance || rootInstance;
         let ctx = options && typeof options === "object" && ("ctx" in options || "context" in options) ? options.ctx || options.context : options || binding && binding.ctx || rootCtx;
         if (!ctx)
           ctx = rootCtx;
         if (!instance || !ctx) {
           logger.warn("Cannot rebind node without binding metadata or explicit instance.", "binding");
-          return;
+          return app;
         }
         const activeBindNode = binding && binding.bindNode || bindNode;
-        const allElements = [node, ...Array.from(node.querySelectorAll("*"))];
+        const allElements = [target, ...Array.from(target.querySelectorAll("*"))];
         allElements.forEach((el) => {
           if (el.__hx_binding && el.__hx_binding.cleanups) {
             el.__hx_binding.cleanups.forEach((fn) => {
@@ -5676,10 +5710,20 @@ ${rule}`;
             });
             el.__hx_binding.cleanups.length = 0;
           }
+          if (Array.isArray(el.__hx_cleanup)) {
+            el.__hx_cleanup.forEach((fn) => {
+              try {
+                fn();
+              } catch (e) {
+              }
+            });
+            el.__hx_cleanup = null;
+          }
           el[BOUND] = false;
           el.__hx_static = false;
           activeBindNode(el, ctx, instance, [], true);
         });
+        return app;
       },
       component(name, definition) {
         if (typeof name !== "string") {
@@ -6118,47 +6162,6 @@ ${rule}`;
         unmountCallbacks.forEach((fn) => fn());
         isMounted = false;
         rootInstance = null;
-        return app;
-      },
-      rebind(targetNode) {
-        if (!isMounted || !rootElement) {
-          warn("Cannot rebind: app is not mounted.", "core");
-          return app;
-        }
-        let target = targetNode;
-        if (typeof target === "string") {
-          target = rootElement.querySelector(target);
-        }
-        if (target && !target.nodeType && (typeof target.length === "number" || typeof target[Symbol.iterator] === "function")) {
-          Array.from(target).forEach((n) => app.rebind(n));
-          return app;
-        }
-        if (!target || target.nodeType !== 1)
-          return app;
-        const allElements = [target, ...Array.from(target.querySelectorAll("*"))];
-        allElements.forEach((el) => {
-          if (el.__hx_binding && el.__hx_binding.cleanups) {
-            el.__hx_binding.cleanups.forEach((fn) => {
-              try {
-                fn();
-              } catch (e) {
-              }
-            });
-            el.__hx_binding.cleanups.length = 0;
-          }
-          if (Array.isArray(el.__hx_cleanup)) {
-            el.__hx_cleanup.forEach((fn) => {
-              try {
-                fn();
-              } catch (e) {
-              }
-            });
-            el.__hx_cleanup = null;
-          }
-          el[BOUND] = false;
-          el.__hx_static = false;
-          bindNode(el, rootCtx, rootInstance, [], true);
-        });
         return app;
       },
       onAppUnmount(callback) {

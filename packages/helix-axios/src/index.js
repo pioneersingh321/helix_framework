@@ -5,7 +5,7 @@ import { activeControllers } from './request.js';
 
 const HelixAxiosPlugin = {
     name: 'axios',
-    version: import.meta.env.VITE_AXIOS_VERSION || '0.0.0',
+    version: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_AXIOS_VERSION) || '2.2.0',
     requires: {
         helix: '>=11.1.5'
     },

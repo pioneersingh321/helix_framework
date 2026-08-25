@@ -2,7 +2,7 @@ export const BODYLESS_METHODS = ['get', 'head'];
 export const IDEMPOTENT_METHODS = ['get', 'head', 'options'];
 
 export const DEFAULTS = {
-    baseURL: import.meta.env.VITE_AXIOS_DEFAULT_URL || '/',
+    baseURL: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_AXIOS_DEFAULT_URL) || '/',
     timeout: 10000,
     retries: 0,
     retryDelay: 300,

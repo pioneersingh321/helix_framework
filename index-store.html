@@ -1,0 +1,2090 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Helix Store · Signal-Native Reactive State Management & Interactive Explorer</title>
+
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap 5 & Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <!-- Helix Framework & Official Helix Store Plugin -->
+  <script src="./dist/helix.js"></script>
+  <script src="./plugins/store/helix-store.js"></script>
+  <script src="./plugins/directives/helix-directives.js"></script>
+
+  <style>
+    :root {
+      --hx-bg: #f8fafc;
+      --hx-surface: #ffffff;
+      --hx-surface-subtle: #f1f5f9;
+      --hx-surface-hover: #f8fafc;
+      --hx-border: #e2e8f0;
+      --hx-border-hover: #cbd5e1;
+      --hx-border-focus: #818cf8;
+      
+      --hx-primary: #4f46e5;
+      --hx-primary-hover: #4338ca;
+      --hx-primary-light: #eef2ff;
+      --hx-primary-border: #c7d2fe;
+      --hx-primary-glow: rgba(79, 70, 229, 0.12);
+
+      --hx-accent: #0284c7;
+      --hx-accent-light: #f0f9ff;
+      --hx-accent-border: #bae6fd;
+
+      --hx-success: #10b981;
+      --hx-success-light: #ecfdf5;
+      --hx-success-border: #a7f3d0;
+
+      --hx-warning: #f59e0b;
+      --hx-warning-light: #fffbeb;
+      --hx-warning-border: #fde68a;
+
+      --hx-danger: #f43f5e;
+      --hx-danger-light: #fff1f2;
+      --hx-danger-border: #fecdd3;
+
+      --hx-purple: #9333ea;
+      --hx-purple-light: #faf5ff;
+      --hx-purple-border: #e9d5ff;
+
+      --hx-text-main: #0f172a;
+      --hx-text-secondary: #475569;
+      --hx-text-muted: #64748b;
+      --hx-text-light: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: var(--hx-bg);
+      background-image: 
+        radial-gradient(circle at 5% 5%, rgba(79, 70, 229, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 95% 30%, rgba(2, 132, 199, 0.05) 0%, transparent 45%),
+        radial-gradient(circle at 50% 85%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
+      background-attachment: fixed;
+      color: var(--hx-text-main);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    code, pre, .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Top Light Header */
+    .app-header {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--hx-border);
+      position: sticky;
+      top: 0;
+      z-index: 1020;
+    }
+
+    /* Left Sidebar Navigation */
+    .sidebar-wrapper {
+      position: sticky;
+      top: 4.75rem;
+      height: calc(100vh - 5.5rem);
+      display: flex;
+      flex-direction: column;
+      background: var(--hx-surface);
+      border: 1px solid var(--hx-border);
+      border-radius: 1.15rem;
+      box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+      overflow-y: auto;
+      padding: 1.25rem;
+    }
+
+    .sidebar-wrapper::-webkit-scrollbar {
+      width: 5px;
+    }
+    .sidebar-wrapper::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+
+    .sidebar-nav-link {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.55rem 0.75rem;
+      color: var(--hx-text-secondary);
+      text-decoration: none;
+      font-size: 0.84rem;
+      font-weight: 500;
+      border-radius: 0.6rem;
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+      margin-bottom: 0.2rem;
+      position: relative;
+    }
+
+    .sidebar-nav-link:hover {
+      background-color: var(--hx-surface-subtle);
+      color: var(--hx-primary);
+      transform: translateX(2px);
+    }
+
+    .sidebar-nav-badge {
+      width: 1.4rem;
+      height: 1.4rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.4rem;
+      background: var(--hx-surface-subtle);
+      color: var(--hx-text-muted);
+      font-size: 0.72rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      flex-shrink: 0;
+      transition: all 0.18s ease;
+    }
+
+    .sidebar-nav-link:hover .sidebar-nav-badge {
+      background: var(--hx-primary-light);
+      color: var(--hx-primary);
+    }
+
+    /* Cards & Elevated Containers */
+    .light-card {
+      background: var(--hx-surface);
+      border: 1px solid var(--hx-border);
+      border-radius: 1.15rem;
+      box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.03), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      margin-bottom: 1.75rem;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .light-card:hover {
+      border-color: var(--hx-border-hover);
+      box-shadow: 0 12px 28px -6px var(--hx-primary-glow), 0 4px 10px -2px rgba(0, 0, 0, 0.03);
+    }
+
+    .card-header-custom {
+      padding: 1.1rem 1.4rem;
+      background: #fafbfc;
+      border-bottom: 1px solid var(--hx-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .output-panel {
+      background: #f8fafc;
+      border: 1px solid var(--hx-border);
+      border-radius: 0.85rem;
+      padding: 1.25rem;
+    }
+
+    .code-preview {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 0.85rem;
+      padding: 1.15rem 1.25rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      overflow-x: auto;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Hero Banner */
+    .hero-banner {
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%);
+      border: 1px solid var(--hx-border);
+      border-radius: 1.25rem;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-banner::after {
+      content: "";
+      position: absolute;
+      top: -50px;
+      right: -50px;
+      width: 260px;
+      height: 260px;
+      background: radial-gradient(circle, rgba(79, 70, 229, 0.08) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: var(--hx-primary-light);
+      color: var(--hx-primary);
+      border: 1px solid var(--hx-primary-border);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--hx-success);
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Tag Badges */
+    .tag-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.28rem 0.65rem;
+      border-radius: 0.45rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      letter-spacing: 0.02em;
+    }
+
+    .tag-core { background: var(--hx-primary-light); color: var(--hx-primary); border: 1px solid var(--hx-primary-border); }
+    .tag-domain { background: var(--hx-accent-light); color: var(--hx-accent); border: 1px solid var(--hx-accent-border); }
+    .tag-setup { background: var(--hx-purple-light); color: var(--hx-purple); border: 1px solid var(--hx-purple-border); }
+    .tag-trans { background: var(--hx-warning-light); color: var(--hx-warning); border: 1px solid var(--hx-warning-border); }
+    .tag-patch { background: var(--hx-success-light); color: var(--hx-success); border: 1px solid var(--hx-success-border); }
+    .tag-async { background: var(--hx-danger-light); color: var(--hx-danger); border: 1px solid var(--hx-danger-border); }
+    .tag-persist { background: #fdf4ff; color: #a21caf; border: 1px solid #f5d0fe; }
+
+    /* Custom Form & Button Overrides */
+    .form-control, .form-select {
+      background-color: #ffffff;
+      border: 1px solid var(--hx-border);
+      color: var(--hx-text-main);
+      border-radius: 0.55rem;
+      font-size: 0.875rem;
+      transition: all 0.15s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+      background-color: #ffffff;
+      border-color: var(--hx-primary);
+      box-shadow: 0 0 0 3px var(--hx-primary-glow);
+      color: var(--hx-text-main);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+      border: none;
+      color: #ffffff;
+      font-weight: 600;
+      border-radius: 0.55rem;
+      box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-outline-secondary {
+      background-color: #ffffff;
+      border: 1px solid var(--hx-border);
+      color: var(--hx-text-secondary);
+      font-weight: 500;
+      border-radius: 0.55rem;
+    }
+
+    .btn-outline-secondary:hover {
+      background-color: var(--hx-surface-subtle);
+      border-color: var(--hx-border-hover);
+      color: var(--hx-text-main);
+    }
+
+    /* Product Cards in Section 2 */
+    .product-catalog-card {
+      background: #ffffff;
+      border: 1px solid var(--hx-border);
+      border-radius: 0.75rem;
+      padding: 0.85rem 1rem;
+      transition: all 0.18s ease;
+    }
+
+    .product-catalog-card:hover {
+      border-color: var(--hx-primary-border);
+      box-shadow: 0 4px 12px var(--hx-primary-glow);
+      transform: translateY(-1px);
+    }
+
+    /* Kanban Board Item Cards */
+    .kanban-task-card {
+      background: #ffffff;
+      border: 1px solid var(--hx-border);
+      border-radius: 0.65rem;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+      transition: all 0.18s ease;
+    }
+
+    .kanban-task-card:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.04);
+      transform: translateY(-1px);
+    }
+
+    /* Timeline Items in Section 9 */
+    .timeline-item {
+      padding: 0.65rem 0.85rem;
+      background: #ffffff;
+      border: 1px solid var(--hx-border);
+      border-radius: 0.55rem;
+      margin-bottom: 0.5rem;
+      transition: all 0.15s ease;
+    }
+
+    .timeline-item:hover {
+      border-color: var(--hx-border-hover);
+      background-color: #fafbfc;
+    }
+
+    /* DevTools Store Selector Tabs */
+    .store-tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.42rem 0.85rem;
+      background: #ffffff;
+      border: 1px solid var(--hx-border);
+      border-radius: 0.65rem;
+      color: var(--hx-text-secondary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+      user-select: none;
+    }
+
+    .store-tab-btn:hover {
+      background: #f8fafc;
+      color: var(--hx-primary);
+      border-color: var(--hx-primary-border);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px -2px rgba(79, 70, 229, 0.08);
+    }
+
+    .store-tab-btn.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+      color: #ffffff;
+      border-color: #4f46e5;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.28);
+      transform: translateY(-1px);
+    }
+
+    .store-tab-btn .tab-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #94a3b8;
+      transition: all 0.18s ease;
+    }
+
+    .store-tab-btn.active .tab-dot {
+      background: #86efac;
+      box-shadow: 0 0 6px #86efac;
+    }
+
+    /* Floating Toast Shelf */
+    #toast-shelf {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      max-width: 380px;
+      pointer-events: none;
+    }
+
+    .toast-item {
+      pointer-events: auto;
+      background: #ffffff;
+      border: 1px solid var(--hx-border);
+      border-left: 4px solid var(--hx-primary);
+      color: var(--hx-text-main);
+      padding: 0.85rem 1.15rem;
+      border-radius: 0.75rem;
+      box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.12), 0 4px 10px rgba(0, 0, 0, 0.04);
+      animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  </style>
+</head>
+
+<body id="helix-store-app">
+
+  <!-- Top Light Header -->
+  <header class="app-header py-2 px-4 shadow-sm">
+    <div class="container-fluid d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="rounded-3 d-flex align-items-center justify-content-center bg-primary text-white shadow-sm" style="width: 38px; height: 38px; background: linear-gradient(135deg, #4f46e5, #6366f1) !important;">
+          <i class="bi bi-diagram-3-fill fs-5"></i>
+        </div>
+        <div>
+          <div class="d-flex align-items-center gap-2">
+            <h1 class="h6 mb-0 fw-bold text-dark" style="letter-spacing: -0.01em;">Helix Store</h1>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-mono">v1.0.0</span>
+            <span class="badge bg-light text-secondary border font-mono">store.* & $store.*</span>
+          </div>
+          <p class="small text-muted mb-0" style="font-size: 0.75rem;">Signal-Native Reactive State Management & Interactive Explorer</p>
+        </div>
+      </div>
+
+      <!-- Quick Ecosystem Switcher -->
+      <div class="d-flex align-items-center gap-2">
+        <a href="index.html" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-house me-1"></i> Core Demo
+        </a>
+        <a href="index-helper.html" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-magic me-1"></i> Helpers (<code>$h</code>)
+        </a>
+        <a href="index-validation.html" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-shield-check me-1"></i> Validation
+        </a>
+        <a href="index-builder.html" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-boxes me-1"></i> Bundle Builder
+        </a>
+        <button class="btn btn-sm btn-primary" @click="scrollToDevTools">
+          <i class="bi bi-terminal me-1"></i> State Inspector
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container Layout: Left Navigation + Right Content -->
+  <div class="container-fluid px-lg-4 py-4">
+    <div class="row g-4">
+
+      <!-- ========================================================= -->
+      <!-- LEFT SIDEBAR NAVIGATION (STICKY) -->
+      <!-- ========================================================= -->
+      <div class="col-xl-3 col-lg-4 d-none d-lg-block">
+        <div class="sidebar-wrapper">
+          
+          <div class="pb-3 mb-3 border-bottom">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+              <span class="small fw-bold text-uppercase text-muted" style="letter-spacing: 0.06em; font-size: 0.72rem;">Table of Contents</span>
+              <div class="d-flex align-items-center gap-1.5 small text-success fw-semibold font-mono" style="font-size: 0.75rem;">
+                <span class="pulse-dot"></span> Live
+              </div>
+            </div>
+            <div class="small text-secondary">10 Interactive Feature Modules</div>
+          </div>
+
+          <!-- Section Navigation Links with Number Badges -->
+          <nav class="d-flex flex-column mb-3">
+            <a href="#section-simple-store" class="sidebar-nav-link">
+              <span class="sidebar-nav-badge">01</span>
+              <span>Simple Store (Quick API)</span>
+            </a>
+            <a href="#section-defined-store" class="sidebar-nav-link">
+              <span class="sidebar-nav-badge">02</span>
+              <span>Cart Domain Store</span>
+            </a>
+            <a href="#section-setup-store" class="sidebar-nav-link">
+              <span class="sidebar-nav-badge">03</span>
+              <span>Composable Setup Store</span>
+            </a>
+            <a href="#section-transactions" class="sidebar-nav-link">
+              <span class="sidebar-nav-badge">04</span>
+              <span>Transactions & Kanban</span>
+            </a>
+            <a href="#section-patch-reset" class="sidebar-nav-link">
+              <span class="sidebar-nav-badge">05</span>
+              <span>$patch & $reset</span>
+            </a>
+            <a href="#section-async-cancel" class="sidebar-nav-link">
+              <span class="sidebar-nav-badge">06</span>
+              <span>Async & $cancel</span>
+            </a>
+            <a href="#section-persistence" class="sidebar-nav-link">
+              <span class="sidebar-nav-badge">07</span>
+              <span>Pluggable Persistence</span>
+            </a>
+            <a href="#section-store-to-refs" class="sidebar-nav-link">
+              <span class="sidebar-nav-badge">08</span>
+              <span>Destructuring (storeToRefs)</span>
+            </a>
+            <a href="#section-events-bus" class="sidebar-nav-link">
+              <span class="sidebar-nav-badge">09</span>
+              <span>Domain Events & Stream</span>
+            </a>
+            <a href="#section-devtools" class="sidebar-nav-link">
+              <span class="sidebar-nav-badge">10</span>
+              <span>DevTools Inspector</span>
+            </a>
+          </nav>
+
+          <!-- Live Reactive Status Widget in Sidebar -->
+          <div class="mt-auto pt-3 border-top">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <span class="small fw-bold text-dark"><i class="bi bi-activity text-primary me-1"></i> Live Store Telemetry</span>
+              <span class="badge bg-primary-subtle text-primary border" style="font-size: 0.65rem;">Signal Synced</span>
+            </div>
+            
+            <div class="bg-light p-2 rounded-3 border small font-mono">
+              <div class="d-flex justify-content-between align-items-center mb-1.5">
+                <span class="text-muted">Counter:</span>
+                <span class="badge bg-white text-primary border font-mono fw-bold px-2 py-0.5" hx-text="store.counter.count">0</span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-1.5">
+                <span class="text-muted">Cart Distinct:</span>
+                <span class="badge bg-white text-success border font-mono fw-bold px-2 py-0.5" hx-text="store.cart.items.length">0</span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-1.5">
+                <span class="text-muted">Auth User:</span>
+                <span class="text-truncate text-dark fw-bold" style="max-width: 110px;" hx-text="store.auth.user ? store.auth.user.name : 'Guest'">Guest</span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted">Sprint Pts:</span>
+                <span class="badge bg-white text-warning border font-mono fw-bold px-2 py-0.5" hx-text="store.kanban.sprintPoints">0</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ========================================================= -->
+      <!-- RIGHT MAIN CONTENT AREA -->
+      <!-- ========================================================= -->
+      <div class="col-xl-9 col-lg-8 col-12">
+
+        <!-- Hero Header -->
+        <section class="hero-banner p-4 p-md-5 mb-4">
+          <div class="row align-items-center g-4">
+            <div class="col-lg-8">
+              <div class="hero-badge mb-3">
+                <span class="pulse-dot"></span> Zero-Build Native & 100% Signal Reactive
+              </div>
+              <h2 class="display-6 fw-bold text-dark mb-3" style="letter-spacing: -0.02em;">
+                Lightweight, Pinia-Inspired, <br class="d-none d-md-block">
+                <span class="text-primary">100% Helix Signal-Native</span> State.
+              </h2>
+              <p class="text-secondary lead mb-4" style="font-size: 0.975rem; line-height: 1.6;">
+                Unified mental model across JavaScript and HTML templates. Use clean <code class="text-primary fw-semibold bg-white px-1.5 py-0.5 rounded border">store.*</code> or <code class="text-primary fw-semibold bg-white px-1.5 py-0.5 rounded border">$store.*</code> directly in HTML templates without repetitive boilerplate. Features lightweight simple stores, structured domain models, cached computed getters, atomic transactions with undo/redo time travel, automatic async loading states, and pluggable persistence.
+              </p>
+
+              <div class="d-flex flex-wrap gap-2">
+                <span class="badge bg-white text-dark border px-3 py-2 shadow-sm">
+                  <i class="bi bi-code-square me-1 text-primary"></i> Dual API (Simple & Defined)
+                </span>
+                <span class="badge bg-white text-dark border px-3 py-2 shadow-sm">
+                  <i class="bi bi-check2-circle me-1 text-success"></i> Direct <code>store.*</code> In Templates
+                </span>
+                <span class="badge bg-white text-dark border px-3 py-2 shadow-sm">
+                  <i class="bi bi-arrow-counterclockwise me-1 text-warning"></i> Transactions & Undo/Redo
+                </span>
+                <span class="badge bg-white text-dark border px-3 py-2 shadow-sm">
+                  <i class="bi bi-hdd-network me-1 text-info"></i> LocalStorage Driver
+                </span>
+              </div>
+            </div>
+
+            <div class="col-lg-4 d-none d-lg-block">
+              <div class="code-preview shadow-sm font-mono small">
+                <div class="text-info mb-1">// In JavaScript:</div>
+                <div><span class="text-primary">const</span> cart = <span class="text-warning">Helix.store</span>('cart');</div>
+                <div>cart.addItem({ id: 1, name: 'Core' });</div>
+                <div class="text-secondary mt-2 mb-1">// In HTML Template (store.*):</div>
+                <div class="text-success">&lt;span&gt;{{ store.cart.subtotal }}&lt;/span&gt;</div>
+                <div class="text-success">&lt;button @click="store.cart.$undo()"&gt;</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 1: SIMPLE STORE (Helix.store) -->
+        <section id="section-simple-store" class="light-card">
+          <div class="card-header-custom">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tag-badge tag-core"><i class="bi bi-lightning-charge-fill"></i> Tier 1</span>
+              <h3 class="h6 mb-0 fw-bold text-dark">1. Simple Store (Idempotent Quick Store)</h3>
+            </div>
+            <div class="text-muted small font-mono">Helix.store(id, initialState)</div>
+          </div>
+
+          <div class="p-4">
+            <p class="text-secondary small mb-4">
+              Lightweight reactive singletons created on-the-fly. If called multiple times with the same identifier, <code class="text-primary">Helix.store('counter')</code> is completely idempotent and preserves existing state.
+            </p>
+
+            <div class="row g-4 align-items-center">
+              <div class="col-lg-6">
+                <div class="output-panel">
+                  <div class="d-flex align-items-center justify-content-between mb-3">
+                    <span class="fw-semibold text-dark">Live Counter State:</span>
+                    <span class="badge bg-white text-dark border font-mono">store.counter</span>
+                  </div>
+
+                  <div class="d-flex align-items-center justify-content-center gap-3 my-3">
+                    <button class="btn btn-outline-secondary btn-sm px-3" @click="store.counter.count--">
+                      <i class="bi bi-dash-lg"></i>
+                    </button>
+                    <span class="display-5 fw-bold font-mono text-primary" hx-text="store.counter.count">12</span>
+                    <button class="btn btn-primary btn-sm px-3" @click="store.counter.count++">
+                      <i class="bi bi-plus-lg"></i>
+                    </button>
+                  </div>
+
+                  <div class="row g-2 align-items-center mt-3 pt-3 border-top">
+                    <div class="col-auto small text-muted">Direct Step:</div>
+                    <div class="col">
+                      <select class="form-select form-select-sm font-mono" hx-model.number="store.counter.step">
+                        <option value="1">Step: +1</option>
+                        <option value="5">Step: +5</option>
+                        <option value="10">Step: +10</option>
+                        <option value="50">Step: +50</option>
+                      </select>
+                    </div>
+                    <div class="col-auto">
+                      <button class="btn btn-sm btn-outline-primary" @click="store.counter.count += (Number(store.counter.step) || 1)">
+                        Apply +<span hx-text="store.counter.step || 1">1</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Test Idempotency Button -->
+                  <div class="mt-3 pt-2">
+                    <button class="btn btn-sm btn-outline-secondary w-100" @click="testIdempotentFetch">
+                      <i class="bi bi-arrow-repeat me-1"></i> Verify Idempotent Call in JS
+                    </button>
+                    <div id="idempotent-msg" class="small mt-2 font-mono text-muted"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-6">
+                <div class="code-preview h-100">
+                  <span class="text-secondary">// 1. Create simple store in JS</span><br>
+                  <span class="text-primary">const</span> counter = <span class="text-warning">Helix.store</span>(<span class="text-success">'counter'</span>, { count: <span class="text-info">12</span>, step: <span class="text-info">1</span> });<br><br>
+                  <span class="text-secondary">// 2. Direct property mutation anywhere</span><br>
+                  counter.count++;<br><br>
+                  <span class="text-secondary">// 3. Use in HTML Template directly</span><br>
+                  &lt;<span class="text-danger">span</span> <span class="text-warning">hx-text</span>=<span class="text-success">"store.counter.count"</span>&gt;&lt;/<span class="text-danger">span</span>&gt;<br>
+                  &lt;<span class="text-danger">button</span> <span class="text-warning">@click</span>=<span class="text-success">"store.counter.count++"</span>&gt;+&lt;/<span class="text-danger">button</span>&gt;
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 2: DEFINED STORE (Helix.defineStore) -->
+        <section id="section-defined-store" class="light-card">
+          <div class="card-header-custom">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tag-badge tag-domain"><i class="bi bi-cart-check-fill"></i> Tier 2</span>
+              <h3 class="h6 mb-0 fw-bold text-dark">2. Defined Domain Store (Shopping Cart Model)</h3>
+            </div>
+            <div class="text-muted small font-mono">Options API: state, getters, actions, history</div>
+          </div>
+
+          <div class="p-4">
+            <p class="text-secondary small mb-4">
+              For structured business models, <code class="text-primary">Helix.defineStore</code> bundles state factories, cached computed getters (using native Helix signals), actions with automatic context binding, and undo/redo history.
+            </p>
+
+            <div class="row g-4">
+              <!-- Product Catalog -->
+              <div class="col-lg-6">
+                <div class="output-panel mb-3">
+                  <h4 class="h6 fw-bold text-dark mb-3"><i class="bi bi-bag-plus me-1 text-primary"></i> Product Catalog</h4>
+                  <div class="row g-2">
+                    <div class="col-sm-6" hx-for="prod in catalogItems">
+                      <div class="product-catalog-card d-flex align-items-center justify-content-between">
+                        <div>
+                          <div class="fw-semibold text-dark small" hx-text="prod.name"></div>
+                          <div class="text-muted font-mono small">${{ prod.price }}</div>
+                        </div>
+                        <button class="btn btn-sm btn-primary px-2.5" @click="store.cart.addItem(prod)">
+                          <i class="bi bi-cart-plus"></i> Add
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Shopping Cart Table -->
+                <div class="output-panel">
+                  <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h4 class="h6 fw-bold text-dark mb-0"><i class="bi bi-cart3 me-1 text-primary"></i> Active Cart (<span hx-text="store.cart.totalCount">0</span> items)</h4>
+                    <div class="d-flex gap-1">
+                      <button class="btn btn-sm btn-outline-warning" :disabled="!store.cart.$canUndo" @click="store.cart.$undo()" title="Undo last cart mutation">
+                        <i class="bi bi-arrow-counterclockwise"></i> Undo
+                      </button>
+                      <button class="btn btn-sm btn-outline-secondary" :disabled="!store.cart.$canRedo" @click="store.cart.$redo()" title="Redo cart mutation">
+                        <i class="bi bi-arrow-clockwise"></i> Redo
+                      </button>
+                      <button class="btn btn-sm btn-outline-danger" @click="store.cart.clearCart()">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Cart Empty Message -->
+                  <div hx-if="store.cart.items.length === 0" class="text-center py-4 text-muted bg-white rounded border">
+                    <i class="bi bi-cart-x fs-2 d-block mb-1 text-muted"></i>
+                    Cart is currently empty. Add products above!
+                  </div>
+
+                  <!-- Cart Items List -->
+                  <div hx-if="store.cart.items.length > 0" class="table-responsive bg-white rounded border">
+                    <table class="table table-sm table-borderless align-middle mb-0 font-mono small">
+                      <thead class="bg-light border-bottom">
+                        <tr class="text-muted">
+                          <th class="ps-3 py-2">Item</th>
+                          <th class="text-center py-2">Qty</th>
+                          <th class="text-end py-2">Price</th>
+                          <th class="text-end py-2">Total</th>
+                          <th class="pe-3 py-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr hx-for="item in store.cart.items" class="border-bottom">
+                          <td class="ps-3 text-dark fw-semibold" hx-text="item.name"></td>
+                          <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                              <button class="btn btn-light btn-sm py-0 px-1 border" @click="store.cart.decrementQty(item.id)">-</button>
+                              <span class="btn btn-light btn-sm py-0 px-2 border disabled text-dark" hx-text="item.qty"></span>
+                              <button class="btn btn-light btn-sm py-0 px-1 border" @click="store.cart.incrementQty(item.id)">+</button>
+                            </div>
+                          </td>
+                          <td class="text-end text-muted">${{ item.price }}</td>
+                          <td class="text-end text-primary fw-bold">${{ item.price * item.qty }}</td>
+                          <td class="pe-3 text-end">
+                            <button class="btn btn-link text-danger p-0" @click="store.cart.removeItem(item.id)"><i class="bi bi-x-circle"></i></button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Computed Getters Breakdown & Coupon Code -->
+              <div class="col-lg-6">
+                <div class="output-panel h-100 d-flex flex-column justify-content-between">
+                  <div>
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                      <span class="fw-semibold text-dark">Cached Getter Calculations</span>
+                      <span class="badge bg-primary-subtle text-primary border">Signal-Cached</span>
+                    </div>
+
+                    <!-- Coupon Input -->
+                    <div class="input-group input-group-sm mb-3">
+                      <span class="input-group-text bg-white border"><i class="bi bi-ticket-perforated text-primary"></i></span>
+                      <input type="text" id="coupon-input" class="form-control font-mono" placeholder="Try 'SAVE20' or 'VIP50'">
+                      <button class="btn btn-primary" @click="applyDemoCoupon">Apply Coupon</button>
+                    </div>
+
+                    <!-- Calculation Table -->
+                    <div class="p-3 bg-white rounded-3 border mb-3 font-mono small">
+                      <div class="d-flex justify-content-between py-1 border-bottom">
+                        <span class="text-muted">Subtotal (<code>getters.subtotal</code>):</span>
+                        <span class="fw-bold text-dark">${{ store.cart.subtotal.toFixed(2) }}</span>
+                      </div>
+                      <div class="d-flex justify-content-between py-1 border-bottom text-success">
+                        <span>Discount Rate ({{ (store.cart.discountRate * 100).toFixed(0) }}%):</span>
+                        <span class="fw-bold">-${{ store.cart.discountAmount.toFixed(2) }}</span>
+                      </div>
+                      <div class="d-flex justify-content-between py-1 border-bottom">
+                        <span class="text-muted">Estimated Tax (8%):</span>
+                        <span class="fw-semibold text-secondary">+${{ store.cart.taxAmount.toFixed(2) }}</span>
+                      </div>
+                      <div class="d-flex justify-content-between pt-2 fs-6">
+                        <span class="fw-bold text-dark">Grand Total (<code>getters.grandTotal</code>):</span>
+                        <span class="fw-extrabold text-primary fs-5">${{ store.cart.grandTotal.toFixed(2) }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="code-preview mt-2">
+                    <span class="text-primary">const</span> useCartStore = <span class="text-warning">Helix.defineStore</span>(<span class="text-success">'cart'</span>, {<br>
+                    &nbsp;&nbsp;state: () =&gt; ({ items: [], discountRate: <span class="text-info">0.20</span> }),<br>
+                    &nbsp;&nbsp;getters: {<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;subtotal(state) { <span class="text-primary">return</span> state.items.reduce((acc, i) =&gt; acc + (i.price * i.qty), <span class="text-info">0</span>); },<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;grandTotal(state) { <span class="text-primary">return</span> (this.subtotal - this.discountAmount) + this.taxAmount; }<br>
+                    &nbsp;&nbsp;},<br>
+                    &nbsp;&nbsp;history: <span class="text-info">true</span><br>
+                    });
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 3: SETUP / COMPOSABLE STORE -->
+        <section id="section-setup-store" class="light-card">
+          <div class="card-header-custom">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tag-badge tag-setup"><i class="bi bi-braces"></i> Tier 3</span>
+              <h3 class="h6 mb-0 fw-bold text-dark">3. Composable / Setup Store (User Auth & Permissions)</h3>
+            </div>
+            <div class="text-muted small font-mono">Helix.defineStore(id, () => { ... })</div>
+          </div>
+
+          <div class="p-4">
+            <p class="text-secondary small mb-4">
+              Write Pinia-style composable stores using standard <code class="text-primary">Helix.ref()</code> and <code class="text-primary">Helix.computed()</code>. All returned refs, computeds, and action functions are automatically bound to the store proxy.
+            </p>
+
+            <div class="row g-4 align-items-center">
+              <div class="col-lg-6">
+                <div class="output-panel">
+                  <div class="d-flex align-items-center justify-content-between mb-3">
+                    <span class="fw-semibold text-dark">Current User Session</span>
+                    <span class="badge" :class="store.auth.isAuthenticated ? 'bg-success text-white' : 'bg-secondary text-white'" hx-text="store.auth.isAuthenticated ? 'Authenticated' : 'Logged Out'"></span>
+                  </div>
+
+                  <!-- User Profile Box -->
+                  <div class="p-3 bg-white rounded-3 border mb-3 d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-primary-subtle text-primary p-3 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                      <i class="bi bi-person-fill fs-4"></i>
+                    </div>
+                    <div>
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold text-dark fs-6" hx-text="store.auth.user ? store.auth.user.name : 'Anonymous Guest'"></span>
+                        <span class="badge bg-primary-subtle text-primary text-uppercase font-mono" style="font-size: 0.7rem;" hx-text="store.auth.user ? store.auth.user.role : 'Guest'"></span>
+                      </div>
+                      <div class="text-muted small font-mono" hx-text="store.auth.user ? store.auth.user.email : 'No active session token'"></div>
+                    </div>
+                  </div>
+
+                  <!-- Fast Switch Role Actions -->
+                  <label class="form-label small text-muted mb-1">Switch User Persona (Store Action):</label>
+                  <div class="d-flex flex-wrap gap-2 mb-3">
+                    <button class="btn btn-sm btn-outline-primary" @click="store.auth.login('Sarah Connor', 'admin', 'sarah@helix.dev')">
+                      <i class="bi bi-shield-lock me-1"></i> Admin
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" @click="store.auth.login('Neo Architect', 'architect', 'neo@matrix.io')">
+                      <i class="bi bi-cpu me-1"></i> Architect
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" @click="store.auth.login('Ada Lovelace', 'developer', 'ada@algo.org')">
+                      <i class="bi bi-code me-1"></i> Lead Dev
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" @click="store.auth.logout()">
+                      <i class="bi bi-box-arrow-right me-1"></i> Logout
+                    </button>
+                  </div>
+
+                  <!-- Computed Permissions Matrix -->
+                  <div class="p-3 rounded-3 bg-white border font-mono small">
+                    <div class="text-muted mb-2">Computed Capabilities (<code class="text-primary">store.auth.canDeploy</code>):</div>
+                    <div class="d-flex flex-wrap gap-2">
+                      <span class="badge" :class="store.auth.canDeploy ? 'bg-success text-white' : 'bg-light text-muted border'">
+                        <i class="bi" :class="store.auth.canDeploy ? 'bi-check-circle-fill' : 'bi-dash-circle'"></i> Deploy Production
+                      </span>
+                      <span class="badge" :class="store.auth.canManageUsers ? 'bg-success text-white' : 'bg-light text-muted border'">
+                        <i class="bi" :class="store.auth.canManageUsers ? 'bi-check-circle-fill' : 'bi-dash-circle'"></i> Manage Users
+                      </span>
+                      <span class="badge" :class="store.auth.canEditSchema ? 'bg-success text-white' : 'bg-light text-muted border'">
+                        <i class="bi" :class="store.auth.canEditSchema ? 'bi-check-circle-fill' : 'bi-dash-circle'"></i> Edit Schema
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Composable Setup Code Preview -->
+              <div class="col-lg-6">
+                <div class="code-preview h-100">
+                  <span class="text-primary">const</span> useAuthStore = <span class="text-warning">Helix.defineStore</span>(<span class="text-success">'auth'</span>, () =&gt; {<br>
+                  &nbsp;&nbsp;<span class="text-primary">const</span> user = <span class="text-info">Helix.ref</span>({ name: 'Sarah', role: 'admin' });<br>
+                  &nbsp;&nbsp;<span class="text-primary">const</span> isAuthenticated = <span class="text-info">Helix.computed</span>(() =&gt; user.value !== <span class="text-warning">null</span>);<br>
+                  &nbsp;&nbsp;<span class="text-primary">const</span> canDeploy = <span class="text-info">Helix.computed</span>(() =&gt; user.value?.role === <span class="text-success">'admin'</span>);<br>
+                  &nbsp;&nbsp;<span class="text-primary">const</span> canManageUsers = <span class="text-info">Helix.computed</span>(() =&gt; ['admin', 'architect'].includes(user.value?.role));<br><br>
+                  &nbsp;&nbsp;<span class="text-primary">function</span> login(name, role, email) {<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;user.value = { name, role, email };<br>
+                  &nbsp;&nbsp;}<br><br>
+                  &nbsp;&nbsp;<span class="text-primary">return</span> { user, isAuthenticated, canDeploy, canManageUsers, login };<br>
+                  });
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 4: ATOMIC TRANSACTIONS & KANBAN STAGE -->
+        <section id="section-transactions" class="light-card">
+          <div class="card-header-custom">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tag-badge tag-trans"><i class="bi bi-clock-history"></i> Tier 4</span>
+              <h3 class="h6 mb-0 fw-bold text-dark">4. Atomic Transactions & Visual Time-Travel</h3>
+            </div>
+            <div class="text-muted small font-mono">$transaction(), $snapshot(), $restore()</div>
+          </div>
+
+          <div class="p-4">
+            <p class="text-secondary small mb-4">
+              Execute complex multi-step batch operations atomically with <code class="text-primary">store.kanban.$transaction(() => { ... })</code>. All modifications collapse into a single undo/redo history checkpoint with automatic subscriber deduplication.
+            </p>
+
+            <div class="row g-4">
+              <!-- Kanban / Task Workflow Stage -->
+              <div class="col-lg-7">
+                <div class="output-panel">
+                  <div class="d-flex align-items-center justify-content-between mb-3">
+                    <span class="fw-semibold text-dark">Sprint Pipeline (Points: <strong class="text-warning font-mono" hx-text="store.kanban.sprintPoints">0</strong>)</span>
+                    <div class="d-flex align-items-center gap-2">
+                      <button class="btn btn-sm btn-outline-warning" :disabled="!store.kanban.$canUndo" @click="store.kanban.$undo()">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Undo
+                      </button>
+                      <button class="btn btn-sm btn-outline-secondary" :disabled="!store.kanban.$canRedo" @click="store.kanban.$redo()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Redo
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Task Columns -->
+                  <div class="row g-2 mb-3">
+                    <div class="col-4">
+                      <div class="p-2.5 rounded-3 bg-white border h-100">
+                        <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom">
+                          <span class="small fw-bold text-muted text-uppercase font-mono" style="font-size: 0.72rem;">To Do</span>
+                          <span class="badge bg-secondary" hx-text="getTasksByStatus('todo').length"></span>
+                        </div>
+                        <div hx-for="task in getTasksByStatus('todo')" class="kanban-task-card small font-mono">
+                          <div class="text-dark fw-semibold mb-1" hx-text="task.title"></div>
+                          <div class="d-flex justify-content-between align-items-center mt-1">
+                            <span class="badge" :class="task.priority === 'High' ? 'bg-danger text-white' : 'bg-info text-white'" hx-text="task.priority"></span>
+                            <button class="btn btn-link btn-sm text-primary p-0" @click="moveTaskStatus(task.id, 'in_progress')"><i class="bi bi-arrow-right-circle fs-6"></i></button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="col-4">
+                      <div class="p-2.5 rounded-3 bg-white border h-100">
+                        <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom">
+                          <span class="small fw-bold text-primary text-uppercase font-mono" style="font-size: 0.72rem;">In Progress</span>
+                          <span class="badge bg-primary" hx-text="getTasksByStatus('in_progress').length"></span>
+                        </div>
+                        <div hx-for="task in getTasksByStatus('in_progress')" class="kanban-task-card small font-mono" style="border-left: 3px solid var(--hx-primary);">
+                          <div class="text-dark fw-semibold mb-1" hx-text="task.title"></div>
+                          <div class="d-flex justify-content-between align-items-center mt-1">
+                            <span class="badge" :class="task.priority === 'High' ? 'bg-danger text-white' : 'bg-info text-white'" hx-text="task.priority"></span>
+                            <button class="btn btn-link btn-sm text-success p-0" @click="moveTaskStatus(task.id, 'done')"><i class="bi bi-arrow-right-circle fs-6"></i></button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="col-4">
+                      <div class="p-2.5 rounded-3 bg-white border h-100">
+                        <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom">
+                          <span class="small fw-bold text-success text-uppercase font-mono" style="font-size: 0.72rem;">Done</span>
+                          <span class="badge bg-success" hx-text="getTasksByStatus('done').length"></span>
+                        </div>
+                        <div hx-for="task in getTasksByStatus('done')" class="kanban-task-card small font-mono bg-light">
+                          <div class="text-muted text-decoration-line-through mb-1" hx-text="task.title"></div>
+                          <div class="d-flex justify-content-between align-items-center mt-1">
+                            <span class="badge bg-success text-white" hx-text="task.priority"></span>
+                            <i class="bi bi-check2-all text-success fs-6"></i>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Transaction Action Buttons -->
+                  <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-sm btn-primary" @click="runBatchTransaction">
+                      <i class="bi bi-lightning-fill me-1 text-warning"></i> Run $transaction ("Sprint Push")
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" @click="addNewTask">
+                      <i class="bi bi-plus-circle me-1"></i> Add Single Task
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" @click="store.kanban.$reset()">
+                      <i class="bi bi-arrow-counterclockwise me-1"></i> Reset Board
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Transaction Explanation & Snapshot Rollback -->
+              <div class="col-lg-5">
+                <div class="output-panel h-100 d-flex flex-column justify-content-between">
+                  <div>
+                    <span class="fw-semibold text-dark d-block mb-2">Checkpoints & Snapshots</span>
+                    <p class="text-secondary small mb-3">
+                      Create an immutable snapshot of the entire store state with <code class="text-primary">$snapshot()</code>, and restore it at any future point with <code class="text-primary">$restore(snapshot)</code>.
+                    </p>
+
+                    <div class="d-flex gap-2 mb-3">
+                      <button class="btn btn-sm btn-outline-info flex-grow-1" @click="takeBoardSnapshot">
+                        <i class="bi bi-camera me-1"></i> Save $snapshot()
+                      </button>
+                      <button class="btn btn-sm btn-outline-warning flex-grow-1" :disabled="!savedSnapshot" @click="restoreBoardSnapshot">
+                        <i class="bi bi-box-arrow-in-left me-1"></i> $restore()
+                      </button>
+                    </div>
+
+                    <div class="p-2.5 rounded-3 bg-white border font-mono small text-secondary" id="snapshot-status-msg">
+                      Snapshot: No manual snapshot recorded yet.
+                    </div>
+                  </div>
+
+                  <div class="code-preview mt-3">
+                    <div class="text-secondary small mb-1">// Atomic Multi-Step Mutation:</div>
+                    store.kanban.$transaction(() =&gt; {<br>
+                    &nbsp;&nbsp;store.kanban.tasks.forEach(t =&gt; t.priority = 'High');<br>
+                    &nbsp;&nbsp;store.kanban.sprintPoints += 25;<br>
+                    }, <span class="text-success">'Batch Sprint Push'</span>);<br><br>
+                    <span class="text-secondary">// 1-Click Rollback reverses ALL changes:</span><br>
+                    store.kanban.$undo();
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 5: BATCHED MUTATIONS ($patch), RESET ($reset), ROOT STATE ($state) -->
+        <section id="section-patch-reset" class="light-card">
+          <div class="card-header-custom">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tag-badge tag-patch"><i class="bi bi-sliders"></i> Tier 5</span>
+              <h3 class="h6 mb-0 fw-bold text-dark">5. Batched Mutations ($patch), Reset ($reset), Root State ($state)</h3>
+            </div>
+            <div class="text-muted small font-mono">store.settings.$patch()</div>
+          </div>
+
+          <div class="p-4">
+            <p class="text-secondary small mb-4">
+              Apply partial object merges or function mutators in one operation with <code class="text-primary">$patch()</code>. Reset back to initial creation state with <code class="text-primary">$reset()</code> or replace the state with <code class="text-primary">$state</code>.
+            </p>
+
+            <div class="row g-4">
+              <!-- Settings Form Panel -->
+              <div class="col-lg-6">
+                <div class="output-panel">
+                  <div class="d-flex align-items-center justify-content-between mb-3">
+                    <span class="fw-semibold text-dark">IDE Editor Settings Model</span>
+                    <span class="badge bg-white text-dark border font-mono">store.settings</span>
+                  </div>
+
+                  <div class="row g-3">
+                    <div class="col-6">
+                      <label class="form-label small text-muted">Theme</label>
+                      <select class="form-select form-select-sm" hx-model="store.settings.theme">
+                        <option value="dracula">Dracula</option>
+                        <option value="nord">Nord</option>
+                        <option value="monokai">Monokai</option>
+                        <option value="github-light">GitHub Light</option>
+                      </select>
+                    </div>
+
+                    <div class="col-6">
+                      <label class="form-label small text-muted">Font Size (px)</label>
+                      <input type="number" class="form-control form-control-sm font-mono" hx-model.number="store.settings.fontSize" min="10" max="32">
+                    </div>
+
+                    <div class="col-6">
+                      <label class="form-label small text-muted">Tab Size</label>
+                      <select class="form-select form-select-sm font-mono" hx-model.number="store.settings.tabSize">
+                        <option value="2">2 Spaces</option>
+                        <option value="4">4 Spaces</option>
+                        <option value="8">8 Spaces</option>
+                      </select>
+                    </div>
+
+                    <div class="col-6 d-flex align-items-center pt-3">
+                      <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="wordWrapCheck" hx-model="store.settings.wordWrap">
+                        <label class="form-check-label small text-dark" for="wordWrapCheck">Word Wrap</label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Patch Actions -->
+                  <div class="d-flex flex-wrap gap-2 mt-4 pt-3 border-top">
+                    <button class="btn btn-sm btn-outline-primary" @click="applyObjectPatch">
+                      <i class="bi bi-braces-asterisk me-1"></i> $patch({ theme: 'nord', fontSize: 18 })
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" @click="applyFunctionPatch">
+                      <i class="bi bi-code-slash me-1"></i> $patch((state) => { ... })
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" @click="store.settings.$reset()">
+                      <i class="bi bi-arrow-clockwise me-1"></i> $reset()
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Live Raw $state JSON View -->
+              <div class="col-lg-6">
+                <div class="output-panel h-100 d-flex flex-column justify-content-between">
+                  <div>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                      <span class="fw-semibold text-dark">Live Root State Preview:</span>
+                      <span class="badge bg-white text-dark border">store.settings.$state</span>
+                    </div>
+                    <pre class="bg-white p-3 rounded border font-mono small text-dark" style="max-height: 180px; overflow-y: auto;">{{ JSON.stringify(store.settings.$state, null, 2) }}</pre>
+                  </div>
+
+                  <div class="code-preview mt-2">
+                    <span class="text-secondary">// Direct $state assignment (State Hydration):</span><br>
+                    store.settings.$state = { theme: 'monokai', fontSize: 16 };<br><br>
+                    <span class="text-secondary">// Reset to initial definition state:</span><br>
+                    store.settings.$reset();
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 6: ASYNC ACTION LIFECYCLE & CANCELLATION -->
+        <section id="section-async-cancel" class="light-card">
+          <div class="card-header-custom">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tag-badge tag-async"><i class="bi bi-cloud-arrow-down-fill"></i> Tier 6</span>
+              <h3 class="h6 mb-0 fw-bold text-dark">6. Async Action State & Request Cancellation</h3>
+            </div>
+            <div class="text-muted small font-mono">$loading, $errors, $cancel(actionName)</div>
+          </div>
+
+          <div class="p-4">
+            <p class="text-secondary small mb-4">
+              Async actions in defined stores automatically populate <code class="text-primary">$loading[actionName]</code> and <code class="text-primary">$errors[actionName]</code>. Built-in <code class="text-primary">AbortController</code> token ownership protects against race conditions and lets you cancel in-flight queries with <code class="text-primary">$cancel()</code>.
+            </p>
+
+            <div class="row g-4">
+              <div class="col-lg-6">
+                <div class="output-panel">
+                  <span class="fw-semibold text-dark d-block mb-3">Async Microservice Action Simulation</span>
+
+                  <div class="d-flex flex-wrap gap-2 mb-3">
+                    <button class="btn btn-sm btn-primary" :disabled="store.asyncDemo.$loading.fetchAnalytics" @click="store.asyncDemo.fetchAnalytics()">
+                      <span hx-if="store.asyncDemo.$loading.fetchAnalytics" class="spinner-border spinner-border-sm me-1"></span>
+                      <i hx-if="!store.asyncDemo.$loading.fetchAnalytics" class="bi bi-arrow-repeat me-1"></i>
+                      Fetch Metrics (2s delay)
+                    </button>
+
+                    <button class="btn btn-sm btn-outline-danger" :disabled="!store.asyncDemo.$loading.fetchAnalytics" @click="store.asyncDemo.$cancel('fetchAnalytics')">
+                      <i class="bi bi-x-octagon me-1"></i> $cancel('fetchAnalytics')
+                    </button>
+
+                    <button class="btn btn-sm btn-outline-warning" @click="store.asyncDemo.simulateFailure()">
+                      <i class="bi bi-bug me-1"></i> Simulate Error
+                    </button>
+                  </div>
+
+                  <!-- Loading and Error State Badges -->
+                  <div class="d-flex gap-2 mb-3">
+                    <span class="badge font-mono" :class="store.asyncDemo.$loading.fetchAnalytics ? 'bg-primary text-white' : 'bg-white text-muted border'">
+                      $loading.fetchAnalytics: {{ store.asyncDemo.$loading.fetchAnalytics ? 'true' : 'false' }}
+                    </span>
+                  </div>
+
+                  <!-- Error Banner -->
+                  <div hx-if="store.asyncDemo.$errors.simulateFailure" class="alert alert-danger py-2 px-3 small font-mono mb-0">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    <strong>Error:</strong> <span hx-text="store.asyncDemo.$errors.simulateFailure"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Live Analytics Payload -->
+              <div class="col-lg-6">
+                <div class="output-panel h-100">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-semibold text-dark">Analytics Payload:</span>
+                    <span class="badge bg-success-subtle text-success border">Cluster Health: OK</span>
+                  </div>
+                  <pre class="bg-white p-3 rounded border font-mono small text-dark mb-0">{{ JSON.stringify(store.asyncDemo.analytics, null, 2) }}</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 7: PLUGGABLE PERSISTENCE -->
+        <section id="section-persistence" class="light-card">
+          <div class="card-header-custom">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tag-badge tag-persist"><i class="bi bi-database-check"></i> Tier 7</span>
+              <h3 class="h6 mb-0 fw-bold text-dark">7. Pluggable Persistence (localStorage Driver)</h3>
+            </div>
+            <div class="text-muted small font-mono">persist: { driver: 'localStorage', debounce: 150 }</div>
+          </div>
+
+          <div class="p-4">
+            <p class="text-secondary small mb-4">
+              State automatically hydrates from storage upon initialization and serializes changes with configurable debounce, selective property paths, and version migration.
+            </p>
+
+            <div class="row g-4">
+              <div class="col-lg-6">
+                <div class="output-panel">
+                  <span class="fw-semibold text-dark d-block mb-3">Persistent Developer Profile</span>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-sm-6">
+                      <label class="form-label small text-muted">Profile Handle</label>
+                      <input type="text" class="form-control form-control-sm font-mono" hx-model="store.persistentProfile.alias">
+                    </div>
+                    <div class="col-sm-6">
+                      <label class="form-label small text-muted">Cloud Region</label>
+                      <select class="form-select form-select-sm font-mono" hx-model="store.persistentProfile.region">
+                        <option value="us-east-1">us-east-1 (N. Virginia)</option>
+                        <option value="eu-central-1">eu-central-1 (Frankfurt)</option>
+                        <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="autoSyncCheck" hx-model="store.persistentProfile.autoSave">
+                    <label class="form-check-label small text-dark" for="autoSyncCheck">Auto-sync with browser storage</label>
+                  </div>
+
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-danger" @click="purgePersistentStorage">
+                      <i class="bi bi-trash me-1"></i> Clear LocalStorage
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
+                      <i class="bi bi-arrow-clockwise me-1"></i> Reload Page to Test Hydration
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Raw Storage Inspector -->
+              <div class="col-lg-6">
+                <div class="output-panel h-100 d-flex flex-column justify-content-between">
+                  <div>
+                    <span class="fw-semibold text-dark d-block mb-1">Raw LocalStorage Inspector</span>
+                    <div class="small text-muted font-mono mb-2">Key: <code>hx_store_persistentProfile</code></div>
+                    <pre class="bg-white p-3 rounded border font-mono small text-primary" style="word-break: break-all; white-space: pre-wrap;" hx-text="rawStoragePayload"></pre>
+                  </div>
+
+                  <div class="small text-muted mt-2">
+                    <i class="bi bi-info-circle me-1 text-primary"></i> Edit the fields on the left to see live debounced writes directly into localStorage!
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 8: STORE TO REFS (Destructuring Reactivity) -->
+        <section id="section-store-to-refs" class="light-card">
+          <div class="card-header-custom">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tag-badge tag-core"><i class="bi bi-diagram-2"></i> Tier 8</span>
+              <h3 class="h6 mb-0 fw-bold text-dark">8. Destructuring Reactivity (storeToRefs)</h3>
+            </div>
+            <div class="text-muted small font-mono">const { count } = storeToRefs(counterStore)</div>
+          </div>
+
+          <div class="p-4">
+            <p class="text-secondary small mb-4">
+              Standard JavaScript object destructuring breaks Proxy references. Use <code class="text-primary">Helix.storeToRefs(store)</code> to convert all state properties and getters into standalone signals without losing reactivity.
+            </p>
+
+            <div class="row g-4 align-items-center">
+              <div class="col-lg-6">
+                <div class="output-panel">
+                  <div class="d-flex align-items-center justify-content-between mb-3">
+                    <span class="fw-semibold text-dark">Destructured Signal Binding</span>
+                    <span class="badge bg-primary-subtle text-primary border">Signal Preserved</span>
+                  </div>
+
+                  <div class="p-3 bg-white rounded-3 border text-center my-3">
+                    <div class="text-muted small mb-1">Destructured Ref Value:</div>
+                    <span class="display-6 fw-bold text-primary font-mono" hx-text="destructuredCount">0</span>
+                  </div>
+
+                  <div class="d-flex justify-content-center gap-2">
+                    <button class="btn btn-sm btn-primary" @click="incrementDestructured">
+                      <i class="bi bi-plus-circle me-1"></i> destructuredCount.value++
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @click="store.counter.count += 10">
+                      <i class="bi bi-lightning me-1"></i> store.counter.count += 10
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-6">
+                <div class="code-preview h-100">
+                  <span class="text-secondary">// Extract reactive signals safely:</span><br>
+                  <span class="text-primary">const</span> counterStore = <span class="text-warning">Helix.store</span>(<span class="text-success">'counter'</span>);<br>
+                  <span class="text-primary">const</span> { count } = <span class="text-warning">Helix.storeToRefs</span>(counterStore);<br><br>
+                  <span class="text-secondary">// Both mutations stay 100% synchronized:</span><br>
+                  count.value++;<br>
+                  counterStore.count++;
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 9: DOMAIN EVENTS & REAL-TIME SUBSCRIPTIONS -->
+        <section id="section-events-bus" class="light-card">
+          <div class="card-header-custom">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tag-badge tag-domain"><i class="bi bi-broadcast"></i> Tier 9</span>
+              <h3 class="h6 mb-0 fw-bold text-dark">9. Domain Events ($emit / $on) & Live Subscriptions</h3>
+            </div>
+            <div class="text-muted small font-mono">$subscribe, $watch, $emit, $on</div>
+          </div>
+
+          <div class="p-4">
+            <p class="text-secondary small mb-4">
+              Subscribe to state change streams with <code class="text-primary">$subscribe()</code>, observe targeted path changes with <code class="text-primary">$watch('items.length')</code>, or broadcast domain events between loosely coupled stores.
+            </p>
+
+            <div class="row g-4">
+              <!-- Event Trigger Controls -->
+              <div class="col-lg-5">
+                <div class="output-panel h-100">
+                  <span class="fw-semibold text-dark d-block mb-3">Broadcast Domain Events</span>
+
+                  <div class="d-flex flex-column gap-2 mb-3">
+                    <button class="btn btn-sm btn-outline-primary text-start" @click="emitStoreEvent('cart:checkout_initiated', { orderId: 'ORD-' + Math.floor(Math.random() * 9000 + 1000) })">
+                      <i class="bi bi-send me-1"></i> $emit('cart:checkout_initiated')
+                    </button>
+                    <button class="btn btn-sm btn-outline-success text-start" @click="emitStoreEvent('security:token_renewed', { timestamp: new Date().toISOString() })">
+                      <i class="bi bi-key me-1"></i> $emit('security:token_renewed')
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning text-start" @click="emitStoreEvent('build:deployment_passed', { version: 'v11.2.0' })">
+                      <i class="bi bi-rocket-takeoff me-1"></i> $emit('build:deployment_passed')
+                    </button>
+                  </div>
+
+                  <div class="p-2.5 rounded bg-white border font-mono small text-secondary">
+                    Targeted Path Watcher: <code class="text-primary">$watch('items.length')</code> triggers a real-time toast alert whenever your cart changes.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Live Event Feed -->
+              <div class="col-lg-7">
+                <div class="output-panel h-100">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-semibold text-dark"><i class="bi bi-activity me-1 text-primary"></i> Real-time Mutation & Event Feed</span>
+                    <button class="btn btn-sm btn-link text-secondary p-0" @click="mutationFeed.length = 0">Clear Feed</button>
+                  </div>
+
+                  <div class="p-2.5 rounded bg-white border font-mono small" style="max-height: 220px; overflow-y: auto;">
+                    <div hx-if="mutationFeed.length === 0" class="text-muted py-3 text-center">
+                      Listening for store mutations & events... Perform actions above!
+                    </div>
+                    <div hx-for="item in mutationFeed" class="timeline-item">
+                      <div class="d-flex justify-content-between text-muted" style="font-size: 0.75rem;">
+                        <span class="text-primary fw-bold" hx-text="item.type"></span>
+                        <span hx-text="item.time"></span>
+                      </div>
+                      <div class="text-dark" hx-text="item.summary"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 10: DEVTOOLS INSPECTOR & LIVE STATE EXPLORER -->
+        <section id="section-devtools" class="light-card mb-4">
+          <div class="card-header-custom">
+            <div class="d-flex align-items-center gap-2">
+              <span class="tag-badge tag-core"><i class="bi bi-terminal-fill"></i> DevTools</span>
+              <h3 class="h6 mb-0 fw-bold text-dark">10. Embedded DevTools & Live State Explorer</h3>
+            </div>
+            <div class="text-muted small font-mono">Real-time Global Store Registry & State Injector</div>
+          </div>
+
+          <div class="p-4">
+            <p class="text-secondary small mb-4">
+              Inspect, copy, or dynamically patch state across all registered stores in the active application context.
+            </p>
+
+            <!-- Store Selector Tabs -->
+            <div class="d-flex flex-wrap gap-2 mb-4">
+              <button class="store-tab-btn" :class="activeDevToolTab === 'counter' ? 'active' : ''" @click="selectDevToolTab('counter')">
+                <span class="tab-dot"></span>
+                <i class="bi bi-speedometer2 text-primary"></i>
+                <span>counter</span>
+              </button>
+              <button class="store-tab-btn" :class="activeDevToolTab === 'cart' ? 'active' : ''" @click="selectDevToolTab('cart')">
+                <span class="tab-dot"></span>
+                <i class="bi bi-cart3 text-success"></i>
+                <span>cart</span>
+              </button>
+              <button class="store-tab-btn" :class="activeDevToolTab === 'auth' ? 'active' : ''" @click="selectDevToolTab('auth')">
+                <span class="tab-dot"></span>
+                <i class="bi bi-shield-lock text-info"></i>
+                <span>auth</span>
+              </button>
+              <button class="store-tab-btn" :class="activeDevToolTab === 'kanban' ? 'active' : ''" @click="selectDevToolTab('kanban')">
+                <span class="tab-dot"></span>
+                <i class="bi bi-kanban text-warning"></i>
+                <span>kanban</span>
+              </button>
+              <button class="store-tab-btn" :class="activeDevToolTab === 'settings' ? 'active' : ''" @click="selectDevToolTab('settings')">
+                <span class="tab-dot"></span>
+                <i class="bi bi-sliders text-secondary"></i>
+                <span>settings</span>
+              </button>
+              <button class="store-tab-btn" :class="activeDevToolTab === 'asyncDemo' ? 'active' : ''" @click="selectDevToolTab('asyncDemo')">
+                <span class="tab-dot"></span>
+                <i class="bi bi-cloud-arrow-down text-danger"></i>
+                <span>asyncDemo</span>
+              </button>
+              <button class="store-tab-btn" :class="activeDevToolTab === 'persistentProfile' ? 'active' : ''" @click="selectDevToolTab('persistentProfile')">
+                <span class="tab-dot"></span>
+                <i class="bi bi-hdd-network" style="color: #a21caf;"></i>
+                <span>persistentProfile</span>
+              </button>
+            </div>
+
+            <div class="row g-4">
+              <!-- Active Store JSON Viewer -->
+              <div class="col-lg-7">
+                <div class="output-panel h-100">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-dark small fw-bold font-mono">Store: {{ activeDevToolTab }} ($state)</span>
+                    <div class="d-flex gap-1">
+                      <button class="btn btn-sm btn-outline-primary py-0 px-2" @click="copyStoreState">
+                        <i class="bi bi-clipboard me-1"></i> Copy JSON
+                      </button>
+                      <button class="btn btn-sm btn-outline-secondary py-0 px-2" @click="downloadStoreSnapshot">
+                        <i class="bi bi-download me-1"></i> Download
+                      </button>
+                    </div>
+                  </div>
+
+                  <pre class="bg-white text-dark font-mono small p-3 rounded border" style="max-height: 280px; overflow-y: auto;">{{ JSON.stringify(getActiveStoreState(), null, 2) }}</pre>
+                </div>
+              </div>
+
+              <!-- Dynamic State Injector -->
+              <div class="col-lg-5">
+                <div class="output-panel h-100 d-flex flex-column justify-content-between">
+                  <div>
+                    <span class="fw-semibold text-dark d-block mb-1">Direct State Injector ($state = JSON)</span>
+                    <p class="text-muted small mb-2">Modify state in this editor and inject to observe immediate reactive updates:</p>
+                    <textarea class="form-control font-mono small mb-2" rows="6" id="state-injector-input" placeholder="Paste valid JSON state here..."></textarea>
+                  </div>
+
+                  <button class="btn btn-sm btn-primary w-100" @click="injectCustomState">
+                    <i class="bi bi-box-arrow-down me-1"></i> Inject to $state
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="text-center py-4 border-top text-muted small">
+          <div class="mb-2">
+            <strong class="text-dark">Helix Store Plugin</strong> · Signal-Native Reactive State Management for Helix Framework
+          </div>
+          <div>
+            <a href="index.html" class="text-secondary text-decoration-none me-3">Core Demo</a>
+            <a href="index-helper.html" class="text-secondary text-decoration-none me-3">Helpers ($h)</a>
+            <a href="index-validation.html" class="text-secondary text-decoration-none me-3">Validation</a>
+            <a href="index-builder.html" class="text-secondary text-decoration-none">Bundle Builder</a>
+          </div>
+        </footer>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Shelf -->
+  <div id="toast-shelf"></div>
+
+  <!-- Main JavaScript App Mounting -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const { create, reactive, ref, computed, watch, storeToRefs } = Helix;
+
+      Helix.config.prefix = 'hx-';
+      Helix.config.allowInlineExpressions = true;
+      Helix.config.debug = true;
+      Helix.config.removeAttributeBindings = false;
+
+      // -------------------------------------------------------------
+      // 1. SIMPLE STORE: counter
+      // -------------------------------------------------------------
+      Helix.store('counter', {
+        count: 12,
+        step: 1
+      });
+
+      // -------------------------------------------------------------
+      // 2. DEFINED STORE: cart (Options style with history & getters)
+      // -------------------------------------------------------------
+      const useCartStore = Helix.defineStore('cart', {
+        state: () => ({
+          items: [
+            { id: 1, name: 'Quantum Core CPU', price: 299, qty: 1 },
+            { id: 2, name: 'RGB Mechanical Deck', price: 120, qty: 2 }
+          ],
+          discountRate: 0.20
+        }),
+        getters: {
+          totalCount(state) {
+            return state.items.reduce((acc, i) => acc + i.qty, 0);
+          },
+          subtotal(state) {
+            return state.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
+          },
+          discountAmount(state) {
+            return this.subtotal * state.discountRate;
+          },
+          taxAmount(state) {
+            return Math.max(0, (this.subtotal - this.discountAmount) * 0.08);
+          },
+          grandTotal(state) {
+            return Math.max(0, (this.subtotal - this.discountAmount) + this.taxAmount);
+          }
+        },
+        actions: {
+          addItem(item) {
+            if (!item || (typeof Event !== 'undefined' && item instanceof Event)) return;
+            const clean = { id: item.id, name: item.name, price: Number(item.price) || 0 };
+            const existing = this.items.find(i => i.id === clean.id);
+            if (existing) {
+              existing.qty += 1;
+            } else {
+              this.items.push({ ...clean, qty: 1 });
+            }
+          },
+          removeItem(id) {
+            this.items = this.items.filter(i => i.id !== id);
+          },
+          incrementQty(id) {
+            const item = this.items.find(i => i.id === id);
+            if (item) item.qty += 1;
+          },
+          decrementQty(id) {
+            const item = this.items.find(i => i.id === id);
+            if (item) {
+              item.qty -= 1;
+              if (item.qty <= 0) {
+                this.removeItem(id);
+              }
+            }
+          },
+          applyCoupon(rate) {
+            this.discountRate = rate;
+          },
+          clearCart() {
+            this.items = [];
+          }
+        },
+        history: true
+      });
+      useCartStore(); // instantiate
+
+      // -------------------------------------------------------------
+      // 3. SETUP STORE: auth (Composable style)
+      // -------------------------------------------------------------
+      const useAuthStore = Helix.defineStore('auth', () => {
+        const user = ref({ name: 'Sarah Connor', role: 'admin', email: 'sarah@helix.dev' });
+        const isAuthenticated = computed(() => user.value !== null);
+        const canDeploy = computed(() => user.value?.role === 'admin');
+        const canManageUsers = computed(() => user.value?.role === 'admin' || user.value?.role === 'architect');
+        const canEditSchema = computed(() => ['admin', 'architect', 'developer'].includes(user.value?.role));
+
+        function login(name, role, email) {
+          user.value = { name, role, email };
+        }
+
+        function logout() {
+          user.value = null;
+        }
+
+        return { user, isAuthenticated, canDeploy, canManageUsers, canEditSchema, login, logout };
+      });
+      useAuthStore();
+
+      // -------------------------------------------------------------
+      // 4. KANBAN STORE: with $transaction support
+      // -------------------------------------------------------------
+      const useKanbanStore = Helix.defineStore('kanban', {
+        state: () => ({
+          tasks: [
+            { id: 1, title: 'Release Helix Store v1.0.0', status: 'done', priority: 'High' },
+            { id: 2, title: 'Add AbortSignal Cancellation Demo', status: 'in_progress', priority: 'High' },
+            { id: 3, title: 'Write Comprehensive Unit Tests', status: 'todo', priority: 'Medium' },
+            { id: 4, title: 'Benchmark Signal Reactivity Speed', status: 'todo', priority: 'Low' }
+          ],
+          sprintPoints: 45
+        }),
+        actions: {
+          addTask(task) {
+            if (!task || (typeof Event !== 'undefined' && task instanceof Event)) {
+              const nextId = this.tasks.length + 1;
+              task = {
+                id: nextId,
+                title: `Task #${nextId}: Optimize Bundle Pipeline`,
+                status: 'todo',
+                priority: nextId % 2 === 0 ? 'High' : 'Medium'
+              };
+            }
+            const clean = {
+              id: task.id || (this.tasks.length + 1),
+              title: String(task.title || 'New Task'),
+              status: task.status || 'todo',
+              priority: task.priority || 'Medium'
+            };
+            this.tasks.push(clean);
+          },
+          moveStatus(id, newStatus) {
+            const task = this.tasks.find(t => t.id === id);
+            if (task) task.status = newStatus;
+          },
+          setAllPriority(priority) {
+            this.tasks.forEach(t => t.priority = priority);
+          }
+        },
+        history: true
+      });
+      useKanbanStore();
+
+      // -------------------------------------------------------------
+      // 5. SETTINGS STORE: $patch and $reset
+      // -------------------------------------------------------------
+      Helix.store('settings', {
+        theme: 'dracula',
+        fontSize: 14,
+        tabSize: 2,
+        wordWrap: true,
+        minimap: true
+      });
+
+      // -------------------------------------------------------------
+      // 6. ASYNC DEMO STORE: $loading and $errors
+      // -------------------------------------------------------------
+      const useAsyncStore = Helix.defineStore('asyncDemo', {
+        state: () => ({
+          analytics: {
+            uptime: "99.98%",
+            requestsPerSec: 14200,
+            activeNodes: 8,
+            clusterHealth: "Optimal"
+          }
+        }),
+        actions: {
+          async fetchAnalytics({ signal } = {}) {
+            await new Promise((resolve, reject) => {
+              const timer = setTimeout(resolve, 2000);
+              if (signal) {
+                signal.addEventListener('abort', () => {
+                  clearTimeout(timer);
+                  reject(new DOMException('Request aborted by user', 'AbortError'));
+                });
+              }
+            });
+            this.analytics = {
+              uptime: "99.99%",
+              requestsPerSec: Math.floor(Math.random() * 5000 + 15000),
+              activeNodes: 12,
+              clusterHealth: "Optimal (Refreshed)",
+              lastFetched: new Date().toLocaleTimeString()
+            };
+          },
+          async simulateFailure({ signal } = {}) {
+            await new Promise((resolve) => setTimeout(resolve, 800));
+            throw new Error("HTTP 500: Database Connection Pool Exhausted");
+          }
+        }
+      });
+      useAsyncStore();
+
+      // -------------------------------------------------------------
+      // 7. PERSISTENT STORE: localStorage driver
+      // -------------------------------------------------------------
+      Helix.defineStore('persistentProfile', {
+        state: () => ({
+          alias: 'WhiteRaven',
+          region: 'us-east-1',
+          autoSave: true
+        }),
+        persist: {
+          driver: 'localStorage',
+          debounce: 150
+        }
+      })();
+
+      // -------------------------------------------------------------
+      // Helper Toast System
+      // -------------------------------------------------------------
+      function showToast(title, message, icon = 'bi-bell-fill') {
+        const shelf = document.getElementById('toast-shelf');
+        if (!shelf) return;
+        const toast = document.createElement('div');
+        toast.className = 'toast-item';
+        toast.innerHTML = `
+          <div class="d-flex align-items-center gap-2.5">
+            <div class="p-1.5 rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center">
+              <i class="bi ${icon} fs-6"></i>
+            </div>
+            <div>
+              <div class="fw-bold text-dark" style="font-size: 0.85rem;">${title}</div>
+              <div class="text-secondary small" style="font-size: 0.775rem;">${message}</div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-link text-muted p-0 ms-2" onclick="this.parentElement.remove()"><i class="bi bi-x-lg" style="font-size: 0.75rem;"></i></button>
+        `;
+        shelf.appendChild(toast);
+        setTimeout(() => { if (toast.parentElement) toast.remove(); }, 4000);
+      }
+
+      // -------------------------------------------------------------
+      // Helix Root App Mount
+      // -------------------------------------------------------------
+      const app = Helix.create((appCtx) => {
+        const catalogItems = [
+          { id: 1, name: 'Quantum Core CPU', price: 299 },
+          { id: 2, name: 'RGB Mechanical Deck', price: 120 },
+          { id: 3, name: 'Studio Headphones Pro', price: 180 },
+          { id: 4, name: 'Ultra-Wide 4K Screen', price: 450 }
+        ];
+
+        const activeDevToolTab = ref('cart');
+        const savedSnapshot = ref(null);
+        const mutationFeed = reactive([]);
+        const rawStoragePayload = ref(localStorage.getItem('hx_store_persistentProfile') || '{"_state":{"alias":"WhiteRaven","region":"us-east-1"}}');
+
+        // Destructured ref demonstration
+        const counterStore = Helix.store('counter');
+        const { count: destructuredCount } = storeToRefs(counterStore);
+
+        const incrementDestructured = () => {
+          destructuredCount.value += 1;
+        };
+
+        // Catalog Action
+        const addToCart = (product) => {
+          if (!product || (typeof Event !== 'undefined' && product instanceof Event)) return;
+          const cart = Helix.store('cart');
+          cart.addItem({
+            id: product.id,
+            name: product.name,
+            price: product.price
+          });
+        };
+
+        // Coupon Handler
+        const applyDemoCoupon = () => {
+          const input = document.getElementById('coupon-input');
+          const code = (input ? input.value : '').trim().toUpperCase();
+          const cart = Helix.store('cart');
+          if (code === 'SAVE20') {
+            cart.applyCoupon(0.20);
+            showToast('Coupon Applied', '20% discount applied to your cart!', 'bi-tag-fill');
+          } else if (code === 'VIP50') {
+            cart.applyCoupon(0.50);
+            showToast('VIP Coupon Applied', '50% VIP discount applied!', 'bi-gem');
+          } else {
+            showToast('Invalid Coupon', 'Try "SAVE20" or "VIP50"', 'bi-exclamation-circle');
+          }
+        };
+
+        // Idempotent test
+        const testIdempotentFetch = () => {
+          const s = Helix.store('counter', { count: 999999, step: 99 });
+          const msg = document.getElementById('idempotent-msg');
+          if (msg) {
+            msg.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i> Idempotent verified!</span> Store retained count: <strong>${s.count}</strong> (Initial state 999999 ignored).`;
+          }
+        };
+
+        // Kanban Helper Functions
+        const getTasksByStatus = (status) => {
+          const kanban = Helix.store('kanban');
+          return kanban.tasks.filter(t => t.status === status);
+        };
+
+        const moveTaskStatus = (id, newStatus) => {
+          const kanban = Helix.store('kanban');
+          kanban.moveStatus(id, newStatus);
+        };
+
+        const addNewTask = () => {
+          const kanban = Helix.store('kanban');
+          const nextId = kanban.tasks.length + 1;
+          kanban.addTask({
+            id: nextId,
+            title: `Task #${nextId}: Optimize Bundle Pipeline`,
+            status: 'todo',
+            priority: nextId % 2 === 0 ? 'High' : 'Medium'
+          });
+        };
+
+        const runBatchTransaction = () => {
+          const kanban = Helix.store('kanban');
+          kanban.$transaction(() => {
+            kanban.tasks.forEach(t => {
+              if (t.status === 'todo') t.status = 'in_progress';
+              else if (t.status === 'in_progress') t.status = 'done';
+              t.priority = 'High';
+            });
+            kanban.sprintPoints += 20;
+          }, 'Sprint Push');
+          showToast('Atomic Transaction', 'Batch upgraded all tasks in 1 history tick!', 'bi-lightning-charge');
+        };
+
+        const takeBoardSnapshot = () => {
+          const kanban = Helix.store('kanban');
+          savedSnapshot.value = kanban.$snapshot();
+          const msg = document.getElementById('snapshot-status-msg');
+          if (msg) {
+            msg.innerHTML = `<span class="text-success"><i class="bi bi-check2 me-1"></i> Snapshot recorded!</span> Points: ${savedSnapshot.value.sprintPoints}, Tasks: ${savedSnapshot.value.tasks.length}`;
+          }
+          showToast('Snapshot Saved', 'Saved board state snapshot for rollback', 'bi-camera');
+        };
+
+        const restoreBoardSnapshot = () => {
+          if (!savedSnapshot.value) return;
+          const kanban = Helix.store('kanban');
+          kanban.$restore(savedSnapshot.value);
+          showToast('Snapshot Restored', 'Board state restored to previous checkpoint', 'bi-box-arrow-in-left');
+        };
+
+        // $patch Handlers
+        const applyObjectPatch = () => {
+          const settings = Helix.store('settings');
+          settings.$patch({
+            theme: 'nord',
+            fontSize: 18,
+            wordWrap: false
+          });
+          showToast('$patch Executed', 'Object mutation batch applied!', 'bi-sliders');
+        };
+
+        const applyFunctionPatch = () => {
+          const settings = Helix.store('settings');
+          settings.$patch((state) => {
+            state.theme = 'monokai';
+            state.tabSize = 4;
+            state.fontSize = 16;
+          });
+          showToast('$patch (Function)', 'Function mutator batch applied!', 'bi-braces');
+        };
+
+        // Persistent storage purge
+        const purgePersistentStorage = () => {
+          localStorage.removeItem('hx_store_persistentProfile');
+          rawStoragePayload.value = '(empty - cleared)';
+          showToast('Storage Cleared', 'Key hx_store_persistentProfile removed from localStorage', 'bi-trash');
+        };
+
+        // Domain event emitter
+        const emitStoreEvent = (eventName, payload) => {
+          const cart = Helix.store('cart');
+          cart.$emit(eventName, payload);
+          showToast(`Event: ${eventName}`, JSON.stringify(payload), 'bi-broadcast');
+        };
+
+        // DevTools helpers
+        const getActiveStoreState = () => {
+          const storeInstance = Helix.store(activeDevToolTab.value);
+          return storeInstance ? storeInstance.$state : {};
+        };
+
+        const copyStoreState = () => {
+          const json = JSON.stringify(getActiveStoreState(), null, 2);
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText(json);
+          }
+          showToast('Copied to Clipboard', `Copied ${activeDevToolTab.value} $state JSON`, 'bi-clipboard-check');
+        };
+
+        const downloadStoreSnapshot = () => {
+          const json = JSON.stringify(getActiveStoreState(), null, 2);
+          const blob = new Blob([json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `helix-store-${activeDevToolTab.value}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+          showToast('Downloaded', `Saved helix-store-${activeDevToolTab.value}.json`, 'bi-download');
+        };
+
+        const injectCustomState = () => {
+          const textarea = document.getElementById('state-injector-input');
+          if (!textarea || !textarea.value.trim()) return;
+          try {
+            const parsed = JSON.parse(textarea.value);
+            const storeInstance = Helix.store(activeDevToolTab.value);
+            if (storeInstance) {
+              storeInstance.$state = parsed;
+              showToast('State Injected', `Successfully assigned new $state to ${activeDevToolTab.value}!`, 'bi-check-circle');
+            }
+          } catch (e) {
+            alert('Invalid JSON: ' + e.message);
+          }
+        };
+
+        const selectDevToolTab = (tab) => {
+          activeDevToolTab.value = tab;
+          const textarea = document.getElementById('state-injector-input');
+          const storeInstance = Helix.store(tab);
+          if (textarea && storeInstance) {
+            textarea.value = JSON.stringify(storeInstance.$state, null, 2);
+          }
+        };
+
+        const scrollToDevTools = () => {
+          const target = document.getElementById('section-devtools');
+          if (target) target.scrollIntoView({ behavior: 'smooth' });
+        };
+
+        // Setup Subscription Watchers
+        const cartStore = Helix.store('cart');
+        cartStore.$subscribe((mutation, state) => {
+          mutationFeed.unshift({
+            type: 'CART MUTATION',
+            time: new Date().toLocaleTimeString(),
+            summary: `Cart items count is now ${state.items.length}`
+          });
+          if (mutationFeed.length > 20) mutationFeed.pop();
+        });
+
+        cartStore.$watch('items.length', (newVal, oldVal) => {
+          if (newVal > oldVal) {
+            showToast('Cart Updated', `Item added! Total distinct items: ${newVal}`, 'bi-cart-check-fill');
+          }
+        });
+
+        const kanbanStore = Helix.store('kanban');
+        kanbanStore.$subscribe((mutation, state) => {
+          mutationFeed.unshift({
+            type: mutation.title ? `TRANSACTION: ${mutation.title}` : 'KANBAN MUTATION',
+            time: new Date().toLocaleTimeString(),
+            summary: `Sprint points: ${state.sprintPoints}, Tasks: ${state.tasks.length}`
+          });
+          if (mutationFeed.length > 20) mutationFeed.pop();
+        });
+
+        // Event listener bridge for cart
+        cartStore.$on('cart:checkout_initiated', (payload) => {
+          const orderId = (payload && typeof payload === 'object') ? (payload.orderId || JSON.stringify(payload)) : payload;
+          mutationFeed.unshift({
+            type: 'EVENT: cart:checkout_initiated',
+            time: new Date().toLocaleTimeString(),
+            summary: `Order ID: ${orderId}`
+          });
+        });
+
+        cartStore.$on('security:token_renewed', (payload) => {
+          const ts = (payload && typeof payload === 'object') ? (payload.timestamp || JSON.stringify(payload)) : payload;
+          mutationFeed.unshift({
+            type: 'EVENT: security:token_renewed',
+            time: new Date().toLocaleTimeString(),
+            summary: `Timestamp: ${ts}`
+          });
+        });
+
+        cartStore.$on('build:deployment_passed', (payload) => {
+          const ver = (payload && typeof payload === 'object') ? (payload.version || JSON.stringify(payload)) : payload;
+          mutationFeed.unshift({
+            type: 'EVENT: build:deployment_passed',
+            time: new Date().toLocaleTimeString(),
+            summary: `Version: ${ver}`
+          });
+        });
+
+        // Keep raw storage updated
+        setInterval(() => {
+          const val = localStorage.getItem('hx_store_persistentProfile');
+          if (val) rawStoragePayload.value = val;
+        }, 1000);
+
+        return {
+          store: Helix.$store,
+          $store: Helix.$store,
+          catalogItems,
+          activeDevToolTab,
+          savedSnapshot,
+          mutationFeed,
+          rawStoragePayload,
+          destructuredCount,
+          incrementDestructured,
+          addToCart,
+          applyDemoCoupon,
+          testIdempotentFetch,
+          getTasksByStatus,
+          moveTaskStatus,
+          addNewTask,
+          runBatchTransaction,
+          takeBoardSnapshot,
+          restoreBoardSnapshot,
+          applyObjectPatch,
+          applyFunctionPatch,
+          purgePersistentStorage,
+          emitStoreEvent,
+          getActiveStoreState,
+          selectDevToolTab,
+          copyStoreState,
+          downloadStoreSnapshot,
+          injectCustomState,
+          scrollToDevTools
+        };
+      });
+
+      app.mount('#helix-store-app');
+    });
+  </script>
+
+</body>
+</html>

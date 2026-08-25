@@ -2,23 +2,108 @@
  * Helix.js Notify Plugin v2.2.6 (Helix v11.1.6 Compliant)
  * Global (Helix.$notify) + App Context destructuring (const { $notify } = appCtx)
  * Includes 6 Premium Themes: clinical, glass, dark, neon, brutal, aurora.
+ * Automatically loads SweetAlert2 from CDN if not already defined on the page.
  */
 const HelixNotifyPlugin = (function () {
     "use strict";
 
-    function install(api, options = {}) {
-        // ── 1. FAIL SAFELY ──
-        const SwalRef = typeof window !== 'undefined' ? window.Swal : (typeof globalThis !== 'undefined' ? globalThis.Swal : null);
+    let swalLoadPromise = null;
 
-        if (!SwalRef) {
-            console.error('[HelixNotify] SweetAlert2 is required. Load it BEFORE Helix.use(HelixNotifyPlugin).');
-            return;
+    /**
+     * Fallback SweetAlert2 object if offline or headless environment
+     */
+    function createFallbackSwal() {
+        return {
+            fire: (opts = {}) => {
+                const title = typeof opts === 'string' ? opts : (opts.title || '');
+                const text = typeof opts === 'object' ? (opts.text || '') : '';
+                if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+                    window.alert(`${title}\n${text}`.trim());
+                } else {
+                    console.log(`[HelixNotify:Alert] ${title} ${text}`);
+                }
+                return Promise.resolve({ isConfirmed: true, isDenied: false, isDismissed: false, value: true });
+            },
+            mixin: function (mixinOpts) {
+                return {
+                    fire: (opts = {}) => {
+                        const title = typeof opts === 'string' ? opts : (opts.title || '');
+                        console.log(`[HelixNotify:Toast] ${title}`);
+                        return Promise.resolve({ isConfirmed: true, isDenied: false, isDismissed: false });
+                    }
+                };
+            },
+            close: () => {},
+            showLoading: () => {},
+            stopTimer: () => {},
+            resumeTimer: () => {},
+            DismissReason: {
+                cancel: 'cancel',
+                backdrop: 'backdrop',
+                close: 'close',
+                esc: 'esc',
+                timer: 'timer'
+            }
+        };
+    }
+
+    /**
+     * Ensures SweetAlert2 is available, auto-injecting from CDN if not defined
+     */
+    function ensureSwal(options = {}) {
+        const root = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
+        if (root.Swal) {
+            return Promise.resolve(root.Swal);
         }
 
+        if (swalLoadPromise) {
+            return swalLoadPromise;
+        }
+
+        if (typeof document === 'undefined') {
+            return Promise.resolve(createFallbackSwal());
+        }
+
+        const cdnUrl = options.cdnUrl || 'https://cdn.jsdelivr.net/npm/sweetalert2@11';
+
+        // Check if a script tag with sweetalert2 already exists on the page
+        const existingScript = document.querySelector('script[src*="sweetalert2"]');
+        if (existingScript) {
+            swalLoadPromise = new Promise((resolve) => {
+                if (root.Swal) return resolve(root.Swal);
+                const onLoad = () => resolve(root.Swal || createFallbackSwal());
+                const onError = () => resolve(createFallbackSwal());
+                existingScript.addEventListener('load', onLoad, { once: true });
+                existingScript.addEventListener('error', onError, { once: true });
+                // 5s fallback timeout
+                setTimeout(() => resolve(root.Swal || createFallbackSwal()), 5000);
+            });
+            return swalLoadPromise;
+        }
+
+        // Dynamically inject SweetAlert2 script tag
+        swalLoadPromise = new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = cdnUrl;
+            script.async = true;
+            script.onload = () => {
+                resolve(root.Swal || createFallbackSwal());
+            };
+            script.onerror = () => {
+                console.warn('[HelixNotify] Failed to auto-load SweetAlert2 from CDN:', cdnUrl);
+                resolve(createFallbackSwal());
+            };
+            (document.head || document.body || document.documentElement).appendChild(script);
+        });
+
+        return swalLoadPromise;
+    }
+
+    function install(api, options = {}) {
         // Idempotency
         if (api.$notify) return;
 
-        // ── 2. CONFIG & THEME REGISTRY ──
+        // ── 1. CONFIG & THEME REGISTRY ──
         const themes = {
             clinical: {
                 confirmColor: '#007bff', cancelColor: '#6c757d', denyColor: '#f59e0b',
@@ -50,13 +135,17 @@ const HelixNotifyPlugin = (function () {
             theme: 'clinical',
             toastTimer: 3000,
             queueLimit: 3,
-            showCloseButton: false
+            showCloseButton: false,
+            cdnUrl: 'https://cdn.jsdelivr.net/npm/sweetalert2@11'
         };
 
         const baseTheme = themes[options.theme || 'clinical'] || themes.clinical;
         const config = { ...defaults, ...baseTheme, ...options };
 
-        // ── 3. CSS ENGINE (FULL) ──
+        // Initiate SweetAlert2 background preloading if needed
+        ensureSwal(config);
+
+        // ── 2. CSS ENGINE (FULL) ──
         const styleId = 'hx-notify-styles';
         if (typeof document !== 'undefined' && !document.getElementById(styleId)) {
             const style = document.createElement('style');
@@ -77,7 +166,7 @@ const HelixNotifyPlugin = (function () {
                     border-radius: 16px !important; 
                     border: 1px solid rgba(255, 255, 255, 0.4) !important;
                     box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1) !important; 
-                    color: #1f2937 !important;
+                    color: #1f2937 !important; 
                 }
                 .hx-swal-glass .swal2-title, .hx-swal-glass .swal2-html-container { color: #111827 !important; }
 
@@ -128,10 +217,12 @@ const HelixNotifyPlugin = (function () {
                 }
                 .hx-swal-aurora .swal2-title, .hx-swal-aurora .swal2-html-container { color: #e0e7ff !important; }
             `;
-            document.head.appendChild(style);
+            if (document.head) {
+                document.head.appendChild(style);
+            }
         }
 
-        // ── 4. TOAST ENGINE (WITH HOVER PAUSE) ──
+        // ── 3. TOAST ENGINE (WITH HOVER PAUSE & QUEUE) ──
         let activeToasts = 0;
         const toastQueue = [];
 
@@ -147,21 +238,24 @@ const HelixNotifyPlugin = (function () {
             }
         };
 
-        const Toast = SwalRef.mixin({
-            toast: true,
-            position: config.toastPosition,
-            showConfirmButton: false,
-            showCloseButton: config.showCloseButton,
-            timer: config.toastTimer,
-            timerProgressBar: true,
-            customClass: { popup: config.popupClass },
-            didOpen: (toast) => {
-                toast.addEventListener('mouseenter', SwalRef.stopTimer);
-                toast.addEventListener('mouseleave', SwalRef.resumeTimer);
-            }
-        });
+        const getToastInstance = async () => {
+            const SwalRef = await ensureSwal(config);
+            return SwalRef.mixin({
+                toast: true,
+                position: config.toastPosition,
+                showConfirmButton: false,
+                showCloseButton: config.showCloseButton,
+                timer: config.toastTimer,
+                timerProgressBar: true,
+                customClass: { popup: config.popupClass },
+                didOpen: (toast) => {
+                    if (SwalRef.stopTimer) toast.addEventListener('mouseenter', SwalRef.stopTimer);
+                    if (SwalRef.resumeTimer) toast.addEventListener('mouseleave', SwalRef.resumeTimer);
+                }
+            });
+        };
 
-        // ── 5. QUERY BUILDER (DEFERRED EXECUTION) ──
+        // ── 4. QUERY BUILDER (DEFERRED EXECUTION) ──
         function createQuery(promiseFactory, resultMapper = null) {
             const handlers = {
                 onConfirmed: null, onCancelled: null, onDismissed: null,
@@ -205,21 +299,61 @@ const HelixNotifyPlugin = (function () {
             };
         }
 
-        // ── 6. PUBLIC API (FULL RESTORED) ──
+        // ── 5. PUBLIC API ──
         const $notify = {
+            ensureReady: () => ensureSwal(config),
+
             toast: {
-                success: (title, ext = {}) => new Promise(res => runToast(() => Toast.fire({ icon: 'success', title, ...ext }).then(res))),
-                error: (title, ext = {}) => new Promise(res => runToast(() => Toast.fire({ icon: 'error', title, ...ext }).then(res))),
-                info: (title, ext = {}) => new Promise(res => runToast(() => Toast.fire({ icon: 'info', title, ...ext }).then(res))),
-                warning: (title, ext = {}) => new Promise(res => runToast(() => Toast.fire({ icon: 'warning', title, ...ext }).then(res))),
-                question: (title, ext = {}) => new Promise(res => runToast(() => Toast.fire({ icon: 'question', title, ...ext }).then(res))),
-                fire: (title, icon = 'info', ext = {}) => new Promise(res => runToast(() => Toast.fire({ icon, title, ...ext }).then(res)))
+                success: (title, ext = {}) => new Promise(res => runToast(async () => {
+                    const Toast = await getToastInstance();
+                    const r = await Toast.fire({ icon: 'success', title, ...ext });
+                    res(r);
+                    return r;
+                })),
+                error: (title, ext = {}) => new Promise(res => runToast(async () => {
+                    const Toast = await getToastInstance();
+                    const r = await Toast.fire({ icon: 'error', title, ...ext });
+                    res(r);
+                    return r;
+                })),
+                info: (title, ext = {}) => new Promise(res => runToast(async () => {
+                    const Toast = await getToastInstance();
+                    const r = await Toast.fire({ icon: 'info', title, ...ext });
+                    res(r);
+                    return r;
+                })),
+                warning: (title, ext = {}) => new Promise(res => runToast(async () => {
+                    const Toast = await getToastInstance();
+                    const r = await Toast.fire({ icon: 'warning', title, ...ext });
+                    res(r);
+                    return r;
+                })),
+                question: (title, ext = {}) => new Promise(res => runToast(async () => {
+                    const Toast = await getToastInstance();
+                    const r = await Toast.fire({ icon: 'question', title, ...ext });
+                    res(r);
+                    return r;
+                })),
+                fire: (title, icon = 'info', ext = {}) => new Promise(res => runToast(async () => {
+                    const Toast = await getToastInstance();
+                    const r = await Toast.fire({ icon, title, ...ext });
+                    res(r);
+                    return r;
+                }))
             },
 
-            alert: (title, text, icon = 'info', ext = {}) =>
-                SwalRef.fire({ title, text, icon, confirmButtonColor: config.confirmColor, customClass: { popup: config.popupClass }, ...ext }),
+            alert: async (title, text, icon = 'info', ext = {}) => {
+                const SwalRef = await ensureSwal(config);
+                return SwalRef.fire({
+                    title, text, icon,
+                    confirmButtonColor: config.confirmColor,
+                    customClass: { popup: config.popupClass },
+                    ...ext
+                });
+            },
 
             confirm: async (title, text = "Action cannot be reverted.", confirmText = "Confirm", ext = {}) => {
+                const SwalRef = await ensureSwal(config);
                 const res = await SwalRef.fire({
                     title, text, icon: 'warning',
                     showCancelButton: true,
@@ -234,6 +368,7 @@ const HelixNotifyPlugin = (function () {
 
             confirmQuery: (title, text = "Action cannot be reverted.", confirmText = "Confirm", ext = {}) => {
                 return createQuery(async () => {
+                    const SwalRef = await ensureSwal(config);
                     const res = await SwalRef.fire({
                         title, text, icon: 'warning',
                         showCancelButton: true,
@@ -243,16 +378,18 @@ const HelixNotifyPlugin = (function () {
                         customClass: { popup: config.popupClass },
                         ...ext
                     });
+                    const cancelReason = (SwalRef.DismissReason && SwalRef.DismissReason.cancel) || 'cancel';
                     return {
-                        confirmed: res.isConfirmed,
-                        cancelled: res.isDismissed && res.dismiss === SwalRef.DismissReason.cancel,
-                        dismissed: res.isDismissed,
+                        confirmed: !!res.isConfirmed,
+                        cancelled: !!res.isDismissed && res.dismiss === cancelReason,
+                        dismissed: !!res.isDismissed,
                         value: res.value
                     };
                 });
             },
 
             confirm3: async (title, text, opts = {}) => {
+                const SwalRef = await ensureSwal(config);
                 const { confirmText = 'Yes', denyText = 'No', cancelText = 'Cancel', ...ext } = opts;
                 const res = await SwalRef.fire({
                     title, text, icon: 'question',
@@ -267,12 +404,13 @@ const HelixNotifyPlugin = (function () {
                     customClass: { popup: config.popupClass },
                     ...ext
                 });
-                return { confirmed: res.isConfirmed, denied: res.isDenied, dismissed: res.isDismissed, value: res.value };
+                return { confirmed: !!res.isConfirmed, denied: !!res.isDenied, dismissed: !!res.isDismissed, value: res.value };
             },
 
             confirm3Query: (title, text, opts = {}) => {
                 const { confirmText = 'Yes', denyText = 'No', cancelText = 'Cancel', ...ext } = opts;
                 return createQuery(async () => {
+                    const SwalRef = await ensureSwal(config);
                     const res = await SwalRef.fire({
                         title, text, icon: 'question',
                         showCancelButton: true,
@@ -286,17 +424,19 @@ const HelixNotifyPlugin = (function () {
                         customClass: { popup: config.popupClass },
                         ...ext
                     });
+                    const cancelReason = (SwalRef.DismissReason && SwalRef.DismissReason.cancel) || 'cancel';
                     return {
-                        confirmed: res.isConfirmed,
-                        denied: res.isDenied,
-                        cancelled: res.isDismissed && res.dismiss === SwalRef.DismissReason.cancel,
-                        dismissed: res.isDismissed,
+                        confirmed: !!res.isConfirmed,
+                        denied: !!res.isDenied,
+                        cancelled: !!res.isDismissed && res.dismiss === cancelReason,
+                        dismissed: !!res.isDismissed,
                         value: res.value
                     };
                 });
             },
 
             prompt: async (title, options = {}) => {
+                const SwalRef = await ensureSwal(config);
                 const {
                     input = 'text', inputLabel = '', inputPlaceholder = '',
                     inputValue = '', inputOptions = null, inputAttributes = {},
@@ -315,7 +455,7 @@ const HelixNotifyPlugin = (function () {
                     inputValidator: allowEmpty ? undefined : (val) => { if (!val) return validationMessage; },
                     ...ext
                 });
-                return { value, confirmed: isConfirmed, dismissed: isDismissed };
+                return { value, confirmed: !!isConfirmed, dismissed: !!isDismissed };
             },
 
             promptQuery: (title, options = {}) => {
@@ -327,6 +467,7 @@ const HelixNotifyPlugin = (function () {
                 } = options;
 
                 return createQuery(async () => {
+                    const SwalRef = await ensureSwal(config);
                     const res = await SwalRef.fire({
                         title, input, inputLabel, inputPlaceholder, inputValue,
                         inputOptions, inputAttributes,
@@ -338,16 +479,18 @@ const HelixNotifyPlugin = (function () {
                         inputValidator: allowEmpty ? undefined : (val) => { if (!val) return validationMessage; },
                         ...ext
                     });
+                    const cancelReason = (SwalRef.DismissReason && SwalRef.DismissReason.cancel) || 'cancel';
                     return {
                         value: res.value,
-                        confirmed: res.isConfirmed,
-                        cancelled: res.isDismissed && res.dismiss === SwalRef.DismissReason.cancel,
-                        dismissed: res.isDismissed
+                        confirmed: !!res.isConfirmed,
+                        cancelled: !!res.isDismissed && res.dismiss === cancelReason,
+                        dismissed: !!res.isDismissed
                     };
                 });
             },
 
             async: async (title, text, promiseFn, options = {}) => {
+                const SwalRef = await ensureSwal(config);
                 const {
                     successTitle = 'Success', successText = 'Operation completed.',
                     showSuccess = true, showError = true, errorTitle = 'Error',
@@ -359,7 +502,7 @@ const HelixNotifyPlugin = (function () {
                     showConfirmButton: false, showCancelButton: allowCancel,
                     cancelButtonText: 'Cancel', cancelButtonColor: config.cancelColor,
                     customClass: { popup: config.popupClass },
-                    didOpen: () => { SwalRef.showLoading(); },
+                    didOpen: () => { if (SwalRef.showLoading) SwalRef.showLoading(); },
                     ...ext
                 });
 
@@ -400,12 +543,13 @@ const HelixNotifyPlugin = (function () {
                 } = options;
 
                 return createQuery(async () => {
+                    const SwalRef = await ensureSwal(config);
                     SwalRef.fire({
                         title, text, allowOutsideClick: false, allowEscapeKey: allowCancel,
                         showConfirmButton: false, showCancelButton: allowCancel,
                         cancelButtonText: 'Cancel', cancelButtonColor: config.cancelColor,
                         customClass: { popup: config.popupClass },
-                        didOpen: () => { SwalRef.showLoading(); },
+                        didOpen: () => { if (SwalRef.showLoading) SwalRef.showLoading(); },
                         ...ext
                     });
 
@@ -439,13 +583,16 @@ const HelixNotifyPlugin = (function () {
                 });
             },
 
-            raw: SwalRef
+            get raw() {
+                const root = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
+                return root.Swal || null;
+            }
         };
 
-        // ── 7. ATTACH TO RECEIVED API ──
+        // ── 6. ATTACH TO RECEIVED API ──
         api.$notify = $notify;
 
-        // ── 8. NAMESPACED REGISTRATION (FULL MAPPED) ──
+        // ── 7. NAMESPACED REGISTRATION ──
         if (api.namespace) {
             api.namespace('notify', {
                 $notify,
@@ -459,16 +606,16 @@ const HelixNotifyPlugin = (function () {
                 promptQuery: $notify.promptQuery,
                 async: $notify.async,
                 asyncQuery: $notify.asyncQuery,
-                raw: SwalRef
+                get raw() { return $notify.raw; }
             });
         }
 
-        // ── 9. PROVIDE FOR inject() ──
+        // ── 8. PROVIDE FOR inject() ──
         if (api.provide) {
             api.provide('$notify', $notify);
         }
 
-        // ── 10. GLOBAL FALLBACK (Helix.$notify) ──
+        // ── 9. GLOBAL FALLBACK (Helix.$notify) ──
         const GlobalHelix = (typeof window !== 'undefined' && window.Helix) ||
             (typeof globalThis !== 'undefined' && globalThis.Helix) ||
             (typeof Helix !== 'undefined' ? Helix : null);
@@ -477,14 +624,16 @@ const HelixNotifyPlugin = (function () {
             GlobalHelix.$notify = $notify;
         }
 
-        // ── 11. CLEANUP ──
+        // ── 10. CLEANUP ──
         const cleanup = () => {
             toastQueue.length = 0;
             activeToasts = 0;
-            if (SwalRef) SwalRef.close();
+            const root = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
+            if (root.Swal && typeof root.Swal.close === 'function') {
+                root.Swal.close();
+            }
         };
 
-        // Optional: attach to app unmount if core supports it
         if (api.onCleanup && typeof api.onCleanup === 'function') {
             api.onCleanup(cleanup);
         }
@@ -494,7 +643,7 @@ const HelixNotifyPlugin = (function () {
 
     return {
         name: 'notify',
-        version: import.meta.env.VITE_NOTIFY_VERSION || '0.0.0',
+        version: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_NOTIFY_VERSION) || '2.2.6',
         requires: { helix: '>=11.1.5' },
         install
     };

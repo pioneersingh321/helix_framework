@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50 text-slate-800">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Helix Bundle Builder · Modular Framework & Plugin Customizer</title>
+  
+  <!-- TailwindCSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Bootstrap Icons & Font Awesome 6.5 Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- SweetAlert2 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
+  <!-- Axios CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+  <!-- Load Helix All-in-One Bundle for the builder app -->
+  <script src="./dist/helix.all.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    pre, code, .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    
+    /* Studio Light Theme Elevated Panels */
+    .studio-panel {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 1rem;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    
+    /* Plugin Interactive Cards */
+    .plugin-card {
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 0.875rem;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+    }
+    .plugin-card:hover {
+      border-color: #a5b4fc;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px -4px rgba(79, 70, 229, 0.08);
+    }
+    .plugin-card.selected {
+      border-color: #6366f1;
+      background: linear-gradient(180deg, #f8faff 0%, #f1f5ff 100%);
+      box-shadow: 0 4px 14px -2px rgba(99, 102, 241, 0.14);
+    }
+
+    /* Preset Big Buttons with Dark Background & Generous Padding */
+    .preset-btn {
+      border: 1.5px solid #1e293b;
+      background: #0f172a;
+      color: #f8fafc;
+      border-radius: 1.125rem;
+      padding: 1.35rem 1.25rem;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      text-align: left;
+      min-height: 185px;
+      position: relative;
+      box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.15);
+    }
+    .preset-btn:hover {
+      border-color: #4f46e5;
+      background: #131d35;
+      transform: translateY(-4px);
+      box-shadow: 0 16px 32px -4px rgba(15, 23, 42, 0.3), 0 0 0 1px rgba(99, 102, 241, 0.2);
+    }
+    .preset-btn.active {
+      border-color: #6366f1;
+      background: linear-gradient(145deg, #1e1b4b 0%, #0f172a 60%, #1e1b4b 100%);
+      box-shadow: 0 12px 28px -4px rgba(79, 70, 229, 0.35), 0 0 0 2px rgba(99, 102, 241, 0.4);
+      transform: translateY(-3px);
+    }
+    .preset-btn.active .preset-icon-box {
+      background: #4f46e5 !important;
+      color: #ffffff !important;
+      border-color: #6366f1 !important;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+    }
+
+    /* Tab Switcher */
+    .export-tab {
+      padding: 0.375rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-radius: 0.5rem;
+      transition: all 0.15s ease;
+      color: #64748b;
+    }
+    .export-tab.active {
+      background: #ffffff;
+      color: #4f46e5;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    /* Category Filter Chip */
+    .filter-chip {
+      padding: 0.35rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-radius: 9999px;
+      border: 1px solid #e2e8f0;
+      background: #ffffff;
+      color: #64748b;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .filter-chip:hover {
+      border-color: #cbd5e1;
+      color: #0f172a;
+    }
+    .filter-chip.active {
+      background: #4f46e5;
+      border-color: #4f46e5;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+    }
+
+    /* Pulse Indicator */
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulse-ring 1.8s infinite;
+    }
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Custom Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="min-h-full flex flex-col custom-scrollbar overflow-x-hidden">
+
+  <!-- Header Navigation -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-6 py-3.5 shadow-sm">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      
+      <!-- Brand & Version -->
+      <div class="flex items-center gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/25">
+          <i class="fa-solid fa-dna text-white text-lg"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-bold tracking-tight text-slate-900">
+              Helix Bundle Builder
+            </h1>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200/60 font-mono">v11.1.21</span>
+            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold border border-emerald-200/60">
+              <span class="pulse-dot"></span> Live Engine
+            </span>
+          </div>
+          <p class="text-xs text-slate-500">Modular Framework & Official Plugin Compiler</p>
+        </div>
+      </div>
+
+      <!-- Quick Nav Links -->
+      <div class="flex items-center gap-2">
+        <a href="index.html" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-house text-slate-400"></i> Core Demo
+        </a>
+        <a href="index-store.html" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-1.5">
+          <i class="bi bi-box-seam text-indigo-500"></i> Store ($store)
+        </a>
+        <a href="index-helper.html" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> Helpers ($h)
+        </a>
+        <a href="index-directive.html" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-bolt text-emerald-500"></i> Directives
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main id="builder-app" class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-7">
+    
+    <!-- Hero / Presets Banner -->
+    <div class="relative overflow-hidden studio-panel p-7 border-indigo-100/80 shadow-sm bg-gradient-to-br from-white via-indigo-50/20 to-purple-50/30">
+      <div class="absolute -right-12 -top-12 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+      
+      <div class="max-w-3xl space-y-2">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+          <i class="fa-solid fa-box-open text-indigo-500"></i> Unified Single-File Architecture
+        </div>
+        <h2 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+          Compile Helix Core & Selected Plugins into One Standalone Distribution
+        </h2>
+        <p class="text-slate-600 text-sm leading-relaxed">
+          Select only the official plugins your web app requires. Helix compiles a single, zero-dependency lightweight distribution with unified signal reactivity and automated tree-shaking.
+        </p>
+      </div>
+
+      <!-- Quick Start Presets (Big Buttons) -->
+      <div class="mt-6 pt-5 border-t border-slate-200/80">
+        <div class="flex items-center justify-between mb-3.5">
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              Quick Start Presets
+            </label>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">5 Suites</span>
+          </div>
+          <span class="text-xs text-slate-400 font-medium hidden sm:inline">Click any preset card to instantly configure your custom stack</span>
+        </div>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          
+          <!-- Preset 1: All-in-One -->
+          <button 
+            type="button"
+            class="preset-btn p-5 flex flex-col justify-between group"
+            @click="applyPreset('all')"
+            :class="currentPreset === 'all' ? 'active' : ''"
+           >
+            <div>
+              <div class="flex items-center justify-between mb-3.5">
+                <div class="preset-icon-box w-11 h-11 rounded-xl bg-slate-800 border border-slate-700/80 text-indigo-400 flex items-center justify-center text-lg shadow-sm transition-transform group-hover:scale-110">
+                  <i class="fa-solid fa-gem"></i>
+                </div>
+                <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full font-mono transition-colors"
+                      :class="currentPreset === 'all' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'">
+                  12 Plugins
+                </span>
+              </div>
+              <h3 class="text-base font-extrabold text-white group-hover:text-indigo-400 transition-colors">
+                All-in-One Suite
+              </h3>
+              <p class="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
+                Core engine plus all 12 official enterprise plugins.
+              </p>
+            </div>
+            
+            <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+              <span class="font-mono text-slate-400 font-semibold text-[11px]">~68 KB gz</span>
+              <span class="font-bold flex items-center gap-1 text-xs" :class="currentPreset === 'all' ? 'text-indigo-400' : 'text-slate-500 group-hover:text-indigo-400'">
+                <i class="bi" :class="currentPreset === 'all' ? 'bi-check-circle-fill text-indigo-400' : 'bi-arrow-right text-xs'"></i>
+                <span :class="currentPreset === 'all' ? 'inline' : 'hidden'">Active</span>
+              </span>
+            </div>
+          </button>
+
+          <!-- Preset 2: Essentials -->
+          <button 
+            type="button"
+            @click="applyPreset('essentials')"
+            :class="currentPreset === 'essentials' ? 'active' : ''"
+            class="preset-btn p-5 flex flex-col justify-between group">
+            <div>
+              <div class="flex items-center justify-between mb-3.5">
+                <div class="preset-icon-box w-11 h-11 rounded-xl bg-slate-800 border border-slate-700/80 text-amber-400 flex items-center justify-center text-lg shadow-sm transition-transform group-hover:scale-110">
+                  <i class="fa-solid fa-star"></i>
+                </div>
+                <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full font-mono transition-colors"
+                      :class="currentPreset === 'essentials' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'">
+                  4 Plugins
+                </span>
+              </div>
+              <h3 class="text-base font-extrabold text-white group-hover:text-amber-400 transition-colors">
+                Essentials Stack
+              </h3>
+              <p class="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
+                Directives, Helpers ($h), HTTP Fetch & Store.
+              </p>
+            </div>
+            
+            <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+              <span class="font-mono text-slate-400 font-semibold text-[11px]">~48 KB gz</span>
+              <span class="font-bold flex items-center gap-1 text-xs" :class="currentPreset === 'essentials' ? 'text-amber-400' : 'text-slate-500 group-hover:text-amber-400'">
+                <i class="bi" :class="currentPreset === 'essentials' ? 'bi-check-circle-fill text-amber-400' : 'bi-arrow-right text-xs'"></i>
+                <span :class="currentPreset === 'essentials' ? 'inline' : 'hidden'">Active</span>
+              </span>
+            </div>
+          </button>
+
+          <!-- Preset 3: UI & Feedback -->
+          <button 
+            type="button"
+            @click="applyPreset('ui')"
+            :class="currentPreset === 'ui' ? 'active' : ''"
+            class="preset-btn p-5 flex flex-col justify-between group">
+            <div>
+              <div class="flex items-center justify-between mb-3.5">
+                <div class="preset-icon-box w-11 h-11 rounded-xl bg-slate-800 border border-slate-700/80 text-pink-400 flex items-center justify-center text-lg shadow-sm transition-transform group-hover:scale-110">
+                  <i class="fa-solid fa-palette"></i>
+                </div>
+                <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full font-mono transition-colors"
+                      :class="currentPreset === 'ui' ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'">
+                  5 Plugins
+                </span>
+              </div>
+              <h3 class="text-base font-extrabold text-white group-hover:text-pink-400 transition-colors">
+                UI & Feedback
+              </h3>
+              <p class="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
+                Directives, Tooltips, Spinner Loaders & SweetAlert2.
+              </p>
+            </div>
+            
+            <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+              <span class="font-mono text-slate-400 font-semibold text-[11px]">~46 KB gz</span>
+              <span class="font-bold flex items-center gap-1 text-xs" :class="currentPreset === 'ui' ? 'text-pink-400' : 'text-slate-500 group-hover:text-pink-400'">
+                <i class="bi" :class="currentPreset === 'ui' ? 'bi-check-circle-fill text-pink-400' : 'bi-arrow-right text-xs'"></i>
+                <span :class="currentPreset === 'ui' ? 'inline' : 'hidden'">Active</span>
+              </span>
+            </div>
+          </button>
+
+          <!-- Preset 4: Forms & Validation -->
+          <button 
+            type="button"
+            @click="applyPreset('forms')"
+            :class="currentPreset === 'forms' ? 'active' : ''"
+            class="preset-btn p-5 flex flex-col justify-between group">
+            <div>
+              <div class="flex items-center justify-between mb-3.5">
+                <div class="preset-icon-box w-11 h-11 rounded-xl bg-slate-800 border border-slate-700/80 text-emerald-400 flex items-center justify-center text-lg shadow-sm transition-transform group-hover:scale-110">
+                  <i class="fa-solid fa-check-double"></i>
+                </div>
+                <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full font-mono transition-colors"
+                      :class="currentPreset === 'forms' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'">
+                  4 Plugins
+                </span>
+              </div>
+              <h3 class="text-base font-extrabold text-white group-hover:text-emerald-400 transition-colors">
+                Forms & Validation
+              </h3>
+              <p class="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
+                Rules engine, Schema adapters & Model binding.
+              </p>
+            </div>
+            
+            <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+              <span class="font-mono text-slate-400 font-semibold text-[11px]">~44 KB gz</span>
+              <span class="font-bold flex items-center gap-1 text-xs" :class="currentPreset === 'forms' ? 'text-emerald-400' : 'text-slate-500 group-hover:text-emerald-400'">
+                <i class="bi" :class="currentPreset === 'forms' ? 'bi-check-circle-fill text-emerald-400' : 'bi-arrow-right text-xs'"></i>
+                <span :class="currentPreset === 'forms' ? 'inline' : 'hidden'">Active</span>
+              </span>
+            </div>
+          </button>
+
+          <!-- Preset 5: Minimal Core -->
+          <button 
+            type="button"
+            @click="applyPreset('minimal')"
+            :class="currentPreset === 'minimal' ? 'active' : ''"
+            class="preset-btn p-5 flex flex-col justify-between group">
+            <div>
+              <div class="flex items-center justify-between mb-3.5">
+                <div class="preset-icon-box w-11 h-11 rounded-xl bg-slate-800 border border-slate-700/80 text-cyan-400 flex items-center justify-center text-lg shadow-sm transition-transform group-hover:scale-110">
+                  <i class="fa-solid fa-feather"></i>
+                </div>
+                <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full font-mono transition-colors"
+                      :class="currentPreset === 'minimal' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'">
+                  Core Only
+                </span>
+              </div>
+              <h3 class="text-base font-extrabold text-white group-hover:text-cyan-400 transition-colors">
+                Minimal Core
+              </h3>
+              <p class="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
+                Raw Helix signal engine, components & directives.
+              </p>
+            </div>
+            
+            <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+              <span class="font-mono text-slate-400 font-semibold text-[11px]">~36 KB gz</span>
+              <span class="font-bold flex items-center gap-1 text-xs" :class="currentPreset === 'minimal' ? 'text-cyan-400' : 'text-slate-500 group-hover:text-cyan-400'">
+                <i class="bi" :class="currentPreset === 'minimal' ? 'bi-check-circle-fill text-cyan-400' : 'bi-arrow-right text-xs'"></i>
+                <span :class="currentPreset === 'minimal' ? 'inline' : 'hidden'">Active</span>
+              </span>
+            </div>
+          </button>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Builder Workspace: 2-Columns -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-7">
+
+      <!-- Left Column: Plugin Selection & Filters (8 Cols) -->
+      <div class="lg:col-span-8 space-y-4">
+        
+        <!-- Controls Bar: Search & Category Filter -->
+        <div class="studio-panel p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <i class="fa-solid fa-puzzle-piece text-indigo-600"></i> Available Official Plugins
+              </h3>
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
+                {{ filteredPlugins.length }} available
+              </span>
+            </div>
+            
+            <div class="flex items-center gap-2 text-xs">
+              <button @click="selectAll()" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition">
+                <i class="bi bi-check-all me-1"></i> Select All
+              </button>
+              <button @click="deselectAll()" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition">
+                <i class="bi bi-x-circle me-1"></i> Clear All
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter categories & search input -->
+          <div class="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-100">
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button 
+                type="button"
+                @click="activeCategory = 'All'"
+                :class="activeCategory === 'All' ? 'active' : ''"
+                class="filter-chip">
+                All (12)
+              </button>
+              <button 
+                type="button"
+                @click="activeCategory = 'DOM & UI'"
+                :class="activeCategory === 'DOM & UI' ? 'active' : ''"
+                class="filter-chip">
+                DOM & UI
+              </button>
+              <button 
+                type="button"
+                @click="activeCategory = 'Utilities'"
+                :class="activeCategory === 'Utilities' ? 'active' : ''"
+                class="filter-chip">
+                Utilities
+              </button>
+              <button 
+                type="button"
+                @click="activeCategory = 'Network & Data'"
+                :class="activeCategory === 'Network & Data' ? 'active' : ''"
+                class="filter-chip">
+                Network
+              </button>
+              <button 
+                type="button"
+                @click="activeCategory = 'State Management'"
+                :class="activeCategory === 'State Management' ? 'active' : ''"
+                class="filter-chip">
+                State
+              </button>
+              <button 
+                type="button"
+                @click="activeCategory = 'Forms & Validation'"
+                :class="activeCategory === 'Forms & Validation' ? 'active' : ''"
+                class="filter-chip">
+                Forms
+              </button>
+              <button 
+                type="button"
+                @click="activeCategory = 'UI & Feedback'"
+                :class="activeCategory === 'UI & Feedback' ? 'active' : ''"
+                class="filter-chip">
+                Feedback
+              </button>
+            </div>
+
+            <div class="relative min-w-[200px]">
+              <i class="bi bi-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+              <input 
+                type="text" 
+                :value="searchQuery" 
+                @input="searchQuery = $event.target.value" 
+                placeholder="Search plugins..." 
+                class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-hidden transition" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Plugins Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          
+          <!-- Loop through plugin definitions -->
+          <div 
+            hx-for="plugin in filteredPlugins" 
+            :key="plugin.id"
+            @click="togglePlugin(plugin.id)"
+            :class="selectedPlugins.includes(plugin.id) ? 'selected' : ''"
+            class="plugin-card p-4 flex flex-col justify-between">
+            
+            <div>
+              <div class="flex items-start justify-between gap-2.5">
+                <div class="flex items-center gap-3">
+                  <!-- Custom Checkbox -->
+                  <div class="w-5 h-5 rounded-md border flex items-center justify-center transition-colors"
+                       :class="selectedPlugins.includes(plugin.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white text-transparent'">
+                    <i class="bi bi-check-lg text-xs font-bold"></i>
+                  </div>
+                  
+                  <!-- Icon & Title -->
+                  <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs" :class="plugin.iconBg || 'bg-indigo-50 text-indigo-600'">
+                      <i :class="plugin.icon || 'bi bi-puzzle'"></i>
+                    </div>
+                    <div>
+                      <span class="text-sm font-bold text-slate-900 block leading-tight" hx-text="plugin.name"></span>
+                      <span class="text-[10px] text-slate-400 font-mono" hx-text="plugin.id"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Size Badge -->
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 font-mono" hx-text="plugin.size"></span>
+              </div>
+
+              <!-- Description -->
+              <p class="text-xs text-slate-500 mt-2.5 line-clamp-2 leading-relaxed" hx-text="plugin.description"></p>
+            </div>
+
+            <!-- Footer of card -->
+            <div class="mt-3.5 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-xs">
+              <div class="flex items-center gap-1.5">
+                <span class="text-indigo-700 font-mono font-bold text-[11px] bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded" hx-text="plugin.exportProp ? 'window.' + plugin.exportProp : 'Directive Engine'"></span>
+                <span v-if="plugin.dependency" class="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" hx-text="plugin.dependency"></span>
+              </div>
+              <span class="text-slate-400 font-medium text-[11px]" hx-text="plugin.category"></span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Right Column: Live Distribution Inspector (4 Cols - Sticky) -->
+      <div class="lg:col-span-4 space-y-6">
+        
+        <!-- Live Size & Compression Card -->
+        <div class="studio-panel p-6 space-y-5 border-indigo-100 sticky top-20">
+          
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+              <i class="fa-solid fa-sliders text-indigo-600"></i> Bundle Summary
+            </h4>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 font-bold border border-indigo-200/60 font-mono">
+              {{ selectedPlugins.length }} / {{ pluginsList.length }} plugins
+            </span>
+          </div>
+
+          <!-- Size metric cards -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80">
+              <span class="text-[11px] font-semibold text-slate-500 block">Estimated Raw Size</span>
+              <span class="text-xl font-extrabold text-slate-900 mt-1 block font-mono" hx-text="estimatedRawSize"></span>
+              <span class="text-[10px] text-slate-400 mt-0.5 block">Unminified bundle</span>
+            </div>
+            
+            <div class="bg-emerald-50/60 rounded-xl p-3.5 border border-emerald-200/80">
+              <span class="text-[11px] font-semibold text-emerald-700 block">Estimated Gzip</span>
+              <span class="text-xl font-extrabold text-emerald-600 mt-1 block font-mono" hx-text="estimatedGzipSize"></span>
+              <span class="text-[10px] text-emerald-600/80 mt-0.5 block font-semibold">~68% compression</span>
+            </div>
+          </div>
+
+          <!-- Compression Savings Ratio Bar -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs">
+              <span class="text-slate-500 font-medium">Distribution Efficiency:</span>
+              <span class="font-bold text-slate-800 font-mono">Ultra-compact (~{{ estimatedGzipSize }})</span>
+            </div>
+            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex">
+              <div class="bg-indigo-600 h-full" style="width: 32%;"></div>
+              <div class="bg-emerald-500 h-full" style="width: 68%;"></div>
+            </div>
+            <div class="flex justify-between text-[10px] text-slate-400">
+              <span>Gzip Payload (32%)</span>
+              <span>Compression Saved (68%)</span>
+            </div>
+          </div>
+
+          <!-- Multi-Format Code Exporter -->
+          <div class="space-y-2 pt-2 border-t border-slate-100">
+            <div class="flex items-center justify-between">
+              <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Distribution Code:
+              </label>
+              
+              <!-- Export Format Switcher Tabs -->
+              <div class="flex bg-slate-100 p-0.5 rounded-lg">
+                <button 
+                  @click="activeExportTab = 'cli'" 
+                  :class="activeExportTab === 'cli' ? 'active' : ''" 
+                  class="export-tab">CLI</button>
+                <button 
+                  @click="activeExportTab = 'cdn'" 
+                  :class="activeExportTab === 'cdn' ? 'active' : ''" 
+                  class="export-tab">CDN</button>
+                <button 
+                  @click="activeExportTab = 'esm'" 
+                  :class="activeExportTab === 'esm' ? 'active' : ''" 
+                  class="export-tab">ESM</button>
+              </div>
+            </div>
+
+            <!-- Code Block with One-Click Copy -->
+            <div class="relative">
+              <pre class="bg-slate-900 p-3 rounded-xl text-xs font-mono text-indigo-300 overflow-x-auto border border-slate-800 leading-relaxed">{{ currentExportCode }}</pre>
+              <button 
+                @click="copyText(currentExportCode, 'Code snippet copied to clipboard!')" 
+                class="absolute right-2 top-2 px-2 py-1 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-md transition text-xs flex items-center gap-1 shadow-sm"
+                title="Copy Code">
+                <i class="fa-regular fa-copy"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Download Action Buttons -->
+          <div class="space-y-2.5 pt-1">
+            <button 
+              @click="downloadCustomBundle()"
+              class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-sm shadow-md shadow-indigo-500/25 flex items-center justify-center gap-2 transition active:scale-[0.98]">
+              <i class="fa-solid fa-download"></i> Download Bundle (.min.js)
+            </button>
+            
+            <button 
+              @click="copyScriptTag()"
+              class="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs border border-slate-200 flex items-center justify-center gap-2 transition">
+              <i class="fa-solid fa-code text-indigo-600"></i> Copy &lt;script&gt; Tag
+            </button>
+          </div>
+
+          <div class="text-center">
+            <span class="text-[11px] text-slate-400">
+              <i class="bi bi-shield-check text-emerald-500 me-1"></i> Standalone bundle with zero external dependencies
+            </span>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Live In-Browser Capabilities Sandbox -->
+    <div class="studio-panel p-6 space-y-5 border-slate-200">
+      
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-sm shadow-emerald-500/20">
+            <i class="fa-solid fa-vial-circle-check text-base"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">
+              Live In-Browser Capabilities Sandbox
+            </h3>
+            <p class="text-xs text-slate-500">Interactive live testing of loaded Helix reactivity, helpers, SweetAlert2, and Axios</p>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 flex items-center gap-1.5">
+            <span class="pulse-dot"></span> Signal Runtime Active
+          </span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- Sandbox 1: Core Signals & Derivations -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-indigo-700 flex items-center gap-1.5">
+                <i class="bi bi-lightning-charge-fill text-amber-500"></i> 1. Core Signals
+              </span>
+              <span class="text-[10px] font-mono font-bold bg-white px-1.5 py-0.5 rounded border text-slate-500">Helix.ref()</span>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1">Direct fine-grained reactive state mutation & computed derivation</p>
+          </div>
+
+          <div class="space-y-2 mt-2">
+            <div class="flex gap-1.5">
+              <button @click="count++" class="flex-1 py-1.5 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center justify-center gap-1">
+                <i class="bi bi-plus-lg"></i> Count: <span hx-text="count">0</span>
+              </button>
+              <button @click="count = 0" class="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold transition" title="Reset">
+                <i class="bi bi-arrow-counterclockwise"></i>
+              </button>
+            </div>
+
+            <div class="bg-white p-2.5 rounded-lg border border-slate-200 text-xs font-mono flex justify-between items-center">
+              <span class="text-slate-500">doubleCount:</span>
+              <span class="font-bold text-indigo-600 text-sm" hx-text="doubleCount">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sandbox 2: Helix Helpers ($h) -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-indigo-700 flex items-center gap-1.5">
+                <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> 2. Helix Helpers ($h)
+              </span>
+              <span class="text-[10px] font-mono font-bold bg-white px-1.5 py-0.5 rounded border text-slate-500">window.$h</span>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1">Strings, casings, currencies & date transformers</p>
+          </div>
+
+          <div class="space-y-2 mt-2">
+            <input 
+              type="text" 
+              :value="liveString" 
+              @input="liveString = $event.target.value" 
+              class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-mono focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-hidden" />
+            
+            <div class="bg-white p-2 rounded-lg border border-slate-200 text-[11px] text-slate-600 space-y-1 font-mono">
+              <div class="flex justify-between">
+                <span class="text-slate-400">camelCase:</span>
+                <span class="font-bold text-emerald-600 truncate ml-1" hx-text="$h ? $h.camelCase(liveString) : liveString"></span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-400">kebabCase:</span>
+                <span class="font-bold text-indigo-600 truncate ml-1" hx-text="$h ? $h.kebabCase(liveString) : liveString"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sandbox 3: Axios Client Demo ($http) -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-indigo-700 flex items-center gap-1.5">
+                <i class="fa-solid fa-cloud-arrow-down text-blue-500"></i> 3. Axios Client
+              </span>
+              <span class="text-[10px] font-mono font-bold bg-white px-1.5 py-0.5 rounded border text-slate-500">axios.get()</span>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1">Asynchronous HTTP endpoint query and reactive handling</p>
+          </div>
+
+          <div class="space-y-2 mt-2">
+            <button 
+              @click="runAxiosDemo()" 
+              :disabled="axiosLoading"
+              class="w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition disabled:opacity-50 flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-paper-plane text-[10px]" :class="axiosLoading ? 'fa-spin' : ''"></i>
+              <span hx-text="axiosLoading ? 'Fetching Data...' : 'Execute Axios GET'"></span>
+            </button>
+
+            <div class="bg-white p-2 rounded-lg border border-slate-200 text-[11px] font-mono text-slate-600 truncate flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full" :class="axiosResult.includes('HTTP 200') ? 'bg-emerald-500' : 'bg-slate-300'"></span>
+              <span class="truncate" hx-text="axiosResult || 'Ready to fetch'"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sandbox 4: SweetAlert2 ($notify) -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-indigo-700 flex items-center gap-1.5">
+                <i class="fa-solid fa-bell text-rose-500"></i> 4. SweetAlert2
+              </span>
+              <span class="text-[10px] font-mono font-bold bg-white px-1.5 py-0.5 rounded border text-slate-500">Swal.fire()</span>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1">Interactive modal alerts, promise confirms & toast notifications</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <button @click="triggerSwalSuccess()" class="py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition flex items-center justify-center gap-1">
+              <i class="fa-solid fa-circle-check"></i> Success
+            </button>
+            <button @click="triggerSwalConfirm()" class="py-1.5 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition flex items-center justify-center gap-1">
+              <i class="fa-solid fa-triangle-exclamation"></i> Confirm
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Studio Footer -->
+  <footer class="bg-white border-t border-slate-200 px-6 py-6 mt-auto">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500">
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-[10px]">HX</div>
+        <span>Helix Framework · Signal-Native Modular Architecture</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <span>MIT License</span>
+        <span>•</span>
+        <a href="https://github.com" class="hover:text-indigo-600 transition flex items-center gap-1">
+          <i class="bi bi-github"></i> GitHub
+        </a>
+        <span>•</span>
+        <span>Build Engine v11.1.21</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Builder Application Logic -->
+  <script>
+    Helix.config.prefix = 'hx-';
+    Helix.config.allowInlineExpressions = true;
+    Helix.config.debug = true;
+
+    const { ref, computed } = Helix;
+
+    const PLUGINS_DATA = [
+      { 
+        id: 'directives', 
+        name: 'Directives', 
+        category: 'DOM & UI', 
+        icon: 'bi bi-lightning-charge', 
+        iconBg: 'bg-amber-50 text-amber-600', 
+        size: '8 KB', 
+        rawBytes: 8192, 
+        gzipBytes: 2400, 
+        description: 'hx-clipboard, hx-collapse, hx-intersect, hx-trap, hx-debounce directives.' 
+      },
+      { 
+        id: 'helpers', 
+        name: 'Helpers ($h)', 
+        category: 'Utilities', 
+        icon: 'bi bi-tools', 
+        iconBg: 'bg-indigo-50 text-indigo-600', 
+        size: '14 KB', 
+        rawBytes: 14336, 
+        gzipBytes: 4200, 
+        exportProp: '$h', 
+        description: 'Strings, numbers, dates, validation, arrays, objects, deep paths, id, events.' 
+      },
+      { 
+        id: 'fetch', 
+        name: 'Fetch ($fetch)', 
+        category: 'Network & Data', 
+        icon: 'bi bi-cloud-arrow-down', 
+        iconBg: 'bg-cyan-50 text-cyan-600', 
+        size: '12 KB', 
+        rawBytes: 12288, 
+        gzipBytes: 3600, 
+        exportProp: '$fetch', 
+        description: 'Reactive HTTP client with TTL cache, deduplication, retry, queue, and interceptors.' 
+      },
+      { 
+        id: 'store', 
+        name: 'Store ($store)', 
+        category: 'State Management', 
+        icon: 'bi bi-database', 
+        iconBg: 'bg-emerald-50 text-emerald-600', 
+        size: '6 KB', 
+        rawBytes: 6144, 
+        gzipBytes: 1900, 
+        exportProp: '$store', 
+        description: 'Signal-native reactive state management with defineStore, undo/redo, and persistence.' 
+      },
+      { 
+        id: 'loader', 
+        name: 'Loader ($loader)', 
+        category: 'UI & Feedback', 
+        icon: 'bi bi-arrow-repeat', 
+        iconBg: 'bg-purple-50 text-purple-600', 
+        size: '9 KB', 
+        rawBytes: 9216, 
+        gzipBytes: 2800, 
+        exportProp: '$loader', 
+        description: 'Global and element-level spinner overlays, progress bars, and hx-loading.' 
+      },
+      { 
+        id: 'notify', 
+        name: 'Notify ($notify)', 
+        category: 'UI & Feedback', 
+        icon: 'bi bi-bell', 
+        iconBg: 'bg-rose-50 text-rose-600', 
+        size: '8 KB', 
+        rawBytes: 8192, 
+        gzipBytes: 2500, 
+        exportProp: '$notify', 
+        dependency: 'SweetAlert2',
+        description: 'SweetAlert2 integration: toasts, alert, confirm, prompt, and async query.' 
+      },
+      { 
+        id: 'tooltip', 
+        name: 'Tooltip ($tooltip)', 
+        category: 'DOM & UI', 
+        icon: 'bi bi-chat-square-text', 
+        iconBg: 'bg-pink-50 text-pink-600', 
+        size: '11 KB', 
+        rawBytes: 11264, 
+        gzipBytes: 3400, 
+        exportProp: '$tooltip', 
+        description: 'Floating positioning, animations, themes, and hx-tooltip directive.' 
+      },
+      { 
+        id: 'validation', 
+        name: 'Validation ($validation)', 
+        category: 'Forms & Validation', 
+        icon: 'bi bi-check2-circle', 
+        iconBg: 'bg-teal-50 text-teal-600', 
+        size: '12 KB', 
+        rawBytes: 12288, 
+        gzipBytes: 3700, 
+        exportProp: '$validation', 
+        description: 'Declarative form validation engine with built-in rules and async checks.' 
+      },
+      { 
+        id: 'validation-schema', 
+        name: 'Validation Schema', 
+        category: 'Forms & Validation', 
+        icon: 'bi bi-file-earmark-code', 
+        iconBg: 'bg-orange-50 text-orange-600', 
+        size: '3 KB', 
+        rawBytes: 3072, 
+        gzipBytes: 950, 
+        description: 'Zod, Yup, and AJV schema validation adapters.' 
+      },
+      { 
+        id: 'scope', 
+        name: 'Scope ($scope)', 
+        category: 'State Management', 
+        icon: 'bi bi-diagram-3', 
+        iconBg: 'bg-violet-50 text-violet-600', 
+        size: '3 KB', 
+        rawBytes: 3072, 
+        gzipBytes: 950, 
+        exportProp: '$scope', 
+        description: 'Isolated component scope tree and scope management (hx-scope).' 
+      },
+      { 
+        id: 'model', 
+        name: 'Model ($model)', 
+        category: 'Forms & Validation', 
+        icon: 'bi bi-input-cursor-text', 
+        iconBg: 'bg-lime-50 text-lime-700', 
+        size: '4 KB', 
+        rawBytes: 4096, 
+        gzipBytes: 1200, 
+        exportProp: '$model', 
+        description: 'Two-way model binding engine with macros and custom operators.' 
+      },
+      { 
+        id: 'axios', 
+        name: 'Axios ($axios)', 
+        category: 'Network & Data', 
+        icon: 'bi bi-globe2', 
+        iconBg: 'bg-blue-50 text-blue-600', 
+        size: '3 KB', 
+        rawBytes: 3072, 
+        gzipBytes: 950, 
+        exportProp: '$http', 
+        dependency: 'Axios',
+        description: 'Axios adapter with token helpers and request controller management.' 
+      }
+    ];
+
+    const PRESETS = {
+      all: ['directives', 'helpers', 'fetch', 'store', 'loader', 'notify', 'tooltip', 'validation', 'validation-schema', 'scope', 'model', 'axios'],
+      essentials: ['directives', 'helpers', 'fetch', 'store'],
+      ui: ['directives', 'helpers', 'tooltip', 'loader', 'notify'],
+      forms: ['helpers', 'validation', 'validation-schema', 'model'],
+      minimal: []
+    };
+
+    Helix.createApp({
+      setup() {
+        const pluginsList = ref(PLUGINS_DATA);
+        const selectedPlugins = ref([...PRESETS.all]);
+        const currentPreset = ref('all');
+        const activeCategory = ref('All');
+        const searchQuery = ref('');
+        const activeExportTab = ref('cli');
+
+        // Core base sizes
+        const CORE_RAW_BYTES = 117780;
+        const CORE_GZIP_BYTES = 36730;
+
+        const count = ref(0);
+        const doubleCount = computed(() => count.value * 2);
+        const liveString = ref('helix_reactive_framework');
+        const salary = ref(125000);
+        const today = ref(new Date());
+        
+        const axiosLoading = ref(false);
+        const axiosResult = ref('');
+
+        // Filtered plugins computation
+        const filteredPlugins = computed(() => {
+          return pluginsList.value.filter(p => {
+            const matchesCat = activeCategory.value === 'All' || p.category === activeCategory.value;
+            const q = searchQuery.value.toLowerCase().trim();
+            const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.id.toLowerCase().includes(q);
+            return matchesCat && matchesSearch;
+          });
+        });
+
+        const togglePlugin = (id) => {
+          const idx = selectedPlugins.value.indexOf(id);
+          if (idx > -1) {
+            selectedPlugins.value.splice(idx, 1);
+          } else {
+            selectedPlugins.value.push(id);
+          }
+          currentPreset.value = 'custom';
+        };
+
+        const applyPreset = (presetName) => {
+          currentPreset.value = presetName;
+          if (PRESETS[presetName]) {
+            selectedPlugins.value = [...PRESETS[presetName]];
+          }
+        };
+
+        const selectAll = () => {
+          selectedPlugins.value = PLUGINS_DATA.map(p => p.id);
+          currentPreset.value = 'all';
+        };
+
+        const deselectAll = () => {
+          selectedPlugins.value = [];
+          currentPreset.value = 'minimal';
+        };
+
+        const estimatedRawSize = computed(() => {
+          let total = CORE_RAW_BYTES;
+          selectedPlugins.value.forEach(id => {
+            const p = PLUGINS_DATA.find(x => x.id === id);
+            if (p) total += p.rawBytes;
+          });
+          return (total / 1024).toFixed(1) + ' KB';
+        });
+
+        const estimatedGzipSize = computed(() => {
+          let total = CORE_GZIP_BYTES;
+          selectedPlugins.value.forEach(id => {
+            const p = PLUGINS_DATA.find(x => x.id === id);
+            if (p) total += p.gzipBytes;
+          });
+          return (total / 1024).toFixed(1) + ' KB';
+        });
+
+        const bundleFilename = computed(() => {
+          if (currentPreset.value === 'all') return 'helix.all';
+          if (currentPreset.value === 'essentials') return 'helix.essentials';
+          if (currentPreset.value === 'ui') return 'helix.ui';
+          if (currentPreset.value === 'forms') return 'helix.forms';
+          if (currentPreset.value === 'minimal') return 'helix';
+          return 'helix.custom';
+        });
+
+        const cliCommand = computed(() => {
+          if (currentPreset.value === 'all') return 'node scripts/bundle.js --all';
+          if (currentPreset.value === 'essentials') return 'node scripts/bundle.js --preset=essentials';
+          if (currentPreset.value === 'ui') return 'node scripts/bundle.js --preset=ui';
+          if (currentPreset.value === 'forms') return 'node scripts/bundle.js --preset=forms';
+          if (selectedPlugins.value.length === 0) return 'node scripts/bundle.js --preset=minimal';
+          return `node scripts/bundle.js --plugins=${selectedPlugins.value.join(',')}`;
+        });
+
+        const currentExportCode = computed(() => {
+          if (activeExportTab.value === 'cli') {
+            return cliCommand.value;
+          } else if (activeExportTab.value === 'cdn') {
+            return `<script src="https://cdn.jsdelivr.net/npm/@helix-js/core/dist/${bundleFilename.value}.min.js"><\/script>`;
+          } else if (activeExportTab.value === 'esm') {
+            return `import Helix from './dist/${bundleFilename.value}.esm.js';\n\nconst app = Helix.createApp({ ... });`;
+          }
+          return cliCommand.value;
+        });
+
+        const copyText = (text, customMsg = 'Copied to clipboard!') => {
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText(text);
+            if (typeof Swal !== 'undefined') {
+              Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: customMsg,
+                showConfirmButton: false,
+                timer: 2000,
+                timerProgressBar: true
+              });
+            } else {
+              alert(customMsg);
+            }
+          }
+        };
+
+        const copyScriptTag = () => {
+          const tag = `<script src="dist/${bundleFilename.value}.min.js"><\/script>`;
+          copyText(tag, 'Script tag copied to clipboard!');
+        };
+
+        const downloadCustomBundle = async () => {
+          const filename = `${bundleFilename.value}.min.js`;
+          try {
+            const res = await fetch(`./dist/${filename}`);
+            if (res.ok) {
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+              if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                  icon: 'success',
+                  title: 'Bundle Download Started',
+                  text: `Downloading ${filename}`,
+                  timer: 2500
+                });
+              }
+              return;
+            }
+          } catch (e) {}
+
+          // Fallback: download helix.all.min.js
+          const a = document.createElement('a');
+          a.href = './dist/helix.all.min.js';
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({
+              icon: 'info',
+              title: 'Bundle Downloaded',
+              text: `Saved distribution as ${filename}`,
+              timer: 2500
+            });
+          }
+        };
+
+        // Axios Demo Function
+        const runAxiosDemo = async () => {
+          axiosLoading.value = true;
+          axiosResult.value = 'Contacting endpoint...';
+          try {
+            if (typeof axios !== 'undefined') {
+              const res = await axios.get('https://jsonplaceholder.typicode.com/todos/1');
+              axiosResult.value = `HTTP 200: "${res.data.title}"`;
+              if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                  icon: 'success',
+                  title: 'Axios Request Succeeded',
+                  html: `Fetched Todo: <strong>${res.data.title}</strong> (ID: ${res.data.id})`,
+                  timer: 3000
+                });
+              }
+            } else {
+              axiosResult.value = 'Axios CDN not found';
+            }
+          } catch (err) {
+            axiosResult.value = 'Error: ' + err.message;
+            if (typeof Swal !== 'undefined') {
+              Swal.fire({
+                icon: 'error',
+                title: 'Request Failed',
+                text: err.message
+              });
+            }
+          } finally {
+            axiosLoading.value = false;
+          }
+        };
+
+        // SweetAlert2 Demo Triggers
+        const triggerSwalSuccess = () => {
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({
+              icon: 'success',
+              title: 'SweetAlert2 Active',
+              text: 'Helix Bundle Builder loaded SweetAlert2 successfully!',
+              confirmButtonColor: '#4f46e5'
+            });
+          }
+        };
+
+        const triggerSwalConfirm = () => {
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({
+              title: 'Reset Bundle Selection?',
+              text: 'This will reset all plugins back to minimal core.',
+              icon: 'warning',
+              showCancelButton: true,
+              confirmButtonColor: '#e11d48',
+              cancelButtonColor: '#64748b',
+              confirmButtonText: 'Yes, reset to minimal'
+            }).then((result) => {
+              if (result.isConfirmed) {
+                applyPreset('minimal');
+                Swal.fire('Reset!', 'Plugins selection has been cleared.', 'success');
+              }
+            });
+          }
+        };
+
+        return {
+          pluginsList,
+          filteredPlugins,
+          selectedPlugins,
+          currentPreset,
+          activeCategory,
+          searchQuery,
+          activeExportTab,
+          currentExportCode,
+          togglePlugin,
+          applyPreset,
+          selectAll,
+          deselectAll,
+          estimatedRawSize,
+          estimatedGzipSize,
+          bundleFilename,
+          cliCommand,
+          copyText,
+          copyScriptTag,
+          downloadCustomBundle,
+          count,
+          doubleCount,
+          liveString,
+          salary,
+          today,
+          axiosLoading,
+          axiosResult,
+          runAxiosDemo,
+          triggerSwalSuccess,
+          triggerSwalConfirm,
+          $h: window.HelixHelpers || null
+        };
+      }
+    }).mount('#builder-app');
+  </script>
+</body>
+</html>

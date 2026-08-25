@@ -13,7 +13,7 @@ let __hxTooltipInstanceSeq = 0;
 
 const HelixTooltipPlugin = {
     name: 'tooltip',
-    version: import.meta.env.VITE_TOOLTIP_VERSION || '0.0.0',
+    version: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_TOOLTIP_VERSION) || '1.0.0',
     requires: {
         helix: '>=11.1.5'
     },

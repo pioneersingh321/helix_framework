@@ -103,16 +103,17 @@ export function createApp(rootComponent = {}) {
         config: appConfig,
         $bus: createBus(),
         rebind(node, options) {
-            if (typeof node === "string") {
-                node = document.querySelector(node);
+            let target = node;
+            if (typeof target === "string" && typeof document !== "undefined") {
+                target = (rootElement && rootElement.querySelector(target)) || document.querySelector(target);
             }
-            if (node && !node.nodeType && (typeof node.length === "number" || typeof node[Symbol.iterator] === "function")) {
-                Array.from(node).forEach(n => this.rebind(n, options));
-                return;
+            if (target && !target.nodeType && (typeof target.length === "number" || typeof target[Symbol.iterator] === "function")) {
+                Array.from(target).forEach(n => this.rebind(n, options));
+                return app;
             }
-            if (!node || node.nodeType !== 1) return;
+            if (!target || target.nodeType !== 1) return app;
 
-            const binding = node.__hx_binding;
+            const binding = target.__hx_binding;
             const instance = (options && typeof options === "object" && options.instance) || (binding && binding.instance) || rootInstance;
             let ctx = (options && typeof options === "object" && ("ctx" in options || "context" in options))
                 ? (options.ctx || options.context)
@@ -121,11 +122,11 @@ export function createApp(rootComponent = {}) {
 
             if (!instance || !ctx) {
                 logger.warn("Cannot rebind node without binding metadata or explicit instance.", "binding");
-                return;
+                return app;
             }
 
             const activeBindNode = (binding && binding.bindNode) || bindNode;
-            const allElements = [node, ...Array.from(node.querySelectorAll('*'))];
+            const allElements = [target, ...Array.from(target.querySelectorAll('*'))];
             allElements.forEach(el => {
                 if (el.__hx_binding && el.__hx_binding.cleanups) {
                     el.__hx_binding.cleanups.forEach((fn) => {
@@ -133,10 +134,17 @@ export function createApp(rootComponent = {}) {
                     });
                     el.__hx_binding.cleanups.length = 0;
                 }
+                if (Array.isArray(el.__hx_cleanup)) {
+                    el.__hx_cleanup.forEach((fn) => {
+                        try { fn(); } catch (e) {}
+                    });
+                    el.__hx_cleanup = null;
+                }
                 el[BOUND] = false;
                 el.__hx_static = false;
                 activeBindNode(el, ctx, instance, [], true);
             });
+            return app;
         },
         component(name, definition) {
             if (typeof name !== "string") {
@@ -573,41 +581,6 @@ export function createApp(rootComponent = {}) {
             unmountCallbacks.forEach((fn) => fn());
             isMounted = false;
             rootInstance = null;
-            return app;
-        },
-        rebind(targetNode) {
-            if (!isMounted || !rootElement) {
-                warn("Cannot rebind: app is not mounted.", "core");
-                return app;
-            }
-            let target = targetNode;
-            if (typeof target === "string") {
-                target = rootElement.querySelector(target);
-            }
-            if (target && !target.nodeType && (typeof target.length === "number" || typeof target[Symbol.iterator] === "function")) {
-                Array.from(target).forEach((n) => app.rebind(n));
-                return app;
-            }
-            if (!target || target.nodeType !== 1) return app;
-
-            const allElements = [target, ...Array.from(target.querySelectorAll('*'))];
-            allElements.forEach((el) => {
-                if (el.__hx_binding && el.__hx_binding.cleanups) {
-                    el.__hx_binding.cleanups.forEach((fn) => {
-                        try { fn(); } catch (e) {}
-                    });
-                    el.__hx_binding.cleanups.length = 0;
-                }
-                if (Array.isArray(el.__hx_cleanup)) {
-                    el.__hx_cleanup.forEach((fn) => {
-                        try { fn(); } catch (e) {}
-                    });
-                    el.__hx_cleanup = null;
-                }
-                el[BOUND] = false;
-                el.__hx_static = false;
-                bindNode(el, rootCtx, rootInstance, [], true);
-            });
             return app;
         },
         onAppUnmount(callback) {

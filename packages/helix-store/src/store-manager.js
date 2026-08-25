@@ -4,6 +4,7 @@
  */
 import { createStoreInstance } from './store-instance.js';
 import { createSimpleStore } from './simple-store.js';
+import { isObject, isFunction } from './utils.js';
 
 export function createStoreManager() {
   const definitions = new Map();
@@ -61,11 +62,30 @@ export function createStoreManager() {
     const resolvedAppContext = getActiveAppContext(appContext);
     const registry = getRegistry(resolvedAppContext);
 
-    // 1. Idempotent Return if already instantiated and active
+    // 1. If explicit initialState is provided, register/update definition for simple stores
+    if (initialState && isObject(initialState)) {
+      definitions.set(id, {
+        state: () => (isFunction(initialState.state) ? initialState.state() : (isObject(initialState.state) ? initialState.state : initialState)),
+        actions: initialState.actions || {},
+        getters: initialState.getters || {},
+        persist: initialState.persist || null,
+        history: initialState.history || null
+      });
+    }
+
+    // 2. Idempotent Return if already instantiated and active in current registry
     if (registry.has(id)) {
       const existing = registry.get(id);
       if (!existing.$disposed) {
         return existing;
+      }
+    }
+
+    // 2b. Global registry fallback if registered globally and not yet overridden in app (and no new initialState provided)
+    if (registry !== globalRegistry && globalRegistry.has(id) && !initialState) {
+      const globalExisting = globalRegistry.get(id);
+      if (!globalExisting.$disposed) {
+        return globalExisting;
       }
     }
 

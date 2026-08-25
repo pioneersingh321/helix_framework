@@ -275,9 +275,14 @@ Hides unmounted markup on slow-loading pages until Helix mounts. Injects `[hx-cl
 <button :disabled="isBusy">Save</button>
 ```
 
-**Class bindings** accept a string or an object. Object keys may contain multiple space-separated classes:
+**Class bindings** accept a string or an object. Object keys may contain multiple space-separated classes. Static classes originally present on the element in HTML (`class="btn p-5 group"`) are permanently cached on mount (`el.__hx_initial_class`) and preserved across dynamic toggles:
 
 ```html
+<!-- Static class "preset-btn p-5" is preserved when active class toggles -->
+<button class="preset-btn p-5" :class="{ 'active ring-2': isActive }" @click="toggle">
+  Select Preset
+</button>
+
 <i :class="{ 'ri-heart-fill text-danger': item.featured == '1', 'ri-heart-line': !item.featured }"></i>
 ```
 
@@ -570,15 +575,25 @@ Version ranges support `>=`, `>`, `<=`, `<`, `^`, `~`, and exact matches, includ
 
 ### Official Store Plugin (`Helix.store` / `Helix.defineStore`)
 
-Helix Store provides signal-native state management with zero-ceremony global template access:
+Helix Store provides signal-native state management with zero-ceremony global template access via `$store.<id>` and `store.<id>`:
 
 ```html
 <script src="dist/helix.js"></script>
 <script src="plugins/store/helix-store.min.js"></script>
 
 <div id="app">
-  <p>Count: {{ $store.counter.count }}</p>
-  <button @click="$store.counter.increment()">+1</button>
+  <!-- Access via either $store or store -->
+  <p>Count: {{ store.counter.count }}</p>
+
+  <!-- Direct in-template mutations & action invocations -->
+  <button @click="store.counter.count++">+1 (Direct)</button>
+  <button @click="$store.counter.increment()">+1 (Action)</button>
+
+  <!-- Parameter forwarding in loops -->
+  <div hx-for="item in catalog" :key="item.id">
+    <span>{{ item.name }}</span>
+    <button @click="addToCart(item)">Add to Cart</button>
+  </div>
 </div>
 
 <script>
@@ -605,9 +620,47 @@ Helix Store provides signal-native state management with zero-ceremony global te
     history: true
   });
 
+  // 3. Composable Setup Store with dynamic $state unwrapping
+  const useCart = Helix.defineStore('cart', () => {
+    const items = Helix.reactive([]);
+    const total = Helix.computed(() => items.reduce((sum, i) => sum + i.price, 0));
+    const addItem = (item) => items.push(item);
+    return { items, total, addItem };
+  });
+
   Helix.createApp().mount('#app');
 </script>
 ```
+
+### Self-Hydrating Notification Plugin (`helix-notify`)
+
+The `helix-notify` plugin wraps SweetAlert2 into `$notify` and `$swal`. It features **self-hydrating CDN auto-injection**: if `window.Swal` is not loaded in `<head>`, the plugin installs gracefully and automatically injects `<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11" async>` into `document.head`, with fallback mock alerts for offline or non-browser environments:
+
+```javascript
+// Shows rich SweetAlert toast notifications seamlessly
+Helix.$notify.toast('Item added to cart!', 'success');
+Helix.$notify.confirm('Are you sure you want to delete this?').then(confirmed => {
+  if (confirmed) Helix.$notify.toast('Deleted successfully', 'info');
+});
+```
+
+### Unified Bundler CLI (`scripts/bundle.js`)
+
+Build custom, standalone, zero-dependency unified bundles combining Helix Core with your desired official plugins:
+
+```bash
+# Build complete unified bundle (Core + all 10 plugins)
+node scripts/bundle.js --all
+
+# Build specific pre-configured presets
+node scripts/bundle.js --preset=essentials  # Core + Store + Fetch + Notify
+node scripts/bundle.js --preset=ui          # Core + Tooltip + Loader + Notify
+node scripts/bundle.js --preset=forms       # Core + Validation + Model + Fetch
+
+# Build custom selected plugins with auto-minification & ESM outputs
+node scripts/bundle.js --plugins=store,notify,fetch --out=custom-bundle.js
+```
+*Generated bundles are automatically synchronized and mirrored to both `./dist/` and `./bundle/` targets.*
 
 ---
 

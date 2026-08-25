@@ -1,7 +1,7 @@
 import { isKeyboardEvent, filterKeyModifiers, matchesKey } from './keyboard.js';
 import { isMouseEvent, checkMouseModifiers } from './mouse.js';
 import { checkSystemModifiers, checkExact, getListenerOptions, getListenerTarget } from './modifiers.js';
-import { resolveRaw, resolvePath, getPathParts } from '../compiler/compiler.js';
+import { resolveRaw, resolvePath, resolveExpression, getPathParts } from '../compiler/compiler.js';
 import { isRef } from '../reactivity/ref.js';
 import { handleError, warn } from '../shared/shared.js';
 
@@ -107,12 +107,16 @@ export function createEventListener(el, binding, appConfig = {}) {
                 const rawArgs = parseEventArgs(argsStr);
                 args = rawArgs.map(a => {
                     if (a === '$event') return e;
-                    const resolved = resolvePath(a, ctx);
-                    if (resolved !== undefined) return resolved;
-                    try { return JSON.parse(a); } catch { }
                     if ((a.startsWith('"') && a.endsWith('"')) || (a.startsWith("'") && a.endsWith("'"))) {
                         return a.slice(1, -1);
                     }
+                    const resolved = resolvePath(a, ctx);
+                    if (resolved !== undefined) return resolved;
+                    try { return JSON.parse(a); } catch { }
+                    try {
+                        const evalResult = resolveExpression(a, ctx);
+                        if (evalResult !== undefined) return evalResult;
+                    } catch { }
                     return a;
                 });
             } else {

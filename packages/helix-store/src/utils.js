@@ -19,6 +19,10 @@ export function isPromise(val) {
  */
 export function deepClone(obj) {
   if (obj === null || typeof obj !== 'object') return obj;
+  if (typeof Node !== 'undefined' && obj instanceof Node) return obj;
+  if (typeof Event !== 'undefined' && obj instanceof Event) return obj;
+  if (typeof Window !== 'undefined' && obj instanceof Window) return obj;
+  if (typeof Document !== 'undefined' && obj instanceof Document) return obj;
 
   if (typeof structuredClone === 'function') {
     try {

@@ -251,7 +251,16 @@ export function createStoreInstance(storeId, definition, appContext, onDisposeCa
         ? persistenceAdapter.ready.then(() => storeProxy)
         : Promise.resolve(storeProxy);
     },
-    get $state() { return state; },
+    get $state() {
+      if (isSetupStore) {
+        const out = { ...state };
+        computedGetters.forEach((refVal, key) => {
+          out[key] = (refVal && typeof refVal === 'object' && 'value' in refVal) ? refVal.value : refVal;
+        });
+        return out;
+      }
+      return state;
+    },
     set $state(newState) { replace(newState); },
     get $readonly() {
       if (typeof Helix !== 'undefined' && Helix.readonly) {
@@ -271,8 +280,8 @@ export function createStoreInstance(storeId, definition, appContext, onDisposeCa
     $emit: eventBus.emit,
     $on: eventBus.on,
     $off: eventBus.off,
-    $undo: historyManager.undo,
-    $redo: historyManager.redo,
+    $undo: () => historyManager.undo(),
+    $redo: () => historyManager.redo(),
     get $canUndo() { return historyManager.getCanUndo(); },
     get $canRedo() { return historyManager.getCanRedo(); },
     get $loading() { return asyncManager.loading; },
@@ -322,6 +331,15 @@ export function createStoreInstance(storeId, definition, appContext, onDisposeCa
       if (computedGetters.has(prop)) {
         console.error(`[Helix:Store] Cannot assign to computed getter "${String(prop)}" on store "${storeId}".`);
         return false;
+      }
+
+      // Automatically coerce numeric strings to numbers if the target property is a number, and protect against NaN
+      if (typeof state[prop] === 'number') {
+        if (typeof value === 'string' && value.trim() !== '' && !isNaN(Number(value))) {
+          value = Number(value);
+        } else if (typeof value === 'number' && isNaN(value)) {
+          value = 0;
+        }
       }
 
       setupStateKeys.add(prop);

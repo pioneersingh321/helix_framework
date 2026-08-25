@@ -1,10 +1,12 @@
 export const styleId = 'hx-loader-styles';
 
 export function setupStyles() {
+    if (typeof document === 'undefined') return null;
     let styleEl = document.getElementById(styleId);
     if (!styleEl) {
         styleEl = document.createElement('style');
         styleEl.id = styleId;
+        if (!styleEl.dataset) styleEl.dataset = {};
         styleEl.dataset.hxRefcount = '0';
         styleEl.innerHTML = `
             @keyframes hx-spin { to { transform: rotate(360deg); } }
@@ -22,8 +24,11 @@ export function setupStyles() {
             }
             .fa-spin, .ri-spin { animation: hx-spin 1.2s linear infinite !important; }
         `;
-        document.head.appendChild(styleEl);
+        if (document.head && typeof document.head.appendChild === 'function') {
+            document.head.appendChild(styleEl);
+        }
     }
+    if (!styleEl.dataset) styleEl.dataset = {};
     styleEl.dataset.hxRefcount =
         String((parseInt(styleEl.dataset.hxRefcount, 10) || 0) + 1);
     return styleEl;
