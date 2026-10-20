@@ -1,4 +1,4 @@
-/*! Helix Unified Framework Bundle | Plugins: [directives, helpers, fetch, store, axios, scope, tooltip, notify, loader] | (c) Helix.js */
+/*! Helix Unified Framework Bundle | Plugins: [directives, helpers, fetch, store] | (c) Helix.js */
 
 var HelixBundle = (() => {
   var __defProp = Object.defineProperty;
@@ -19,9 +19,9 @@ var HelixBundle = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // scripts/.temp-bundle-entry-1787637404671.js
-  var temp_bundle_entry_1787637404671_exports = {};
-  __export(temp_bundle_entry_1787637404671_exports, {
+  // scripts/.temp-bundle-entry-1792479842310.js
+  var temp_bundle_entry_1792479842310_exports = {};
+  __export(temp_bundle_entry_1792479842310_exports, {
     $apps: () => globalApps,
     $bus: () => globalBus,
     EffectScope: () => EffectScope,
@@ -49,7 +49,7 @@ var HelixBundle = (() => {
     createErrorBoundary: () => createErrorBoundary,
     createEventListener: () => createEventListener,
     customRef: () => customRef,
-    default: () => temp_bundle_entry_1787637404671_default,
+    default: () => temp_bundle_entry_1792479842310_default,
     defineAsyncComponent: () => defineAsyncComponent,
     defineCustomElement: () => defineCustomElement,
     definePlugin: () => definePlugin,
@@ -69,6 +69,7 @@ var HelixBundle = (() => {
     getCurrentScope: () => getCurrentScope,
     getProfileData: () => getProfileData,
     getTransitionDurations: () => getTransitionDurations,
+    hasModule: () => hasGlobalModule,
     id: () => id,
     initHtmx: () => initHtmxIntegration,
     inject: () => inject,
@@ -89,6 +90,8 @@ var HelixBundle = (() => {
     matchesKey: () => matchesKey,
     measureTrace: () => measureTrace,
     memo: () => memo,
+    module: () => moduleGlobal,
+    modules: () => createModulesProxy,
     mount: () => createAndMount,
     namespace: () => namespaceGlobal,
     nextFrame: () => nextFrame,
@@ -133,6 +136,7 @@ var HelixBundle = (() => {
     shallowReadonly: () => shallowReadonly,
     shallowRef: () => shallowRef,
     simpleEffect: () => simpleEffect,
+    syncPluginShortcuts: () => syncPluginShortcuts,
     toRaw: () => toRaw,
     toRef: () => toRef,
     toRefs: () => toRefs,
@@ -265,7 +269,8 @@ var HelixBundle = (() => {
     rethrowErrors: true,
     htmlSanitizer: null,
     htmxIntegration: false,
-    autoInjectCloak: true
+    autoInjectCloak: true,
+    exposePluginShortcuts: true
   };
   Object.seal(globalConfig);
 
@@ -666,7 +671,7 @@ var HelixBundle = (() => {
   }
 
   // packages/core/src/shared/shared.js
-  var VERSION = typeof __CORE_VERSION__ !== "undefined" ? __CORE_VERSION__ : "11.1.21";
+  var VERSION = typeof __CORE_VERSION__ !== "undefined" ? __CORE_VERSION__ : "11.2.1";
   var RAW = Symbol("__hx_raw");
   var IS_REF = Symbol("__hx_is_ref");
   var IS_REACTIVE = Symbol("__hx_is_reactive");
@@ -2198,6 +2203,317 @@ var HelixBundle = (() => {
     return asBoolean ? !!result : result;
   }
 
+  // packages/core/src/app/module.js
+  var globalModuleRegistry = /* @__PURE__ */ new Map();
+  var globalModuleInstances = /* @__PURE__ */ new Map();
+  var defaultGlobalHelix = null;
+  function setDefaultGlobalHelix(helix) {
+    defaultGlobalHelix = helix;
+  }
+  function getActiveApp() {
+    if (currentInstance && currentInstance.app) {
+      return currentInstance.app;
+    }
+    const all = globalApps.all();
+    if (all && all.length > 0) {
+      return all[all.length - 1].app;
+    }
+    return null;
+  }
+  function getGlobalHelix() {
+    if (defaultGlobalHelix)
+      return defaultGlobalHelix;
+    if (typeof window !== "undefined" && window.Helix)
+      return window.Helix;
+    if (typeof globalThis !== "undefined" && globalThis.Helix)
+      return globalThis.Helix;
+    return null;
+  }
+  function cloneValue(val) {
+    if (val === null || typeof val !== "object")
+      return val;
+    if (typeof val === "function" || val.nodeType !== void 0)
+      return val;
+    if (Array.isArray(val)) {
+      return val.map(cloneValue);
+    }
+    if (val instanceof Date)
+      return new Date(val.getTime());
+    if (val instanceof RegExp)
+      return new RegExp(val.source, val.flags);
+    if (val instanceof Set) {
+      const s = /* @__PURE__ */ new Set();
+      val.forEach((v) => s.add(cloneValue(v)));
+      return s;
+    }
+    if (val instanceof Map) {
+      const m = /* @__PURE__ */ new Map();
+      val.forEach((v, k) => m.set(k, cloneValue(v)));
+      return m;
+    }
+    const copy = {};
+    for (const key of Object.keys(val)) {
+      copy[key] = cloneValue(val[key]);
+    }
+    return copy;
+  }
+  function createModuleContext(app = null) {
+    const target = /* @__PURE__ */ Object.create(null);
+    return new Proxy(target, {
+      get(t, prop, receiver) {
+        if (typeof prop !== "string" || prop === "then")
+          return void 0;
+        if (prop === "$app") {
+          return app || getActiveApp() || getGlobalHelix() || null;
+        }
+        const activeApp = app || getActiveApp();
+        if (activeApp && prop in activeApp) {
+          return activeApp[prop];
+        }
+        const globalHelix = getGlobalHelix();
+        if (globalHelix && prop in globalHelix) {
+          return globalHelix[prop];
+        }
+        return void 0;
+      },
+      has(t, prop) {
+        if (typeof prop !== "string")
+          return false;
+        if (prop === "$app")
+          return true;
+        const activeApp = app || getActiveApp();
+        if (activeApp && prop in activeApp)
+          return true;
+        const globalHelix = getGlobalHelix();
+        if (globalHelix && prop in globalHelix)
+          return true;
+        return false;
+      },
+      ownKeys(t) {
+        const keys = /* @__PURE__ */ new Set(["$app"]);
+        const activeApp = app || getActiveApp();
+        if (activeApp) {
+          Reflect.ownKeys(activeApp).forEach((k) => {
+            if (typeof k === "string" && !k.startsWith("_"))
+              keys.add(k);
+          });
+        }
+        const globalHelix = getGlobalHelix();
+        if (globalHelix) {
+          Reflect.ownKeys(globalHelix).forEach((k) => {
+            if (typeof k === "string" && !k.startsWith("_"))
+              keys.add(k);
+          });
+        }
+        return Array.from(keys);
+      },
+      getOwnPropertyDescriptor(t, prop) {
+        const activeApp = app || getActiveApp();
+        if (activeApp && prop in activeApp) {
+          return {
+            value: activeApp[prop],
+            writable: false,
+            enumerable: true,
+            configurable: true
+          };
+        }
+        const globalHelix = getGlobalHelix();
+        if (globalHelix && prop in globalHelix) {
+          return {
+            value: globalHelix[prop],
+            writable: false,
+            enumerable: true,
+            configurable: true
+          };
+        }
+        if (prop === "$app") {
+          return {
+            value: app || getActiveApp() || getGlobalHelix() || null,
+            writable: false,
+            enumerable: true,
+            configurable: true
+          };
+        }
+        return void 0;
+      }
+    });
+  }
+  function createModuleInstance(name, definition, app = null) {
+    let raw = definition;
+    if (typeof definition === "function") {
+      try {
+        raw = definition(createModuleContext(app));
+      } catch (err) {
+        handleError(err, `module factory: ${name}`);
+        raw = {};
+      }
+    }
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      warn(`Module "${name}" definition must be an object or a factory function returning an object.`, "module");
+      raw = {};
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(raw);
+    const initialState = {};
+    const baseTarget = {};
+    const methods = {};
+    let mountedHook = null;
+    let destroyHook = null;
+    for (const [key, desc] of Object.entries(descriptors)) {
+      if (key === "mounted" && typeof desc.value === "function") {
+        mountedHook = desc.value;
+        continue;
+      }
+      if ((key === "destroy" || key === "onDestroy" || key === "unmounted") && typeof desc.value === "function") {
+        destroyHook = desc.value;
+        continue;
+      }
+      if (desc.get || desc.set) {
+        Object.defineProperty(baseTarget, key, {
+          get: desc.get,
+          set: desc.set,
+          enumerable: true,
+          configurable: true
+        });
+      } else if (typeof desc.value === "function") {
+        methods[key] = desc.value;
+      } else {
+        baseTarget[key] = desc.value;
+        initialState[key] = cloneValue(toRaw(desc.value));
+      }
+    }
+    let boundApp = app;
+    Object.defineProperty(baseTarget, "$name", {
+      value: name,
+      writable: false,
+      enumerable: false,
+      configurable: true
+    });
+    Object.defineProperty(baseTarget, "$app", {
+      get() {
+        return boundApp || getActiveApp() || getGlobalHelix() || null;
+      },
+      set(newApp) {
+        boundApp = newApp;
+      },
+      enumerable: false,
+      configurable: true
+    });
+    const moduleScopeProto = new Proxy(/* @__PURE__ */ Object.create(null), {
+      get(t, prop, receiver) {
+        if (typeof prop !== "string" || prop === "then")
+          return void 0;
+        const activeApp = boundApp || getActiveApp();
+        if (activeApp && prop in activeApp) {
+          const val = activeApp[prop];
+          return typeof val === "function" ? val.bind(activeApp) : val;
+        }
+        const globalHelix = getGlobalHelix();
+        if (globalHelix && prop in globalHelix) {
+          const val = globalHelix[prop];
+          return typeof val === "function" ? val.bind(globalHelix) : val;
+        }
+        return void 0;
+      },
+      has(t, prop) {
+        if (typeof prop !== "string")
+          return false;
+        const activeApp = boundApp || getActiveApp();
+        if (activeApp && prop in activeApp)
+          return true;
+        const globalHelix = getGlobalHelix();
+        if (globalHelix && prop in globalHelix)
+          return true;
+        return false;
+      }
+    });
+    Object.setPrototypeOf(baseTarget, moduleScopeProto);
+    const reactiveInstance = reactive(baseTarget);
+    for (const [methodName, fn] of Object.entries(methods)) {
+      baseTarget[methodName] = fn.bind(reactiveInstance);
+    }
+    Object.defineProperty(baseTarget, "$reset", {
+      value: function $reset() {
+        for (const [key, val] of Object.entries(initialState)) {
+          reactiveInstance[key] = cloneValue(val);
+        }
+      },
+      writable: true,
+      enumerable: false,
+      configurable: true
+    });
+    if (mountedHook) {
+      Object.defineProperty(baseTarget, "__hx_module_mounted", {
+        value: mountedHook.bind(reactiveInstance),
+        enumerable: false,
+        configurable: true
+      });
+    }
+    if (destroyHook) {
+      Object.defineProperty(baseTarget, "__hx_module_destroy", {
+        value: destroyHook.bind(reactiveInstance),
+        enumerable: false,
+        configurable: true
+      });
+    }
+    return reactiveInstance;
+  }
+  function hasGlobalModule(name) {
+    if (typeof name !== "string")
+      return false;
+    return globalModuleRegistry.has(name) || globalModuleInstances.has(name);
+  }
+  function getGlobalModule(name) {
+    if (typeof name !== "string")
+      return void 0;
+    if (globalModuleInstances.has(name)) {
+      return globalModuleInstances.get(name);
+    }
+    if (globalModuleRegistry.has(name)) {
+      const def = globalModuleRegistry.get(name);
+      const inst = createModuleInstance(name, def, null);
+      globalModuleInstances.set(name, inst);
+      return inst;
+    }
+    return void 0;
+  }
+  function moduleGlobal(name, definition) {
+    if (typeof name !== "string") {
+      warn("Module name must be a string.", "module");
+      return void 0;
+    }
+    if (definition !== void 0) {
+      globalModuleRegistry.set(name, definition);
+      const inst = createModuleInstance(name, definition, null);
+      globalModuleInstances.set(name, inst);
+      return inst;
+    }
+    const activeApp = getActiveApp();
+    if (activeApp && typeof activeApp.hasModule === "function" && activeApp.hasModule(name)) {
+      return activeApp.module(name);
+    }
+    return getGlobalModule(name);
+  }
+  function createModulesProxy(app = null) {
+    return new Proxy(/* @__PURE__ */ Object.create(null), {
+      get(target, prop) {
+        if (typeof prop !== "string" || prop === "then")
+          return void 0;
+        if (app && typeof app.module === "function") {
+          return app.module(prop);
+        }
+        return getGlobalModule(prop);
+      },
+      has(target, prop) {
+        if (typeof prop !== "string")
+          return false;
+        if (app && typeof app.hasModule === "function") {
+          return app.hasModule(prop);
+        }
+        return hasGlobalModule(prop);
+      }
+    });
+  }
+
   // packages/core/src/renderer/component.js
   var componentProxyCache = /* @__PURE__ */ new WeakMap();
   var idCounter = 0;
@@ -2266,6 +2582,18 @@ var HelixBundle = (() => {
           if (prop === "$root") {
             return target?.$el || target?.root || null;
           }
+          if (prop === "$app") {
+            return app || typeof window !== "undefined" && window.Helix || typeof globalThis !== "undefined" && globalThis.Helix || null;
+          }
+          if (prop === "$modules") {
+            return app ? app.$modules : createModulesProxy(null);
+          }
+          if (app && typeof app.hasModule === "function" && app.hasModule(prop)) {
+            return app.module(prop);
+          }
+          if (hasGlobalModule(prop)) {
+            return app && typeof app.module === "function" ? app.module(prop) : getGlobalModule(prop);
+          }
           if (app && prop in app) {
             const val = app[prop];
             return isRef(val) ? val.value : val;
@@ -2284,7 +2612,11 @@ var HelixBundle = (() => {
         has(target, prop) {
           if (prop in target)
             return true;
-          if (prop === "$dispatch" || prop === "$id" || prop === "$root")
+          if (prop === "$dispatch" || prop === "$id" || prop === "$root" || prop === "$app" || prop === "$modules")
+            return true;
+          if (app && typeof app.hasModule === "function" && app.hasModule(prop))
+            return true;
+          if (hasGlobalModule(prop))
             return true;
           if (app && prop in app)
             return true;
@@ -5851,11 +6183,65 @@ ${rule}`;
   }
 
   // packages/core/src/app/app.js
+  function createAppContextProxy(target, app) {
+    if (!target || typeof target !== "object")
+      return target;
+    return new Proxy(target, {
+      get(t, prop, receiver) {
+        if (prop in t) {
+          const val = t[prop];
+          return isRef(val) ? val.value : val;
+        }
+        if (prop === "$app")
+          return app;
+        if (prop === "$modules")
+          return app ? app.$modules : createModulesProxy(null);
+        if (app && typeof app.hasModule === "function" && app.hasModule(prop)) {
+          return app.module(prop);
+        }
+        if (hasGlobalModule(prop)) {
+          return app && typeof app.module === "function" ? app.module(prop) : getGlobalModule(prop);
+        }
+        if (app && prop in app) {
+          const val = app[prop];
+          return isRef(val) ? val.value : val;
+        }
+        const globalHelix = typeof window !== "undefined" && window.Helix || typeof globalThis !== "undefined" && globalThis.Helix || null;
+        if (globalHelix && prop in globalHelix) {
+          const val = globalHelix[prop];
+          return isRef(val) ? val.value : val;
+        }
+        return void 0;
+      },
+      set(t, prop, value, receiver) {
+        t[prop] = value;
+        return true;
+      },
+      has(t, prop) {
+        if (prop in t)
+          return true;
+        if (prop === "$app" || prop === "$modules")
+          return true;
+        if (app && typeof app.hasModule === "function" && app.hasModule(prop))
+          return true;
+        if (hasGlobalModule(prop))
+          return true;
+        if (app && prop in app)
+          return true;
+        const globalHelix = typeof window !== "undefined" && window.Helix || typeof globalThis !== "undefined" && globalThis.Helix || null;
+        if (globalHelix && prop in globalHelix)
+          return true;
+        return false;
+      }
+    });
+  }
   function createApp(rootComponent = {}) {
     const appComponents = {};
     const appDirectives = {};
     const appPlugins = [];
     const appProvides = /* @__PURE__ */ Object.create(null);
+    const appModuleDefs = /* @__PURE__ */ new Map();
+    const appModules = /* @__PURE__ */ new Map();
     let isMounted = false;
     let rootElement = null;
     let rootInstance = null;
@@ -5867,6 +6253,7 @@ ${rule}`;
       components: appComponents,
       directives: appDirectives,
       provides: appProvides,
+      modules: appModules,
       app: null
     };
     const bindNode = makeBindNode(appContext);
@@ -6032,6 +6419,8 @@ ${rule}`;
           config: appConfig,
           component: app.component.bind(app),
           directive: app.directive.bind(app),
+          module: app.module.bind(app),
+          hasModule: app.hasModule.bind(app),
           removeDirective: app.removeDirective.bind(app),
           removeNamespace: app.removeNamespace.bind(app),
           provide: app.provide.bind(app),
@@ -6122,6 +6511,65 @@ ${rule}`;
       provide(key, value) {
         appProvides[key] = value;
         return app;
+      },
+      module(name, definition) {
+        if (typeof name !== "string") {
+          warn(`Module name must be a string.`, "module");
+          return void 0;
+        }
+        if (definition !== void 0) {
+          appModuleDefs.set(name, definition);
+          const inst = createModuleInstance(name, definition, app);
+          appModules.set(name, inst);
+          if (isMounted && typeof inst.__hx_module_mounted === "function") {
+            try {
+              inst.__hx_module_mounted();
+            } catch (e) {
+              handleError(e, `module mounted: ${name}`);
+            }
+          }
+          return inst;
+        }
+        if (appModules.has(name)) {
+          return appModules.get(name);
+        }
+        if (appModuleDefs.has(name)) {
+          const def = appModuleDefs.get(name);
+          const inst = createModuleInstance(name, def, app);
+          appModules.set(name, inst);
+          if (isMounted && typeof inst.__hx_module_mounted === "function") {
+            try {
+              inst.__hx_module_mounted();
+            } catch (e) {
+              handleError(e, `module mounted: ${name}`);
+            }
+          }
+          return inst;
+        }
+        if (hasGlobalModule(name)) {
+          const inst = getGlobalModule(name);
+          if (inst) {
+            inst.$app = app;
+            appModules.set(name, inst);
+            if (isMounted && typeof inst.__hx_module_mounted === "function" && !inst._mountedForApps?.has(app)) {
+              if (!inst._mountedForApps)
+                inst._mountedForApps = /* @__PURE__ */ new Set();
+              inst._mountedForApps.add(app);
+              try {
+                inst.__hx_module_mounted();
+              } catch (e) {
+                handleError(e, `module mounted: ${name}`);
+              }
+            }
+            return inst;
+          }
+        }
+        return void 0;
+      },
+      hasModule(name) {
+        if (typeof name !== "string")
+          return false;
+        return appModules.has(name) || appModuleDefs.has(name) || hasGlobalModule(name);
       },
       async mount(rootSelector) {
         if (isMounted) {
@@ -6331,7 +6779,7 @@ ${rule}`;
           scope.stop();
           return null;
         }
-        rootCtx = ctx;
+        rootCtx = createAppContextProxy(ctx, app);
         setCurrentInstance(null);
         globalApps.register(rootSelector, rootElement, instance, app);
         if (rootElement.hasAttribute(`${appConfig.prefix}cloak`))
@@ -6339,7 +6787,16 @@ ${rule}`;
         rootElement.querySelectorAll?.(`[${appConfig.prefix}cloak]`)?.forEach((el) => {
           el.removeAttribute(`${appConfig.prefix}cloak`);
         });
-        trace("Initial Mount Binding", () => bindNode(rootElement, ctx, instance));
+        appModules.forEach((mod, modName) => {
+          if (typeof mod.__hx_module_mounted === "function") {
+            try {
+              mod.__hx_module_mounted();
+            } catch (e) {
+              handleError(e, `module mounted: ${modName}`);
+            }
+          }
+        });
+        trace("Initial Mount Binding", () => bindNode(rootElement, rootCtx, instance));
         instance.hooks.beforeMount.forEach((fn) => fn());
         instance.hooks.mount.forEach((fn) => fn());
         isMounted = true;
@@ -6365,6 +6822,15 @@ ${rule}`;
           rootInstance.hooks.destroy.forEach((fn) => fn());
           rootInstance.hooks.unmounted.forEach((fn) => fn());
         }
+        appModules.forEach((mod, modName) => {
+          if (typeof mod.__hx_module_destroy === "function") {
+            try {
+              mod.__hx_module_destroy();
+            } catch (e) {
+              handleError(e, `module destroy: ${modName}`);
+            }
+          }
+        });
         globalApps.unregister(mountedRootSelector, rootElement, rootInstance);
         [...appPlugins].reverse().forEach((p) => {
           if (typeof p.cleanup === "function") {
@@ -6470,6 +6936,10 @@ ${rule}`;
         }
       }
     };
+    const appModulesProxy = createModulesProxy(app);
+    app.$modules = appModulesProxy;
+    app.modules = appModulesProxy;
+    appProvides["$modules"] = appModulesProxy;
     appContext.app = app;
     return app;
   }
@@ -6563,10 +7033,10 @@ ${rule}`;
       } : null
     };
   }
-  function findNode(selector, root10 = document) {
+  function findNode(selector, root5 = document) {
     if (typeof selector !== "string")
       return null;
-    return root10.querySelector(selector);
+    return root5.querySelector(selector);
   }
   var domAPI = {
     bind,
@@ -7745,6 +8215,7 @@ ${rule}`;
       installedAt: Date.now(),
       _executed: true
     });
+    syncPluginShortcuts();
     return globalAPI;
   }
   function unuseGlobal(plugin) {
@@ -7987,6 +8458,23 @@ ${rule}`;
     }
     return globalAPI;
   }
+  function syncPluginShortcuts() {
+    if (globalConfig.exposePluginShortcuts === false)
+      return;
+    const root5 = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
+    if (!root5)
+      return;
+    for (const key of Object.keys(globalAPI)) {
+      if (key.startsWith("$") && key !== "$apps") {
+        try {
+          if (root5[key] !== globalAPI[key]) {
+            root5[key] = globalAPI[key];
+          }
+        } catch (e) {
+        }
+      }
+    }
+  }
   var globalAPI = {
     createApp,
     create: createApp,
@@ -8105,13 +8593,24 @@ ${rule}`;
     enableHtmx: () => enableHtmxIntegration(globalAPI),
     initHtmx: () => initHtmxIntegration(globalAPI),
     devtools: devtoolsAPI,
+    module: moduleGlobal,
+    hasModule: hasGlobalModule,
+    $modules: createModulesProxy(null),
+    modules: createModulesProxy(null),
     _internal: globalInternal,
     $bus: globalBus,
     $apps: globalApps,
-    registry: globalRegistry
+    registry: globalRegistry,
+    syncPluginShortcuts
   };
+  setDefaultGlobalHelix(globalAPI);
+  syncPluginShortcuts();
+  var globalRoot = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
+  if (globalRoot) {
+    globalRoot.Helix = globalAPI;
+    globalRoot.helix = globalAPI;
+  }
   if (typeof window !== "undefined") {
-    window.Helix = globalAPI;
     initDevtools();
     initHtmxIntegration(globalAPI);
   }
@@ -10595,7 +11094,8 @@ ${rule}`;
           if (typeof item === "object" && item !== null && !(item instanceof Date) && !isFile(item)) {
             appendRecursive(item, `${prefix}[${index}]`);
           } else {
-            appendRecursive(item, `${prefix}[]`);
+            const key = prefix.endsWith("[]") ? prefix : `${prefix}[]`;
+            appendRecursive(item, key);
           }
         });
         return;
@@ -10616,25 +11116,61 @@ ${rule}`;
     }
     return sp;
   };
-  var isFile = (val) => typeof File !== "undefined" && val instanceof File || typeof Blob !== "undefined" && val instanceof Blob || typeof FileList !== "undefined" && val instanceof FileList;
+  var isFileList = (val) => val != null && typeof val === "object" && typeof val.length === "number" && typeof val.item === "function" && !(val instanceof Array) && (typeof FileList === "undefined" || !(val instanceof File)) && (typeof File === "undefined" || !(val instanceof File)) && (typeof Blob === "undefined" || !(val instanceof Blob)) && // Must be iterable and items must be File-like
+  typeof val[Symbol.iterator] === "function" && (val.length === 0 || typeof File !== "undefined" && val[0] instanceof File);
+  var isFile = (val) => typeof File !== "undefined" && val instanceof File || typeof Blob !== "undefined" && val instanceof Blob || typeof FileList !== "undefined" && val instanceof FileList || isFileList(val);
   var containsFiles = (obj) => {
     if (!obj || typeof obj !== "object")
       return false;
     if (isFile(obj))
+      return true;
+    if (isFileList(obj))
       return true;
     if (Array.isArray(obj))
       return obj.some(containsFiles);
     return Object.values(obj).some(containsFiles);
   };
   var objectToFormData = (obj, form = new FormData(), namespace = "") => {
-    if (!obj || typeof obj !== "object" || obj instanceof Date || isFile(obj)) {
-      form.append(namespace, obj === null ? "" : obj);
-    } else {
-      Object.keys(obj).forEach((prop) => {
-        const formKey = namespace ? `${namespace}[${prop}]` : prop;
-        objectToFormData(obj[prop], form, formKey);
-      });
+    if (obj === void 0)
+      return form;
+    if (isFileList(obj) || typeof FileList !== "undefined" && obj instanceof FileList) {
+      const key = namespace ? namespace.endsWith("[]") ? namespace : `${namespace}[]` : "[]";
+      Array.from(obj).forEach((file) => form.append(key, file));
+      return form;
     }
+    if (Array.isArray(obj)) {
+      obj.forEach((item, index) => {
+        if (typeof item === "object" && item !== null && !(item instanceof Date) && !isFile(item)) {
+          const formKey = namespace ? `${namespace}[${index}]` : `${index}`;
+          objectToFormData(item, form, formKey);
+        } else {
+          const formKey = namespace ? namespace.endsWith("[]") ? namespace : `${namespace}[]` : "[]";
+          objectToFormData(item, form, formKey);
+        }
+      });
+      return form;
+    }
+    if (obj instanceof Date) {
+      form.append(namespace, obj.toISOString());
+      return form;
+    }
+    if (isFile(obj)) {
+      form.append(namespace, obj);
+      return form;
+    }
+    if (!obj || typeof obj !== "object") {
+      form.append(namespace, obj === null ? "" : obj);
+      return form;
+    }
+    Object.keys(obj).forEach((prop) => {
+      let formKey;
+      if (namespace) {
+        formKey = /[\[\]]/.test(prop) ? prop : `${namespace}[${prop}]`;
+      } else {
+        formKey = prop;
+      }
+      objectToFormData(obj[prop], form, formKey);
+    });
     return form;
   };
   var serializeForm = (formElement, emptyAsNull = true) => {
@@ -10662,11 +11198,17 @@ ${rule}`;
           if (key === "") {
             if (!Array.isArray(current))
               return;
-            current.push(value);
+            if (Array.isArray(value))
+              current.push(...value);
+            else
+              current.push(value);
           } else if (current[key] !== void 0) {
             if (!Array.isArray(current[key]))
               current[key] = [current[key]];
-            current[key].push(value);
+            if (Array.isArray(value))
+              current[key].push(...value);
+            else
+              current[key].push(value);
           } else
             current[key] = value;
         } else {
@@ -10937,7 +11479,7 @@ ${rule}`;
 
   // packages/helix-fetch/src/engines.js
   function createEngines(app, config, emit, requestInterceptors, responseInterceptors) {
-    const sleep2 = (ms) => new Promise((r) => setTimeout(r, ms));
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const debugLogResponse = (cfg, info) => {
       if (!cfg.debugResponse)
         return;
@@ -11259,7 +11801,7 @@ ${rule}`;
             if (!condition(normalized) || attempt >= retries)
               throw err;
             emit("retry:attempt", { attempt: attempt + 1, delay: delay * Math.pow(2, attempt), err: normalized });
-            await sleep2(delay * Math.pow(2, attempt) + Math.random() * 100);
+            await sleep(delay * Math.pow(2, attempt) + Math.random() * 100);
             attempt++;
           }
         }
@@ -13182,7 +13724,7 @@ ${rule}`;
         throw new Error("[Helix:Store] Store identifier must be a valid non-empty string.");
       }
       const resolvedAppContext = getActiveAppContext(appContext);
-      const registry2 = getRegistry(resolvedAppContext);
+      const registry = getRegistry(resolvedAppContext);
       if (initialState && isObject(initialState)) {
         definitions.set(id2, {
           state: () => isFunction(initialState.state) ? initialState.state() : isObject(initialState.state) ? initialState.state : initialState,
@@ -13192,13 +13734,13 @@ ${rule}`;
           history: initialState.history || null
         });
       }
-      if (registry2.has(id2)) {
-        const existing = registry2.get(id2);
+      if (registry.has(id2)) {
+        const existing = registry.get(id2);
         if (!existing.$disposed) {
           return existing;
         }
       }
-      if (registry2 !== globalRegistry2 && globalRegistry2.has(id2) && !initialState) {
+      if (registry !== globalRegistry2 && globalRegistry2.has(id2) && !initialState) {
         const globalExisting = globalRegistry2.get(id2);
         if (!globalExisting.$disposed) {
           return globalExisting;
@@ -13212,7 +13754,7 @@ ${rule}`;
       initializingStores.add(id2);
       try {
         const onDispose = () => {
-          registry2.delete(id2);
+          registry.delete(id2);
         };
         let storeInstance;
         if (definitions.has(id2)) {
@@ -13221,34 +13763,34 @@ ${rule}`;
         } else {
           storeInstance = createSimpleStore(id2, initialState || {}, resolvedAppContext, onDispose);
         }
-        registry2.set(id2, storeInstance);
+        registry.set(id2, storeInstance);
         return storeInstance;
       } finally {
         initializingStores.delete(id2);
       }
     }
     function hasStore(id2, appContext) {
-      const registry2 = getRegistry(appContext);
-      return registry2.has(id2) && !registry2.get(id2).$disposed;
+      const registry = getRegistry(appContext);
+      return registry.has(id2) && !registry.get(id2).$disposed;
     }
     function disposeStore(id2, appContext) {
-      const registry2 = getRegistry(appContext);
-      if (registry2.has(id2)) {
-        const store2 = registry2.get(id2);
+      const registry = getRegistry(appContext);
+      if (registry.has(id2)) {
+        const store2 = registry.get(id2);
         if (store2 && typeof store2.$dispose === "function") {
           store2.$dispose();
         }
-        registry2.delete(id2);
+        registry.delete(id2);
       }
     }
     function clearAll(appContext) {
-      const registry2 = getRegistry(appContext);
-      registry2.forEach((store2) => {
+      const registry = getRegistry(appContext);
+      registry.forEach((store2) => {
         if (store2 && typeof store2.$dispose === "function") {
           store2.$dispose();
         }
       });
-      registry2.clear();
+      registry.clear();
     }
     function createTemplateProxy(appContext) {
       return new Proxy({}, {
@@ -13401,17 +13943,17 @@ ${rule}`;
     bindScopeStore
   };
   function initGlobal() {
-    const root10 = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : {};
-    root10.HelixStore = HelixStore;
-    root10.HelixStorePlugin = HelixStore;
+    const root5 = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : {};
+    root5.HelixStore = HelixStore;
+    root5.HelixStorePlugin = HelixStore;
     const globalTemplateProxy = storeManager.createTemplateProxy();
-    if (!root10.$store) {
-      root10.$store = globalTemplateProxy;
+    if (!root5.$store) {
+      root5.$store = globalTemplateProxy;
     }
-    if (!root10.store) {
-      root10.store = globalTemplateProxy;
+    if (!root5.store) {
+      root5.store = globalTemplateProxy;
     }
-    const HelixObj = root10.Helix;
+    const HelixObj = root5.Helix;
     if (HelixObj) {
       HelixObj.store = store;
       HelixObj.defineStore = defineStore;
@@ -13436,3840 +13978,10 @@ ${rule}`;
   }
   var src_default4 = HelixStore;
 
-  // packages/helix-axios/src/utils.js
-  var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  function getAxiosLib() {
-    return typeof window !== "undefined" && window.axios ? window.axios : typeof globalThis !== "undefined" && globalThis.axios ? globalThis.axios : null;
-  }
-  function isCancel(err) {
-    const axiosLib = getAxiosLib();
-    return axiosLib && typeof axiosLib.isCancel === "function" && axiosLib.isCancel(err) || err?.code === "ERR_CANCELED" || err?.name === "CanceledError" || err?.name === "AbortError";
-  }
-  function normalizeError(err) {
-    if (isCancel(err)) {
-      return {
-        name: "CanceledError",
-        status: null,
-        data: null,
-        message: "Request canceled",
-        headers: {},
-        config: err?.config || null,
-        canceled: true,
-        originalError: err
-      };
-    }
-    if (err?.response) {
-      return {
-        name: "AxiosError",
-        status: err.response.status,
-        data: err.response.data,
-        message: err.response.data?.message || `Request failed with status ${err.response.status}`,
-        headers: err.response.headers,
-        config: err.config,
-        canceled: false,
-        originalError: err
-      };
-    }
-    if (err?.request) {
-      return {
-        name: "NetworkError",
-        status: 0,
-        data: null,
-        message: err.message || "Network error \u2014 no response received",
-        headers: {},
-        config: err.config,
-        canceled: false,
-        originalError: err
-      };
-    }
-    return {
-      name: "RequestError",
-      status: null,
-      data: null,
-      message: err?.message || "Request setup error",
-      headers: {},
-      config: null,
-      canceled: false,
-      originalError: err
-    };
-  }
-  function stableStringify(value) {
-    const seen = /* @__PURE__ */ new WeakSet();
-    const walk = (val) => {
-      if (val === null || typeof val !== "object")
-        return val;
-      if (typeof FormData !== "undefined" && val instanceof FormData) {
-        try {
-          const parts = [];
-          for (const [k, v] of val.entries()) {
-            parts.push([k, typeof v === "string" ? v : "[blob]"]);
-          }
-          parts.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
-          return { __formdata: parts };
-        } catch {
-          return "[formdata]";
-        }
-      }
-      if (seen.has(val))
-        return "[circular]";
-      seen.add(val);
-      if (Array.isArray(val))
-        return val.map(walk);
-      const out = {};
-      for (const k of Object.keys(val).sort())
-        out[k] = walk(val[k]);
-      return out;
-    };
-    try {
-      return JSON.stringify(walk(value));
-    } catch {
-      return "[unserializable]";
-    }
-  }
-  function getDedupeKey(method, url, axiosConfig, data) {
-    const fingerprint = {
-      headers: axiosConfig.headers || null,
-      responseType: axiosConfig.responseType || null,
-      params: axiosConfig.params || null,
-      data: data ?? null
-    };
-    return `${method}|${url}|${stableStringify(fingerprint)}`;
-  }
-  function readCookie(name) {
-    const jar = typeof document !== "undefined" && document.cookie ? document.cookie.split("; ") : [];
-    for (const pair of jar) {
-      const eq = pair.indexOf("=");
-      const key = eq > -1 ? pair.slice(0, eq) : pair;
-      if (key === name) {
-        try {
-          return decodeURIComponent(pair.slice(eq + 1));
-        } catch {
-          return pair.slice(eq + 1);
-        }
-      }
-    }
-    return null;
-  }
-
-  // packages/helix-axios/src/constants.js
-  var import_meta4 = {};
-  var BODYLESS_METHODS = ["get", "head"];
-  var IDEMPOTENT_METHODS = ["get", "head", "options"];
-  var DEFAULTS = {
-    baseURL: typeof import_meta4 !== "undefined" && define_import_meta_env_default && "/" || "/",
-    timeout: 1e4,
-    retries: 0,
-    retryDelay: 300,
-    maxRetryDelay: 3e4,
-    retryCondition: (err, method) => IDEMPOTENT_METHODS.includes(String(method || "").toLowerCase()) && (!err.status || err.status >= 500),
-    dedupe: false,
-    csrf: false,
-    headers: {}
-  };
-
-  // packages/helix-axios/src/factory.js
-  function createAxiosInstance(config = {}) {
-    const axiosLib = getAxiosLib();
-    if (!axiosLib) {
-      throw new Error("[Helix Axios] axios library not found. Load axios before this plugin.");
-    }
-    const merged = { ...DEFAULTS, ...config };
-    const instance = axiosLib.create({
-      baseURL: merged.baseURL,
-      timeout: merged.timeout,
-      headers: {
-        "X-Requested-With": "XMLHttpRequest",
-        "Content-Type": "application/json",
-        ...merged.headers
-      }
-    });
-    if (merged.csrf) {
-      instance.interceptors.request.use((cfg) => {
-        const token = readCookie("XSRF-TOKEN");
-        if (token) {
-          cfg.headers = cfg.headers || {};
-          cfg.headers["X-XSRF-TOKEN"] = token;
-        }
-        return cfg;
-      });
-    }
-    return instance;
-  }
-
-  // packages/helix-axios/src/request.js
-  var activeControllers = /* @__PURE__ */ new Set();
-  function linkSignal(userSignal, onAbort) {
-    if (!userSignal)
-      return () => {
-      };
-    if (userSignal.aborted) {
-      onAbort();
-      return () => {
-      };
-    }
-    userSignal.addEventListener("abort", onAbort);
-    return () => userSignal.removeEventListener("abort", onAbort);
-  }
-  function driveHooks(responsePromise, hooks, onCleanup) {
-    const out = responsePromise.then(
-      (res) => {
-        hooks.onSuccess?.(res);
-        return res.data;
-      },
-      (err) => {
-        hooks.onError?.(err);
-        throw err;
-      }
-    );
-    const fin = () => {
-      hooks.onSettle?.();
-      onCleanup?.();
-    };
-    out.then(fin, fin);
-    return out;
-  }
-  async function retryWithBackoff(fn, { retries, delay, maxDelay, condition, method }) {
-    let attempt = 0;
-    while (true) {
-      try {
-        return await fn();
-      } catch (err) {
-        if (isCancel(err))
-          throw normalizeError(err);
-        const normalized = normalizeError(err);
-        const shouldRetry = condition(normalized, method) && attempt < retries;
-        if (!shouldRetry)
-          throw normalized;
-        const ceiling = Math.min(maxDelay ?? Infinity, delay * Math.pow(2, attempt));
-        await sleep(Math.random() * ceiling);
-        attempt++;
-      }
-    }
-  }
-  function executeRequest(instance, pending, method, url, data, config = {}, hooks = {}) {
-    const {
-      signal: userSignal,
-      dedupe,
-      retries,
-      retryDelay,
-      retryCondition,
-      ...axiosConfig
-    } = config;
-    const useDedupe = dedupe ?? DEFAULTS.dedupe;
-    const dedupeKey = useDedupe ? getDedupeKey(method, url, axiosConfig, data) : null;
-    hooks.onStart?.();
-    if (useDedupe && pending.has(dedupeKey)) {
-      const entry2 = pending.get(dedupeKey);
-      entry2.refs++;
-      let released2 = false;
-      let detach2 = () => {
-      };
-      const release2 = () => {
-        if (released2)
-          return;
-        released2 = true;
-        detach2();
-        entry2.refs--;
-        if (entry2.refs <= 0) {
-          try {
-            entry2.controller.abort();
-          } catch {
-          }
-        }
-      };
-      detach2 = linkSignal(userSignal, release2);
-      const out2 = driveHooks(entry2.promise, hooks, () => {
-        detach2();
-      });
-      out2.cancel = release2;
-      return out2;
-    }
-    const controller = new AbortController();
-    if (hooks.onUploadProgress) {
-      axiosConfig.onUploadProgress = (e) => {
-        if (e.lengthComputable)
-          hooks.onUploadProgress(Math.round(e.loaded / e.total * 100));
-      };
-    }
-    if (hooks.onDownloadProgress) {
-      axiosConfig.onDownloadProgress = (e) => {
-        if (e.lengthComputable)
-          hooks.onDownloadProgress(Math.round(e.loaded / e.total * 100));
-      };
-    }
-    const exec = () => {
-      const requestConfig = { method, url, ...axiosConfig, signal: controller.signal };
-      if (!BODYLESS_METHODS.includes(String(method).toLowerCase())) {
-        requestConfig.data = data;
-      }
-      return instance(requestConfig);
-    };
-    const responsePromise = retryWithBackoff(exec, {
-      retries: retries ?? DEFAULTS.retries,
-      delay: retryDelay ?? DEFAULTS.retryDelay,
-      maxDelay: DEFAULTS.maxRetryDelay,
-      condition: retryCondition ?? DEFAULTS.retryCondition,
-      method
-    });
-    const entry = { promise: responsePromise, controller, refs: 1 };
-    activeControllers.add(controller);
-    if (useDedupe)
-      pending.set(dedupeKey, entry);
-    let released = false;
-    let detach = () => {
-    };
-    const release = () => {
-      if (released)
-        return;
-      released = true;
-      detach();
-      if (useDedupe) {
-        entry.refs--;
-        if (entry.refs <= 0) {
-          try {
-            controller.abort();
-          } catch {
-          }
-        }
-      } else {
-        try {
-          controller.abort();
-        } catch {
-        }
-      }
-    };
-    detach = linkSignal(userSignal, release);
-    const out = driveHooks(responsePromise, hooks, () => {
-      detach();
-      activeControllers.delete(controller);
-      if (useDedupe && pending.get(dedupeKey) === entry)
-        pending.delete(dedupeKey);
-    });
-    out.cancel = release;
-    return out;
-  }
-
-  // packages/helix-axios/src/reactive.js
-  function createReactiveRequest(app, instance, pending, method, url, data = null, reqOptions = {}) {
-    return function useRequest() {
-      const Helix2 = (typeof window !== "undefined" ? window : globalThis).Helix;
-      const reactiveFn = app && typeof app.reactive === "function" ? app.reactive.bind(app) : Helix2 && typeof Helix2.reactive === "function" ? Helix2.reactive : null;
-      const getCurrentInstance2 = Helix2 && typeof Helix2.getCurrentInstance === "function" ? Helix2.getCurrentInstance : app && typeof app.getCurrentInstance === "function" ? app.getCurrentInstance : null;
-      const callerInstance = getCurrentInstance2 ? getCurrentInstance2() : null;
-      if (!reactiveFn) {
-        throw new Error("[Helix Axios] reactive engine not found. Ensure Helix is loaded.");
-      }
-      const state = reactiveFn({
-        data: null,
-        error: null,
-        loading: false,
-        status: null,
-        headers: null,
-        progress: 0,
-        uploadProgress: 0,
-        downloadProgress: 0,
-        completedAt: null,
-        timestamp: null
-      });
-      const { signal: hookSignal, lazy, ...baseOpts } = reqOptions;
-      let lastPromise = null;
-      let runId = 0;
-      const execute = (override = {}) => {
-        const current = ++runId;
-        const isCurrent = () => current === runId;
-        const config = { ...baseOpts, ...override };
-        if (hookSignal)
-          config.signal = hookSignal;
-        const hooks = {
-          onStart: () => {
-            if (!isCurrent())
-              return;
-            state.loading = true;
-            state.error = null;
-            state.progress = 0;
-            state.uploadProgress = 0;
-            state.downloadProgress = 0;
-          },
-          onUploadProgress: (pct) => {
-            if (!isCurrent())
-              return;
-            state.uploadProgress = pct;
-            state.progress = pct;
-          },
-          onDownloadProgress: (pct) => {
-            if (!isCurrent())
-              return;
-            state.downloadProgress = pct;
-            state.progress = pct;
-          },
-          onSuccess: (res) => {
-            if (!isCurrent())
-              return;
-            state.data = res.data;
-            state.status = res.status;
-            state.headers = res.headers;
-            state.completedAt = Date.now();
-            state.timestamp = state.completedAt;
-          },
-          onError: (err) => {
-            if (!isCurrent())
-              return;
-            state.error = err;
-            state.status = err.status;
-          },
-          onSettle: () => {
-            if (!isCurrent())
-              return;
-            state.loading = false;
-          }
-        };
-        lastPromise = executeRequest(instance, pending, method, url, data, config, hooks);
-        return lastPromise;
-      };
-      const inst = state;
-      inst.execute = execute;
-      inst.cancel = () => {
-        lastPromise?.cancel?.();
-      };
-      inst.promise = () => lastPromise || (lastPromise = execute());
-      inst.then = (f, r) => {
-        if (!lastPromise)
-          lastPromise = execute();
-        return lastPromise.then(f, r);
-      };
-      inst.catch = (r) => {
-        if (!lastPromise)
-          lastPromise = execute();
-        return lastPromise.catch(r);
-      };
-      if (callerInstance && Array.isArray(callerInstance.cleanups)) {
-        callerInstance.cleanups.push(() => {
-          inst.cancel();
-        });
-      }
-      if (!lazy)
-        execute();
-      return inst;
-    };
-  }
-
-  // packages/helix-axios/src/manager.js
-  function buildHttp(axiosInstance, app) {
-    const pending = /* @__PURE__ */ new Map();
-    const req = (method, url, data, config) => executeRequest(axiosInstance, pending, method, url, data, config || {}, {});
-    const reactive2 = (method, url, data, opt) => createReactiveRequest(app, axiosInstance, pending, method, url, data, opt)();
-    const makeUpload = (url, file, config = {}) => {
-      const { fieldName = "file", ...rest } = config;
-      const formData = new FormData();
-      formData.append(fieldName, file);
-      return reactive2("post", url, formData, rest);
-    };
-    const http = {
-      get: (url, config) => req("get", url, null, config),
-      post: (url, data, config) => req("post", url, data, config),
-      put: (url, data, config) => req("put", url, data, config),
-      patch: (url, data, config) => req("patch", url, data, config),
-      delete: (url, config) => req("delete", url, null, config),
-      head: (url, config) => req("head", url, null, config),
-      options: (url, config) => req("options", url, null, config),
-      useGet: (url, opt) => reactive2("get", url, null, opt),
-      usePost: (url, body, opt) => reactive2("post", url, body, opt),
-      usePut: (url, body, opt) => reactive2("put", url, body, opt),
-      usePatch: (url, body, opt) => reactive2("patch", url, body, opt),
-      useDelete: (url, opt) => reactive2("delete", url, null, opt),
-      useUpload: makeUpload,
-      upload: makeUpload,
-      create: (opts) => buildHttp(createAxiosInstance(opts), app),
-      setToken: (token, type = "Bearer") => {
-        axiosInstance.defaults.headers.common["Authorization"] = `${type} ${token}`;
-      },
-      clearToken: () => {
-        delete axiosInstance.defaults.headers.common["Authorization"];
-      },
-      raw: axiosInstance
-    };
-    return http;
-  }
-
-  // packages/helix-axios/src/index.js
-  var import_meta5 = {};
-  var HelixAxiosPlugin = {
-    name: "axios",
-    version: typeof import_meta5 !== "undefined" && define_import_meta_env_default && "2.2.0" || "2.2.0",
-    requires: {
-      helix: ">=11.1.5"
-    },
-    install(app, options = {}) {
-      const axiosLib = getAxiosLib();
-      if (!axiosLib) {
-        console.error("[Helix Axios] axios library not found. Load axios before this plugin.");
-        return () => {
-        };
-      }
-      const baseAxios = createAxiosInstance(options);
-      const $http = buildHttp(baseAxios, app);
-      app.namespace("axios", {
-        $http,
-        create: (opts) => buildHttp(createAxiosInstance(opts), app),
-        setToken: $http.setToken,
-        clearToken: $http.clearToken,
-        raw: $http.raw
-      });
-      app.$http = $http;
-      if (app.provide) {
-        app.provide("$http", $http);
-      }
-      return () => {
-        activeControllers.forEach((c) => {
-          try {
-            c.abort();
-          } catch {
-          }
-        });
-        activeControllers.clear();
-      };
-    }
-  };
-  var root4 = typeof window !== "undefined" ? window : globalThis;
-  root4.HelixAxiosPlugin = HelixAxiosPlugin;
-  var src_default5 = HelixAxiosPlugin;
-
-  // packages/helix-scope/src/utils.js
-  function getPrefix() {
-    const root10 = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : {};
-    return root10.Helix && root10.Helix.config && root10.Helix.config.prefix || "hx-";
-  }
-
-  // packages/helix-scope/src/compiler.js
-  function compile2(expression) {
-    const root10 = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : {};
-    if (root10.Helix && typeof root10.Helix.compile === "function") {
-      return root10.Helix.compile(expression);
-    }
-    return new Function("$ctx", `with($ctx){ return (${expression}); }`);
-  }
-
-  // packages/helix-scope/src/defaults.js
-  function parseDefaults(defaultsRaw) {
-    if (!defaultsRaw)
-      return null;
-    const trimmed = defaultsRaw.trim();
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return { type: "static", value: parsed };
-      }
-    } catch (e) {
-    }
-    try {
-      const evaluator = compile2(trimmed);
-      return { type: "dynamic", evaluator };
-    } catch (err) {
-      console.error(`[helix-scope] Failed to compile default expression: ${trimmed}`, err);
-      return null;
-    }
-  }
-  function evaluateDefaults(parsedDefaults, ctx) {
-    if (!parsedDefaults)
-      return null;
-    if (parsedDefaults.type === "static") {
-      return parsedDefaults.value;
-    }
-    try {
-      const val = parsedDefaults.evaluator(ctx);
-      if (val && typeof val === "object" && !Array.isArray(val)) {
-        return val;
-      }
-      console.warn("[helix-scope] Default expression did not evaluate to an object:", val);
-    } catch (err) {
-      console.error("[helix-scope] Error evaluating default expression:", err);
-    }
-    return null;
-  }
-
-  // packages/helix-scope/src/constants.js
-  var RESERVED_KEYS = /* @__PURE__ */ new Set([
-    "$loading",
-    "$error",
-    "$data",
-    "refresh"
-  ]);
-
-  // packages/helix-scope/src/merge.js
-  function isPlainObject(val) {
-    return val && typeof val === "object" && !Array.isArray(val);
-  }
-  function mergeValues(target, source, seen = /* @__PURE__ */ new WeakMap()) {
-    const Helix2 = (typeof window !== "undefined" ? window : globalThis).Helix;
-    const config = Helix2?.scope?.config || {};
-    const deepMerge = config.deepMerge ?? false;
-    const arrayStrategy = config.arrayStrategy ?? "replace";
-    if (!deepMerge) {
-      return source;
-    }
-    if (source && typeof source === "object") {
-      if (seen.has(source)) {
-        return seen.get(source);
-      }
-    }
-    if (Array.isArray(target) && Array.isArray(source)) {
-      const result = [];
-      seen.set(source, result);
-      if (arrayStrategy === "replace") {
-        return source;
-      } else if (arrayStrategy === "append") {
-        return [...target, ...source];
-      } else if (arrayStrategy === "prepend") {
-        return [...source, ...target];
-      } else if (arrayStrategy === "merge") {
-        const merged = [...target];
-        seen.set(source, merged);
-        for (let i = 0; i < source.length; i++) {
-          if (i < merged.length) {
-            if (isPlainObject(merged[i]) && isPlainObject(source[i])) {
-              merged[i] = mergeValues(merged[i], source[i], seen);
-            } else if (Array.isArray(merged[i]) && Array.isArray(source[i])) {
-              merged[i] = mergeValues(merged[i], source[i], seen);
-            } else {
-              merged[i] = source[i];
-            }
-          } else {
-            merged[i] = source[i];
-          }
-        }
-        return merged;
-      }
-      return source;
-    }
-    if (isPlainObject(target) && isPlainObject(source)) {
-      const result = { ...target };
-      seen.set(source, result);
-      for (const key of Object.keys(source)) {
-        if (isPlainObject(result[key]) && isPlainObject(source[key])) {
-          result[key] = mergeValues(result[key], source[key], seen);
-        } else if (Array.isArray(result[key]) && Array.isArray(source[key])) {
-          result[key] = mergeValues(result[key], source[key], seen);
-        } else {
-          result[key] = source[key];
-        }
-      }
-      return result;
-    }
-    return source;
-  }
-  function mergeWithDefaults(defaults2, source) {
-    const Helix2 = (typeof window !== "undefined" ? window : globalThis).Helix;
-    const config = Helix2?.scope?.config || {};
-    const deepMerge = config.deepMerge ?? false;
-    if (!defaults2)
-      return source;
-    if (!source)
-      return defaults2;
-    if (!deepMerge) {
-      const result = { ...source };
-      for (const key of Object.keys(defaults2)) {
-        if (result[key] === void 0) {
-          result[key] = defaults2[key];
-        }
-      }
-      return result;
-    }
-    return mergeValues(defaults2, source);
-  }
-
-  // packages/helix-scope/src/registry.js
-  var ControllerRegistry = class {
-    constructor() {
-      this.registry = /* @__PURE__ */ new Map();
-    }
-    register(name, controller) {
-      this.registry.set(name, controller);
-    }
-    unregister(name) {
-      this.registry.delete(name);
-    }
-  };
-  var coreRegistry = new ControllerRegistry();
-  var registry = coreRegistry.registry;
-  function registerController(name, controller) {
-    coreRegistry.register(name, controller);
-  }
-  function unregisterController(name, controller) {
-    coreRegistry.unregister(name, controller);
-  }
-
-  // packages/helix-scope/src/events.js
-  var CoreEventEmitter = class {
-    constructor() {
-      this._events = /* @__PURE__ */ new Map();
-    }
-    on(event, callback) {
-      if (!this._events.has(event))
-        this._events.set(event, /* @__PURE__ */ new Set());
-      this._events.get(event).add(callback);
-      return () => this.off(event, callback);
-    }
-    off(event, callback) {
-      if (this._events.has(event)) {
-        this._events.get(event).delete(callback);
-      }
-    }
-    emit(event, data) {
-      if (this._events.has(event)) {
-        this._events.get(event).forEach((cb) => {
-          try {
-            cb(data);
-          } catch (e) {
-            console.error(e);
-          }
-        });
-      }
-    }
-  };
-  var EventEmitterInstance = new CoreEventEmitter();
-  var EventEmitter = {
-    on(event, callback) {
-      return EventEmitterInstance.on(event, callback);
-    },
-    off(event, callback) {
-      EventEmitterInstance.off(event, callback);
-    },
-    emit(event, data) {
-      EventEmitterInstance.emit(event, data);
-    }
-  };
-
-  // packages/helix-scope/src/controller.js
-  var ScopeController = class {
-    constructor({
-      name,
-      expression,
-      parsedDefaults,
-      ctx,
-      childCtx,
-      el,
-      retryLimit = 0,
-      retryDelay = 1e3,
-      backoff = true,
-      pollInterval = 0,
-      timeoutLimit = 0,
-      cacheDuration = 0,
-      resetOnRefresh = false
-    }) {
-      this.name = name;
-      this.expression = expression;
-      this.parsedDefaults = parsedDefaults;
-      this.ctx = ctx;
-      this.childCtx = childCtx;
-      this.el = el;
-      this.retryLimit = retryLimit;
-      this.retryDelay = retryDelay;
-      this.backoff = backoff;
-      this.pollInterval = pollInterval;
-      this.timeoutLimit = timeoutLimit;
-      this.cacheDuration = cacheDuration;
-      this.resetOnRefresh = resetOnRefresh;
-      this.evaluator = null;
-      this.abortController = null;
-      this.token = 0;
-      this.destroyed = false;
-      this.lastResult = void 0;
-      this.lastError = null;
-      this.cachedResult = void 0;
-      this.lastSuccessTime = 0;
-      this.pollTimer = null;
-      const defaultsObj = evaluateDefaults(parsedDefaults, ctx) || {};
-      this.defaults = defaultsObj;
-      const initialDefaults = {};
-      for (const key of Object.keys(defaultsObj)) {
-        if (!RESERVED_KEYS.has(key)) {
-          initialDefaults[key] = defaultsObj[key];
-        } else {
-          console.warn(`[hx-scope:${name}] defaults cannot override reserved key "${key}", ignoring it`);
-        }
-      }
-      const Helix2 = (typeof window !== "undefined" ? window : globalThis).Helix;
-      const reactive2 = Helix2 && typeof Helix2.reactive === "function" ? Helix2.reactive.bind(Helix2) : (obj) => obj;
-      this.state = reactive2({
-        $loading: false,
-        $error: null,
-        $data: void 0,
-        refresh: (opts) => this.refresh(opts),
-        ...initialDefaults
-      });
-      this.previousKeys = Object.keys(initialDefaults);
-      registerController(name, this);
-      if (this.pollInterval > 0) {
-        this.startPolling();
-      }
-    }
-    getEvaluator() {
-      if (!this.evaluator) {
-        this.evaluator = compile2(this.expression);
-      }
-      return this.evaluator;
-    }
-    startPolling() {
-      this.stopPolling();
-      if (this.pollInterval > 0 && !this.destroyed) {
-        this.pollTimer = setInterval(() => {
-          this.refresh();
-        }, this.pollInterval);
-      }
-    }
-    stopPolling() {
-      if (this.pollTimer) {
-        clearInterval(this.pollTimer);
-        this.pollTimer = null;
-      }
-    }
-    getRetryDelay(attempt) {
-      const Helix2 = (typeof window !== "undefined" ? window : globalThis).Helix;
-      const config = Helix2?.scope?.config || {};
-      const useBackoff = this.backoff ?? config.backoff ?? true;
-      const baseDelay = this.retryDelay ?? config.retryDelay ?? 1e3;
-      if (useBackoff) {
-        return baseDelay * Math.pow(2, attempt - 1);
-      }
-      return baseDelay;
-    }
-    async refresh(options = {}) {
-      if (this.destroyed)
-        return;
-      const Helix2 = (typeof window !== "undefined" ? window : globalThis).Helix;
-      const config = Helix2?.scope?.config || {};
-      const shouldReset = options.reset !== void 0 ? options.reset : this.resetOnRefresh || config.resetOnRefresh;
-      if (shouldReset) {
-        this.reset();
-      }
-      if (this.pollInterval > 0) {
-        this.startPolling();
-      }
-      const force = options.force || options.reset;
-      const now = Date.now();
-      if (!force && this.cacheDuration > 0 && this.cachedResult !== void 0 && now - this.lastSuccessTime < this.cacheDuration * 1e3) {
-        this.lastResult = this.cachedResult;
-        this.applyResult(this.cachedResult);
-        EventEmitter.emit("success", { name: this.name, controller: this, result: this.cachedResult, fromCache: true });
-        EventEmitter.emit("afterRefresh", { name: this.name, controller: this, result: this.cachedResult, fromCache: true });
-        return;
-      }
-      const currentToken = ++this.token;
-      const maxRetries = options.retry !== void 0 ? options.retry : this.retryLimit;
-      let attempt = 0;
-      let timeoutTimer = null;
-      const runAttempt = async () => {
-        if (this.destroyed || currentToken !== this.token) {
-          return;
-        }
-        if (this.abortController) {
-          this.abortController.abort();
-        }
-        this.abortController = new AbortController();
-        this.childCtx.$signal = this.abortController.signal;
-        this.childCtx.$abortController = this.abortController;
-        this.state.$loading = true;
-        this.state.$error = null;
-        EventEmitter.emit("beforeRefresh", { name: this.name, controller: this, attempt });
-        if (this.timeoutLimit > 0) {
-          timeoutTimer = setTimeout(() => {
-            if (this.abortController && currentToken === this.token) {
-              this.abortController.abort();
-              const err = new Error(`Request timed out after ${this.timeoutLimit}ms`);
-              this.lastError = err;
-              this.state.$error = err;
-              EventEmitter.emit("error", { name: this.name, controller: this, error: err });
-              EventEmitter.emit("afterRefresh", { name: this.name, controller: this, error: err });
-            }
-          }, this.timeoutLimit);
-        }
-        try {
-          const evaluator = this.getEvaluator();
-          const result = await evaluator(this.childCtx);
-          if (timeoutTimer) {
-            clearTimeout(timeoutTimer);
-            timeoutTimer = null;
-          }
-          if (this.destroyed || currentToken !== this.token) {
-            return;
-          }
-          this.lastResult = result;
-          this.cachedResult = result;
-          this.lastSuccessTime = Date.now();
-          this.applyResult(result);
-          EventEmitter.emit("success", { name: this.name, controller: this, result });
-          EventEmitter.emit("afterRefresh", { name: this.name, controller: this, result });
-        } catch (err) {
-          if (timeoutTimer) {
-            clearTimeout(timeoutTimer);
-            timeoutTimer = null;
-          }
-          if (this.destroyed || currentToken !== this.token) {
-            return;
-          }
-          if (err.name === "AbortError") {
-            EventEmitter.emit("abort", { name: this.name, controller: this });
-            return;
-          }
-          if (attempt < maxRetries) {
-            attempt++;
-            const delay = this.getRetryDelay(attempt);
-            EventEmitter.emit("retry", { name: this.name, controller: this, attempt, delay, error: err });
-            await new Promise((resolve) => {
-              const waitTimer = setTimeout(resolve, delay);
-              this.abortController.signal.addEventListener("abort", () => {
-                clearTimeout(waitTimer);
-                resolve();
-              });
-            });
-            await runAttempt();
-          } else {
-            this.lastError = err;
-            this.state.$error = err;
-            console.error(`[hx-scope:${this.name}]`, err);
-            EventEmitter.emit("error", { name: this.name, controller: this, error: err });
-            EventEmitter.emit("afterRefresh", { name: this.name, controller: this, error: err });
-          }
-        } finally {
-          if (!this.destroyed && currentToken === this.token && (attempt === maxRetries || this.lastResult !== void 0)) {
-            this.state.$loading = false;
-          }
-        }
-      };
-      await runAttempt();
-    }
-    applyResult(result) {
-      const defaultsObj = evaluateDefaults(this.parsedDefaults, this.ctx) || {};
-      this.defaults = defaultsObj;
-      const mergedResult = mergeWithDefaults(defaultsObj, result);
-      const isPlainResult = mergedResult && typeof mergedResult === "object" && !Array.isArray(mergedResult);
-      const source = isPlainResult ? mergedResult : {};
-      const keys = /* @__PURE__ */ new Set([
-        ...Object.keys(defaultsObj),
-        ...Object.keys(source)
-      ]);
-      const nextKeys = [];
-      for (const key of keys) {
-        if (RESERVED_KEYS.has(key)) {
-          continue;
-        }
-        this.state[key] = source[key];
-        nextKeys.push(key);
-      }
-      for (const key of this.previousKeys) {
-        if (!RESERVED_KEYS.has(key) && !keys.has(key)) {
-          delete this.state[key];
-        }
-      }
-      this.previousKeys = nextKeys;
-      this.state.$data = result;
-    }
-    reset() {
-      if (this.destroyed)
-        return;
-      EventEmitter.emit("beforeReset", { name: this.name, controller: this });
-      this.abort();
-      this.lastResult = void 0;
-      this.lastError = null;
-      this.cachedResult = void 0;
-      this.lastSuccessTime = 0;
-      const defaultsObj = evaluateDefaults(this.parsedDefaults, this.ctx) || {};
-      this.defaults = defaultsObj;
-      this.state.$loading = false;
-      this.state.$error = null;
-      this.state.$data = void 0;
-      const nextKeys = [];
-      for (const key of Object.keys(defaultsObj)) {
-        if (!RESERVED_KEYS.has(key)) {
-          this.state[key] = defaultsObj[key];
-          nextKeys.push(key);
-        }
-      }
-      for (const key of this.previousKeys) {
-        if (!RESERVED_KEYS.has(key) && !defaultsObj.hasOwnProperty(key)) {
-          delete this.state[key];
-        }
-      }
-      this.previousKeys = nextKeys;
-      EventEmitter.emit("afterReset", { name: this.name, controller: this });
-    }
-    abort() {
-      if (this.abortController) {
-        this.abortController.abort();
-        this.abortController = null;
-        EventEmitter.emit("abort", { name: this.name, controller: this });
-      }
-    }
-    destroy() {
-      if (this.destroyed)
-        return;
-      this.destroyed = true;
-      this.token++;
-      this.stopPolling();
-      this.abort();
-      unregisterController(this.name, this);
-      EventEmitter.emit("destroy", { name: this.name, controller: this });
-    }
-  };
-
-  // packages/helix-scope/src/directive.js
-  function onComponentMount(instance, callback) {
-    if (instance && instance.hooks && Array.isArray(instance.hooks.mount)) {
-      instance.hooks.mount.push(callback);
-    } else if (typeof callback === "function") {
-      if (typeof queueMicrotask === "function") {
-        queueMicrotask(callback);
-      } else {
-        setTimeout(callback, 0);
-      }
-    }
-  }
-  function parseAttribute2(el, attrName) {
-    return el.getAttribute(attrName);
-  }
-  function cleanAttributes2(el, attrs) {
-    if (!el || !Array.isArray(attrs))
-      return;
-    attrs.forEach((a) => el.removeAttribute(a));
-  }
-  function createScopeDirective(app) {
-    return {
-      mounted(el, binding) {
-        const {
-          value: expr,
-          arg: name,
-          ctx,
-          instance,
-          bindNode,
-          trackCleanup
-        } = binding;
-        if (!name) {
-          console.warn('[hx-scope] usage: hx-scope:name="expression"');
-          return;
-        }
-        if (!expr || !expr.trim()) {
-          console.warn(`[hx-scope:${name}] empty expression`);
-          return;
-        }
-        if (el._hx_scope_initialized) {
-          const existingCtrl = (el._hx_scope_controllers || {})[name];
-          if (existingCtrl) {
-            trackCleanup(() => {
-              existingCtrl.destroy();
-            });
-          }
-          return;
-        }
-        el._hx_scope_initialized = true;
-        el._hx_scope_controllers = {};
-        const prefix = app && app.config && app.config.prefix || getPrefix();
-        const scopePrefix = `${prefix}scope:`;
-        const scopeDefs = [];
-        for (const attr of Array.from(el.attributes)) {
-          if (attr.name.startsWith(scopePrefix)) {
-            const sName = attr.name.slice(scopePrefix.length);
-            const sExpr = attr.value;
-            scopeDefs.push({ name: sName, expression: sExpr });
-          }
-        }
-        const childCtx = {};
-        Object.setPrototypeOf(childCtx, ctx);
-        childCtx.$el = el;
-        childCtx.$event = {
-          type: "scope",
-          target: el,
-          currentTarget: el,
-          preventDefault() {
-          },
-          stopPropagation() {
-          }
-        };
-        const controllers = {};
-        for (const def of scopeDefs) {
-          const sName = def.name;
-          const sExpr = def.expression;
-          const defaultsAttr = `${prefix}scope-default:${sName}`;
-          const defaultsRaw = parseAttribute2(el, defaultsAttr);
-          const parsedDefaults = parseDefaults(defaultsRaw);
-          const retryAttr = `${prefix}scope-retry:${sName}`;
-          const retryFallbackAttr = `${prefix}scope-retry`;
-          const retryRaw = el.getAttribute(retryAttr) || el.getAttribute(retryFallbackAttr);
-          cleanAttributes2(el, [retryAttr]);
-          const retryLimit = retryRaw ? parseInt(retryRaw, 10) : 0;
-          const delayAttr = `${prefix}scope-retry-delay:${sName}`;
-          const delayFallbackAttr = `${prefix}scope-retry-delay`;
-          const delayRaw = el.getAttribute(delayAttr) || el.getAttribute(delayFallbackAttr);
-          cleanAttributes2(el, [delayAttr]);
-          const retryDelay = delayRaw ? parseInt(delayRaw, 10) : 1e3;
-          const backoffAttr = `${prefix}scope-backoff:${sName}`;
-          const backoffFallbackAttr = `${prefix}scope-backoff`;
-          const backoffRaw = el.getAttribute(backoffAttr) || el.getAttribute(backoffFallbackAttr);
-          cleanAttributes2(el, [backoffAttr]);
-          const backoff = backoffRaw !== "false";
-          const pollAttr = `${prefix}scope-poll:${sName}`;
-          const pollFallbackAttr = `${prefix}scope-poll`;
-          const pollRaw = el.getAttribute(pollAttr) || el.getAttribute(pollFallbackAttr);
-          cleanAttributes2(el, [pollAttr]);
-          const pollInterval = pollRaw ? parseInt(pollRaw, 10) : 0;
-          const timeoutAttr = `${prefix}scope-timeout:${sName}`;
-          const timeoutFallbackAttr = `${prefix}scope-timeout`;
-          const timeoutRaw = el.getAttribute(timeoutAttr) || el.getAttribute(timeoutFallbackAttr);
-          cleanAttributes2(el, [timeoutAttr]);
-          const timeoutLimit = timeoutRaw ? parseInt(timeoutRaw, 10) : 0;
-          const cacheAttr = `${prefix}scope-cache:${sName}`;
-          const cacheFallbackAttr = `${prefix}scope-cache`;
-          const cacheRaw = el.getAttribute(cacheAttr) || el.getAttribute(cacheFallbackAttr);
-          cleanAttributes2(el, [cacheAttr]);
-          const cacheDuration = cacheRaw ? parseInt(cacheRaw, 10) : 0;
-          const resetAttr = `${prefix}scope-reset:${sName}`;
-          const resetFallbackAttr = `${prefix}scope-reset`;
-          const resetRaw = el.getAttribute(resetAttr) || el.getAttribute(resetFallbackAttr);
-          cleanAttributes2(el, [resetAttr]);
-          const resetOnRefresh = resetRaw === "true";
-          const ctrl = new ScopeController({
-            name: sName,
-            expression: sExpr,
-            parsedDefaults,
-            ctx,
-            childCtx,
-            el,
-            retryLimit,
-            retryDelay,
-            backoff,
-            pollInterval,
-            timeoutLimit,
-            cacheDuration,
-            resetOnRefresh
-          });
-          controllers[sName] = ctrl;
-          childCtx[sName] = ctrl.state;
-        }
-        cleanAttributes2(el, [
-          `${prefix}scope-retry`,
-          `${prefix}scope-retry-delay`,
-          `${prefix}scope-backoff`,
-          `${prefix}scope-poll`,
-          `${prefix}scope-timeout`,
-          `${prefix}scope-cache`,
-          `${prefix}scope-reset`
-        ]);
-        el._hx_scope_controllers = controllers;
-        const thisCtrl = controllers[name];
-        if (thisCtrl) {
-          trackCleanup(() => {
-            thisCtrl.destroy();
-          });
-        }
-        const rebind = app && app.rebind || typeof window !== "undefined" && window.Helix && window.Helix.rebind;
-        for (const child of el.childNodes) {
-          if (child.__hx_binding && rebind) {
-            rebind(child, { ctx: childCtx, instance });
-          } else {
-            bindNode(child, childCtx, instance, [], true);
-          }
-        }
-        onComponentMount(instance, () => {
-          for (const ctrl of Object.values(controllers)) {
-            ctrl.refresh();
-          }
-        });
-      }
-    };
-  }
-
-  // packages/helix-scope/src/manager.js
-  function createScopeProxy(name) {
-    return {
-      refresh(options) {
-        const controllers = registry.get(name);
-        if (controllers) {
-          const promises = [];
-          for (const ctrl of controllers) {
-            promises.push(ctrl.refresh(options));
-          }
-          return Promise.all(promises);
-        }
-        return Promise.resolve();
-      },
-      reset() {
-        const controllers = registry.get(name);
-        if (controllers) {
-          for (const ctrl of controllers) {
-            ctrl.reset();
-          }
-        }
-      },
-      abort() {
-        const controllers = registry.get(name);
-        if (controllers) {
-          for (const ctrl of controllers) {
-            ctrl.abort();
-          }
-        }
-      },
-      destroy() {
-        const controllers = registry.get(name);
-        if (controllers) {
-          for (const ctrl of Array.from(controllers)) {
-            ctrl.destroy();
-          }
-        }
-      },
-      get state() {
-        const controllers = registry.get(name);
-        if (controllers && controllers.size > 0) {
-          return Array.from(controllers)[0].state;
-        }
-        return void 0;
-      },
-      get loading() {
-        const controllers = registry.get(name);
-        if (controllers && controllers.size > 0) {
-          return Array.from(controllers)[0].state.$loading;
-        }
-        return false;
-      },
-      get error() {
-        const controllers = registry.get(name);
-        if (controllers && controllers.size > 0) {
-          return Array.from(controllers)[0].state.$error;
-        }
-        return null;
-      },
-      get data() {
-        const controllers = registry.get(name);
-        if (controllers && controllers.size > 0) {
-          return Array.from(controllers)[0].state.$data;
-        }
-        return void 0;
-      },
-      get defaults() {
-        const controllers = registry.get(name);
-        if (controllers && controllers.size > 0) {
-          return Array.from(controllers)[0].defaults;
-        }
-        return void 0;
-      },
-      get controllers() {
-        const controllers = registry.get(name);
-        return controllers ? Array.from(controllers) : [];
-      }
-    };
-  }
-  var ScopeManagerBase = function(name) {
-    if (typeof name === "string") {
-      return createScopeProxy(name);
-    }
-  };
-  ScopeManagerBase.on = function(event, callback) {
-    return EventEmitter.on(event, callback);
-  };
-  ScopeManagerBase.off = function(event, callback) {
-    EventEmitter.off(event, callback);
-  };
-  ScopeManagerBase.emit = function(event, data) {
-    EventEmitter.emit(event, data);
-  };
-  ScopeManagerBase.refresh = async function(name, options) {
-    let names = [];
-    let opts = {};
-    if (name === void 0) {
-      names = Array.from(registry.keys());
-    } else if (typeof name === "string") {
-      names = [name];
-      if (options && typeof options === "object") {
-        opts = options;
-      }
-    } else if (Array.isArray(name)) {
-      names = name;
-      if (options && typeof options === "object") {
-        opts = options;
-      }
-    } else if (name && typeof name === "object") {
-      names = Array.from(registry.keys());
-      opts = name;
-    }
-    const isParallel = opts.parallel !== false;
-    if (isParallel) {
-      const promises = [];
-      for (const n of names) {
-        const controllers = registry.get(n);
-        if (controllers) {
-          for (const ctrl of controllers) {
-            promises.push(ctrl.refresh(opts));
-          }
-        }
-      }
-      await Promise.all(promises);
-    } else {
-      for (const n of names) {
-        const controllers = registry.get(n);
-        if (controllers) {
-          for (const ctrl of controllers) {
-            await ctrl.refresh(opts);
-          }
-        }
-      }
-    }
-  };
-  ScopeManagerBase.reset = function(name) {
-    let names = [];
-    if (name === void 0) {
-      names = Array.from(registry.keys());
-    } else if (typeof name === "string") {
-      names = [name];
-    } else if (Array.isArray(name)) {
-      names = name;
-    }
-    for (const n of names) {
-      const controllers = registry.get(n);
-      if (controllers) {
-        for (const ctrl of controllers) {
-          ctrl.reset();
-        }
-      }
-    }
-  };
-  ScopeManagerBase.abort = function(name) {
-    let names = [];
-    if (name === void 0) {
-      names = Array.from(registry.keys());
-    } else if (typeof name === "string") {
-      names = [name];
-    } else if (Array.isArray(name)) {
-      names = name;
-    }
-    for (const n of names) {
-      const controllers = registry.get(n);
-      if (controllers) {
-        for (const ctrl of controllers) {
-          ctrl.abort();
-        }
-      }
-    }
-  };
-  ScopeManagerBase.destroy = function() {
-    for (const controllers of registry.values()) {
-      for (const ctrl of Array.from(controllers)) {
-        ctrl.destroy();
-      }
-    }
-    registry.clear();
-    const root10 = typeof window !== "undefined" ? window : globalThis;
-    if (root10.Helix) {
-      if (root10.Helix.scope)
-        delete root10.Helix.scope;
-      if (root10.Helix.$scope)
-        delete root10.Helix.$scope;
-    }
-  };
-  ScopeManagerBase.get = function(name) {
-    const controllers = registry.get(name);
-    return controllers ? Array.from(controllers) : [];
-  };
-  ScopeManagerBase.first = function(name) {
-    const controllers = registry.get(name);
-    if (controllers && controllers.size > 0) {
-      return Array.from(controllers)[0];
-    }
-    return null;
-  };
-  ScopeManagerBase.has = function(name) {
-    return registry.has(name) && registry.get(name).size > 0;
-  };
-  ScopeManagerBase.config = {
-    deepMerge: false,
-    arrayStrategy: "replace",
-    backoff: true,
-    retryDelay: 1e3,
-    resetOnRefresh: false
-  };
-  ScopeManagerBase.list = function() {
-    return Array.from(registry.keys());
-  };
-  var ScopeManager = new Proxy(ScopeManagerBase, {
-    get(target, prop, receiver) {
-      if (Reflect.has(target, prop)) {
-        const val = Reflect.get(target, prop, receiver);
-        return typeof val === "function" ? val.bind(target) : val;
-      }
-      if (typeof prop === "symbol" || prop.startsWith("_") || prop === "then") {
-        return Reflect.get(target, prop, receiver);
-      }
-      return createScopeProxy(prop);
-    }
-  });
-
-  // packages/helix-scope/src/index.js
-  var import_meta6 = {};
-  var HelixScopePlugin = {
-    name: "scope",
-    version: typeof import_meta6 !== "undefined" && define_import_meta_env_default && "1.0.0" || "1.0.0",
-    install(app, options = {}) {
-      app.directive("scope", createScopeDirective(app));
-      const root10 = typeof window !== "undefined" ? window : globalThis;
-      if (root10.Helix) {
-        if (Object.isExtensible(root10.Helix)) {
-          root10.Helix.scope = ScopeManager;
-          root10.Helix.$scope = ScopeManager;
-        }
-      }
-      if (Object.isExtensible(app)) {
-        app.$scope = ScopeManager;
-      }
-    }
-  };
-  HelixScopePlugin.ScopeManager = ScopeManager;
-  var root5 = typeof window !== "undefined" ? window : globalThis;
-  if (root5.Helix) {
-    if (typeof root5.Helix.directive === "function") {
-      root5.Helix.directive("scope", createScopeDirective(root5.Helix));
-    }
-    if (Object.isExtensible(root5.Helix)) {
-      root5.Helix.scope = ScopeManager;
-      root5.Helix.$scope = ScopeManager;
-    }
-  } else if (typeof console !== "undefined") {
-    console.warn("[helix-scope] Helix not found - load helix.js before this script.");
-  }
-  var src_default6 = HelixScopePlugin;
-
-  // packages/helix-tooltip/src/constants.js
-  var PLACEMENTS = ["top", "bottom", "left", "right"];
-  var FALLBACK_CHAINS = {
-    top: ["top", "bottom", "right", "left"],
-    bottom: ["bottom", "top", "right", "left"],
-    left: ["left", "right", "top", "bottom"],
-    right: ["right", "left", "top", "bottom"]
-  };
-  var DEFAULT_OPTIONS = {
-    placement: "top",
-    theme: "dark",
-    animation: "zoom",
-    showDelay: 100,
-    hideDelay: 60,
-    offset: 8,
-    viewportPadding: 8,
-    maxWidth: 240,
-    arrow: true,
-    zIndex: 9999,
-    appendTo: "body",
-    closeOnClickOutside: true,
-    closeOnEscape: true,
-    longPressDelay: 450,
-    sanitize: null,
-    liveTracking: false,
-    ariaLive: false
-  };
-  var PATH_LIKE_RE = /^[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*|\[\d+\]|\['[^']*'\]|\["[^"]*"\])*$/;
-  var EXPRESSION_HINT_RE = /\?\.|\?\?|\|\||&&|===|!==|=>|\(\)/;
-  var OBJECT_LITERAL_RE = /^\{[\s\S]*\}$/;
-  var FUNCTION_CALL_RE = /^([a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)*)\(([\s\S]*)\)$/;
-  var TRIGGER_WORDS = ["hover", "click", "focus", "manual"];
-  var ANIMATION_WORDS = ["fade", "zoom", "slide", "flip"];
-
-  // packages/helix-tooltip/src/style.js
-  var styleId = "hx-tooltip-styles";
-  var styleRefs = 0;
-  function injectStyles(zIndex, maxWidth) {
-    let existingStyle = document.getElementById(styleId);
-    if (!existingStyle) {
-      const style = document.createElement("style");
-      style.id = styleId;
-      style.innerHTML = `
-            .hx-tooltip {
-                position: fixed;
-                top: 0; left: 0;
-                z-index: ${zIndex};
-                width: max-content;
-                max-width: ${maxWidth}px;
-                padding: var(--hx-tooltip-padding, 6px 10px);
-                font: inherit;
-                font-size: 13px;
-                line-height: 1.4;
-                border-radius: var(--hx-tooltip-radius, 6px);
-                background: var(--hx-tooltip-bg, #1f2937);
-                color: var(--hx-tooltip-fg, #f9fafb);
-                box-shadow: var(--hx-tooltip-shadow, 0 4px 12px rgba(0, 0, 0, 0.15));
-                pointer-events: none;
-                opacity: 0;
-                transition: opacity 0.14s ease, transform 0.14s ease;
-                will-change: transform, opacity;
-            }
-            .hx-tooltip.hx-tooltip-visible { opacity: 1; }
-            .hx-tooltip-interactive { pointer-events: auto; }
-
-            /* Built-in themes are just two pre-set values for the same custom
-               properties a .theme-<name> class would define \u2014 no special-casing. */
-            .hx-tooltip-dark { --hx-tooltip-bg: #1f2937; --hx-tooltip-fg: #f9fafb; }
-            .hx-tooltip-light {
-                --hx-tooltip-bg: #ffffff;
-                --hx-tooltip-fg: #1f2937;
-                border: 1px solid var(--hx-tooltip-border, #e5e7eb);
-            }
-            /* .theme-<name> modifier -> .hx-tooltip-<name>: define the vars above yourself. */
-
-            /* ----- Built-in animation variants (transform only; position uses left/top) ----- */
-            .hx-tooltip-anim-fade { transform: none; }
-            .hx-tooltip-anim-zoom { transform: scale(0.94); }
-            .hx-tooltip-anim-zoom.hx-tooltip-visible { transform: scale(1); }
-            .hx-tooltip-anim-slide[data-placement="top"] { transform: translateY(6px); }
-            .hx-tooltip-anim-slide[data-placement="bottom"] { transform: translateY(-6px); }
-            .hx-tooltip-anim-slide[data-placement="left"] { transform: translateX(6px); }
-            .hx-tooltip-anim-slide[data-placement="right"] { transform: translateX(-6px); }
-            .hx-tooltip-anim-slide.hx-tooltip-visible { transform: translate(0, 0); }
-            .hx-tooltip-anim-flip { transform: perspective(400px) rotateX(-90deg); }
-            .hx-tooltip-anim-flip.hx-tooltip-visible { transform: perspective(400px) rotateX(0deg); }
-            /* .anim-<name> modifier -> .hx-tooltip-anim-<name>: bring your own CSS. */
-
-            .hx-tooltip-arrow {
-                position: absolute;
-                width: 8px;
-                height: 8px;
-                background: var(--hx-tooltip-bg, #1f2937);
-                transform: rotate(45deg);
-            }
-            .hx-tooltip-light .hx-tooltip-arrow { border: 1px solid var(--hx-tooltip-border, #e5e7eb); }
-            .hx-tooltip[data-placement="top"] .hx-tooltip-arrow { bottom: -4px; box-shadow: none; }
-            .hx-tooltip[data-placement="bottom"] .hx-tooltip-arrow { top: -4px; }
-            .hx-tooltip[data-placement="left"] .hx-tooltip-arrow { right: -4px; }
-            .hx-tooltip[data-placement="right"] .hx-tooltip-arrow { left: -4px; }
-            .hx-tooltip-no-arrow .hx-tooltip-arrow { display: none; }
-
-            .hx-tooltip-content img { max-width: 100%; display: block; }
-        `;
-      document.head.appendChild(style);
-    }
-    styleRefs += 1;
-  }
-  function releaseStyles() {
-    styleRefs = Math.max(0, styleRefs - 1);
-    if (styleRefs === 0) {
-      const styleEl = document.getElementById(styleId);
-      if (styleEl)
-        styleEl.remove();
-    }
-  }
-
-  // packages/helix-tooltip/src/position.js
-  function coordsFor(rect, tipRect, placement, offset) {
-    let top, left;
-    if (placement === "top") {
-      top = rect.top - tipRect.height - offset;
-      left = rect.left + rect.width / 2 - tipRect.width / 2;
-    } else if (placement === "bottom") {
-      top = rect.bottom + offset;
-      left = rect.left + rect.width / 2 - tipRect.width / 2;
-    } else if (placement === "left") {
-      top = rect.top + rect.height / 2 - tipRect.height / 2;
-      left = rect.left - tipRect.width - offset;
-    } else {
-      top = rect.top + rect.height / 2 - tipRect.height / 2;
-      left = rect.right + offset;
-    }
-    return { top, left };
-  }
-  function fitsViewport(top, left, tipRect, viewportPadding) {
-    const pad = viewportPadding;
-    return top >= pad && left >= pad && top + tipRect.height <= window.innerHeight - pad && left + tipRect.width <= window.innerWidth - pad;
-  }
-  function visibleArea(top, left, tipRect) {
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const visW = Math.max(0, Math.min(left + tipRect.width, vw) - Math.max(left, 0));
-    const visH = Math.max(0, Math.min(top + tipRect.height, vh) - Math.max(top, 0));
-    return visW * visH;
-  }
-  function middlewareFlip(ctx) {
-    const chain = FALLBACK_CHAINS[ctx.placement] || FALLBACK_CHAINS.top;
-    for (const p of chain) {
-      const { top, left } = coordsFor(ctx.rect, ctx.tipRect, p, ctx.offset);
-      if (fitsViewport(top, left, ctx.tipRect, ctx.viewportPadding)) {
-        ctx.placement = p;
-        return ctx;
-      }
-    }
-    let best = chain[0], bestArea = -1;
-    for (const p of chain) {
-      const { top, left } = coordsFor(ctx.rect, ctx.tipRect, p, ctx.offset);
-      const area = visibleArea(top, left, ctx.tipRect);
-      if (area > bestArea) {
-        bestArea = area;
-        best = p;
-      }
-    }
-    ctx.placement = best;
-    return ctx;
-  }
-  function middlewareOffset(ctx) {
-    const { top, left } = coordsFor(ctx.rect, ctx.tipRect, ctx.placement, ctx.offset);
-    ctx.top = top;
-    ctx.left = left;
-    return ctx;
-  }
-  function middlewareShift(ctx) {
-    const pad = ctx.viewportPadding;
-    const vw = window.innerWidth, vh = window.innerHeight;
-    ctx.left = Math.min(Math.max(ctx.left, pad), vw - ctx.tipRect.width - pad);
-    ctx.top = Math.min(Math.max(ctx.top, pad), vh - ctx.tipRect.height - pad);
-    return ctx;
-  }
-  function middlewareArrow(ctx) {
-    if (!ctx.arrowEnabled) {
-      ctx.arrow = null;
-      return ctx;
-    }
-    const ARROW_HALF = 4;
-    const MIN_INSET = 6;
-    if (ctx.placement === "top" || ctx.placement === "bottom") {
-      const anchorCenterX = ctx.rect.left + ctx.rect.width / 2;
-      let value = anchorCenterX - ctx.left - ARROW_HALF;
-      value = Math.min(Math.max(value, MIN_INSET), ctx.tipRect.width - MIN_INSET - ARROW_HALF * 2);
-      ctx.arrow = { axis: "x", value };
-    } else {
-      const anchorCenterY = ctx.rect.top + ctx.rect.height / 2;
-      let value = anchorCenterY - ctx.top - ARROW_HALF;
-      value = Math.min(Math.max(value, MIN_INSET), ctx.tipRect.height - MIN_INSET - ARROW_HALF * 2);
-      ctx.arrow = { axis: "y", value };
-    }
-    return ctx;
-  }
-  var POSITION_MIDDLEWARE = [middlewareFlip, middlewareOffset, middlewareShift, middlewareArrow];
-  function computePosition(rect, tipRect, preferredPlacement, config) {
-    let ctx = {
-      rect,
-      tipRect,
-      placement: preferredPlacement,
-      offset: config.offset,
-      arrowEnabled: config.arrowEnabled,
-      viewportPadding: config.viewportPadding,
-      top: 0,
-      left: 0,
-      arrow: null
-    };
-    for (const fn of POSITION_MIDDLEWARE)
-      ctx = fn(ctx);
-    return ctx;
-  }
-  function computeFollowPosition(x, y, tipRect, viewportPadding, followOffset = 14) {
-    const pad = viewportPadding;
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const left = Math.min(Math.max(x + followOffset, pad), vw - tipRect.width - pad);
-    const top = Math.min(Math.max(y + followOffset, pad), vh - tipRect.height - pad);
-    return { top, left };
-  }
-
-  // packages/helix-tooltip/src/content-parser.js
-  function splitTopLevel2(str, delimiter) {
-    const parts = [];
-    let depth = 0;
-    let quote = null;
-    let current = "";
-    for (let i = 0; i < str.length; i++) {
-      const ch = str[i];
-      if (quote) {
-        current += ch;
-        if (ch === quote && str[i - 1] !== "\\")
-          quote = null;
-        continue;
-      }
-      if (ch === "'" || ch === '"') {
-        quote = ch;
-        current += ch;
-        continue;
-      }
-      if (ch === "{" || ch === "[" || ch === "(") {
-        depth++;
-        current += ch;
-        continue;
-      }
-      if (ch === "}" || ch === "]" || ch === ")") {
-        depth--;
-        current += ch;
-        continue;
-      }
-      if (ch === delimiter && depth === 0) {
-        parts.push(current);
-        current = "";
-        continue;
-      }
-      current += ch;
-    }
-    if (current.trim() !== "")
-      parts.push(current);
-    return parts;
-  }
-  function findTopLevelColon(str) {
-    let depth = 0;
-    let quote = null;
-    for (let i = 0; i < str.length; i++) {
-      const ch = str[i];
-      if (quote) {
-        if (ch === quote && str[i - 1] !== "\\")
-          quote = null;
-        continue;
-      }
-      if (ch === "'" || ch === '"') {
-        quote = ch;
-        continue;
-      }
-      if (ch === "{" || ch === "[" || ch === "(") {
-        depth++;
-        continue;
-      }
-      if (ch === "}" || ch === "]" || ch === ")") {
-        depth--;
-        continue;
-      }
-      if (ch === ":" && depth === 0)
-        return i;
-    }
-    return -1;
-  }
-  function parseObjectLiteral(trimmed) {
-    const inner = trimmed.slice(1, -1);
-    const out = {};
-    for (const rawPair of splitTopLevel2(inner, ",")) {
-      const pair = rawPair.trim();
-      if (!pair)
-        continue;
-      const colonIdx = findTopLevelColon(pair);
-      if (colonIdx === -1)
-        return null;
-      let key = pair.slice(0, colonIdx).trim();
-      if (key.startsWith("'") && key.endsWith("'") || key.startsWith('"') && key.endsWith('"')) {
-        key = key.slice(1, -1);
-      }
-      if (!/^[a-zA-Z_$][\w$]*$/.test(key))
-        return null;
-      out[key] = pair.slice(colonIdx + 1).trim();
-    }
-    return out;
-  }
-  function resolveContent(app, rawVal, ctx, el) {
-    const trimmed = (rawVal || "").trim();
-    const isSingleQuoted = trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2;
-    const isDoubleQuoted = trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2;
-    if (isSingleQuoted || isDoubleQuoted)
-      return trimmed.slice(1, -1);
-    if (PATH_LIKE_RE.test(trimmed)) {
-      const resolved = app.resolvePath(trimmed, ctx);
-      return resolved === void 0 ? "" : resolved;
-    }
-    if (EXPRESSION_HINT_RE.test(trimmed)) {
-      console.warn(
-        `[Helix.js][$tooltip] hx-tooltip does not evaluate expressions, only a quoted literal or a plain ctx path is supported. Got: "${trimmed}"` + (el && el.tagName ? ` on <${el.tagName.toLowerCase()}>` : "") + `. Rendering empty instead of the literal expression text.`
-      );
-      return "";
-    }
-    return trimmed;
-  }
-  function resolveScalarValue(app, raw, ctx, el, key) {
-    const trimmed = (raw || "").trim();
-    const isSingleQuoted = trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2;
-    const isDoubleQuoted = trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2;
-    if (isSingleQuoted || isDoubleQuoted)
-      return trimmed.slice(1, -1);
-    if (/^-?\d+(?:\.\d+)?$/.test(trimmed))
-      return Number(trimmed);
-    if (trimmed === "true")
-      return true;
-    if (trimmed === "false")
-      return false;
-    if (trimmed === "null" || trimmed === "undefined")
-      return null;
-    if (PATH_LIKE_RE.test(trimmed)) {
-      const resolved = app.resolvePath(trimmed, ctx);
-      return resolved === void 0 ? null : resolved;
-    }
-    console.warn(
-      `[Helix.js][$tooltip] Unsupported value for "${key}" in hx-tooltip object config: "${trimmed}". Use a quoted string, number, true/false, null, or a plain ctx path.` + (el && el.tagName ? ` (on <${el.tagName.toLowerCase()}>)` : "")
-    );
-    return null;
-  }
-  function resolveCallArgs(app, rawArgs, ctx, el) {
-    const trimmed = (rawArgs || "").trim();
-    if (!trimmed)
-      return [];
-    return splitTopLevel2(trimmed, ",").map((rawArg) => {
-      const a = rawArg.trim();
-      if (a === "$event") {
-        return { type: "tooltip", target: el, currentTarget: el, preventDefault() {
-        }, stopPropagation() {
-        } };
-      }
-      return resolveScalarValue(app, a, ctx, el, "argument");
-    });
-  }
-  function parseNumberModifier(modifiers, prefix) {
-    for (const m of modifiers) {
-      if (m.startsWith(prefix)) {
-        const n = parseInt(m.slice(prefix.length), 10);
-        if (Number.isFinite(n))
-          return n;
-      }
-    }
-    return null;
-  }
-  function parsePrefixedModifier(modifiers, prefix) {
-    const m = modifiers.find((x) => x.startsWith(prefix));
-    return m ? m.slice(prefix.length) : null;
-  }
-
-  // packages/helix-tooltip/src/async-content.js
-  function applyAsyncResult(state, el, result, updateTooltip) {
-    if (result && typeof result === "object" && !Array.isArray(result)) {
-      if (result.title !== void 0)
-        state.content = result.title;
-      else if (result.content !== void 0)
-        state.content = result.content;
-      else {
-        console.warn('[Helix.js][$tooltip] async hx-tooltip result has no "title" or "content" key.');
-        state.content = "";
-      }
-      if (result.html !== void 0)
-        state.html = !!result.html;
-      if (result.placement !== void 0)
-        state.placement = result.placement;
-      if (result.theme !== void 0)
-        state.theme = result.theme;
-      if (result.animation !== void 0)
-        state.animation = result.animation;
-      if (result.interactive !== void 0)
-        state.interactive = !!result.interactive;
-    } else {
-      state.content = result == null ? "" : result;
-    }
-    updateTooltip(el, state.content);
-  }
-  function tryStartAsyncContent(app, contentRaw, ctx, el, state, trackCleanup, updateTooltip) {
-    const trimmed = (contentRaw || "").trim();
-    const match = trimmed.match(FUNCTION_CALL_RE);
-    if (!match)
-      return false;
-    const fnPath = match[1];
-    const rawArgs = match[2];
-    const fn = app.resolvePath(fnPath, ctx);
-    if (typeof fn !== "function") {
-      console.warn(`[Helix.js][$tooltip] hx-tooltip could not find a function at "${fnPath}" for the call "${trimmed}".`);
-      state.content = "";
-      return true;
-    }
-    const args = resolveCallArgs(app, rawArgs, ctx, el);
-    let destroyed = false;
-    trackCleanup(() => {
-      destroyed = true;
-    });
-    Promise.resolve().then(() => fn.apply(ctx, args)).then((result) => {
-      if (destroyed)
-        return;
-      applyAsyncResult(state, el, result, updateTooltip);
-    }).catch((err) => {
-      if (destroyed)
-        return;
-      console.error(`[Helix.js][$tooltip] async hx-tooltip call "${trimmed}" failed:`, err);
-      state.content = "";
-      updateTooltip(el, state.content);
-    });
-    return true;
-  }
-
-  // packages/helix-tooltip/src/index.js
-  var import_meta7 = {};
-  var __hxTooltipInstanceSeq = 0;
-  var HelixTooltipPlugin = {
-    name: "tooltip",
-    version: typeof import_meta7 !== "undefined" && define_import_meta_env_default && "1.0.0" || "1.0.0",
-    requires: {
-      helix: ">=11.1.5"
-    },
-    install(app, options = {}) {
-      if (app.$tooltip && typeof app.$tooltip.setDefaults === "function") {
-        app.$tooltip.setDefaults(options);
-        return;
-      }
-      if (typeof document === "undefined") {
-        console.error("[Helix.js][$tooltip] DOM is required. This plugin cannot run outside a browser.");
-        return () => {
-        };
-      }
-      const instanceId = ++__hxTooltipInstanceSeq;
-      const dirPrefix = app.config && typeof app.config.prefix === "string" && app.config.prefix || "hx-";
-      const tooltipElId = `${dirPrefix}tooltip-${instanceId}`;
-      let isDestroyed = false;
-      function warnDestroyed(method) {
-        console.warn(`[Helix.js][$tooltip] Ignored ${method}() call after destroy().`);
-      }
-      const defaults2 = { ...DEFAULT_OPTIONS, ...options };
-      function validateDefaults() {
-        if (!PLACEMENTS.includes(defaults2.placement))
-          defaults2.placement = "top";
-        if (typeof defaults2.theme !== "string" || !defaults2.theme)
-          defaults2.theme = "dark";
-        if (typeof defaults2.animation !== "string" || !defaults2.animation)
-          defaults2.animation = "zoom";
-      }
-      validateDefaults();
-      const container = document.querySelector(defaults2.appendTo) || document.body;
-      injectStyles(defaults2.zIndex, defaults2.maxWidth);
-      let tooltipEl = null;
-      let contentEl = null;
-      let arrowEl = null;
-      let lastAnimClass = null;
-      let lastThemeClass = null;
-      let lastCustomClassName = null;
-      let tooltipResizeObserver = null;
-      function ensureTooltipEl() {
-        if (isDestroyed)
-          return null;
-        if (tooltipEl)
-          return tooltipEl;
-        tooltipEl = document.createElement("div");
-        tooltipEl.id = tooltipElId;
-        tooltipEl.className = "hx-tooltip";
-        tooltipEl.setAttribute("role", "tooltip");
-        tooltipEl.setAttribute("aria-hidden", "true");
-        if (defaults2.ariaLive) {
-          tooltipEl.setAttribute("aria-live", defaults2.ariaLive === true ? "polite" : defaults2.ariaLive);
-        }
-        contentEl = document.createElement("div");
-        contentEl.className = "hx-tooltip-content";
-        arrowEl = document.createElement("div");
-        arrowEl.className = "hx-tooltip-arrow";
-        tooltipEl.appendChild(contentEl);
-        tooltipEl.appendChild(arrowEl);
-        container.appendChild(tooltipEl);
-        tooltipEl.addEventListener("mouseenter", () => {
-          if (tooltipEl.classList.contains("hx-tooltip-interactive"))
-            clearTimers();
-        });
-        tooltipEl.addEventListener("mouseleave", () => {
-          if (tooltipEl.classList.contains("hx-tooltip-interactive"))
-            hideTooltip();
-        });
-        if (typeof ResizeObserver !== "undefined") {
-          tooltipResizeObserver = new ResizeObserver(() => scheduleReposition());
-          tooltipResizeObserver.observe(tooltipEl);
-        }
-        return tooltipEl;
-      }
-      let activeEl = null;
-      let activePlacement = defaults2.placement;
-      let followMode = false;
-      let activeOverrides = { offset: defaults2.offset, arrow: defaults2.arrow };
-      function applyArrow(arrow) {
-        if (!arrowEl)
-          return;
-        if (!arrow) {
-          arrowEl.style.left = "";
-          arrowEl.style.top = "";
-          return;
-        }
-        if (arrow.axis === "x") {
-          arrowEl.style.left = `${arrow.value}px`;
-          arrowEl.style.top = "";
-        } else {
-          arrowEl.style.top = `${arrow.value}px`;
-          arrowEl.style.left = "";
-        }
-      }
-      function positionTooltip() {
-        if (followMode)
-          return;
-        if (!activeEl || !tooltipEl || !document.body.contains(activeEl))
-          return;
-        const rect = activeEl.getBoundingClientRect();
-        const tipRect = tooltipEl.getBoundingClientRect();
-        const { placement, top, left, arrow } = computePosition(rect, tipRect, activePlacement, {
-          offset: activeOverrides.offset,
-          arrowEnabled: activeOverrides.arrow,
-          viewportPadding: defaults2.viewportPadding
-        });
-        tooltipEl.style.left = `${Math.round(left)}px`;
-        tooltipEl.style.top = `${Math.round(top)}px`;
-        if (tooltipEl.dataset.placement !== placement)
-          tooltipEl.dataset.placement = placement;
-        applyArrow(arrow);
-      }
-      function positionFollow(x, y) {
-        if (!tooltipEl)
-          return;
-        const tipRect = tooltipEl.getBoundingClientRect();
-        const { top, left } = computeFollowPosition(x, y, tipRect, defaults2.viewportPadding);
-        tooltipEl.style.left = `${Math.round(left)}px`;
-        tooltipEl.style.top = `${Math.round(top)}px`;
-      }
-      let repositionRaf = null;
-      function scheduleReposition() {
-        if (followMode)
-          return;
-        if (repositionRaf)
-          return;
-        repositionRaf = requestAnimationFrame(() => {
-          repositionRaf = null;
-          positionTooltip();
-        });
-      }
-      window.addEventListener("scroll", scheduleReposition, true);
-      window.addEventListener("resize", scheduleReposition);
-      let anchorResizeObserver = null;
-      if (typeof ResizeObserver !== "undefined") {
-        anchorResizeObserver = new ResizeObserver(() => scheduleReposition());
-      }
-      let liveTrackRaf = null;
-      let liveTrackIntersectionObserver = null;
-      let anchorIntersecting = true;
-      function onVisibilityChange() {
-        if (typeof document.hidden === "undefined")
-          return;
-        if (document.hidden) {
-          if (liveTrackRaf) {
-            cancelAnimationFrame(liveTrackRaf);
-            liveTrackRaf = null;
-          }
-        } else if (defaults2.liveTracking && activeEl && !followMode && !liveTrackRaf) {
-          runLiveTrackLoop();
-        }
-      }
-      document.addEventListener("visibilitychange", onVisibilityChange);
-      function runLiveTrackLoop() {
-        const loop = () => {
-          if (!activeEl) {
-            liveTrackRaf = null;
-            return;
-          }
-          if (anchorIntersecting && !document.hidden)
-            positionTooltip();
-          liveTrackRaf = requestAnimationFrame(loop);
-        };
-        liveTrackRaf = requestAnimationFrame(loop);
-      }
-      function startLiveTracking() {
-        if (!defaults2.liveTracking || followMode || !activeEl)
-          return;
-        anchorIntersecting = true;
-        if (typeof IntersectionObserver !== "undefined") {
-          liveTrackIntersectionObserver = new IntersectionObserver((entries) => {
-            anchorIntersecting = entries[0] ? entries[0].isIntersecting : true;
-          });
-          liveTrackIntersectionObserver.observe(activeEl);
-        }
-        runLiveTrackLoop();
-      }
-      function stopLiveTracking() {
-        if (liveTrackRaf) {
-          cancelAnimationFrame(liveTrackRaf);
-          liveTrackRaf = null;
-        }
-        if (liveTrackIntersectionObserver) {
-          liveTrackIntersectionObserver.disconnect();
-          liveTrackIntersectionObserver = null;
-        }
-        anchorIntersecting = true;
-      }
-      function onDismissGesture(e) {
-        if (!activeEl)
-          return;
-        if (activeEl.contains(e.target))
-          return;
-        if (tooltipEl && tooltipEl.contains(e.target))
-          return;
-        hideTooltip({ immediate: true });
-      }
-      if (defaults2.closeOnClickOutside) {
-        document.addEventListener("click", onDismissGesture, true);
-        document.addEventListener("touchstart", onDismissGesture, true);
-      }
-      function onKeydown(e) {
-        if (e.key === "Escape" && activeEl)
-          hideTooltip({ immediate: true });
-      }
-      if (defaults2.closeOnEscape) {
-        document.addEventListener("keydown", onKeydown);
-      }
-      let showTimer = null;
-      let hideTimer = null;
-      function clearTimers() {
-        if (showTimer) {
-          clearTimeout(showTimer);
-          showTimer = null;
-        }
-        if (hideTimer) {
-          clearTimeout(hideTimer);
-          hideTimer = null;
-        }
-      }
-      function setContent(content, isHtml, el) {
-        const text = content == null ? "" : String(content);
-        if (isHtml) {
-          contentEl.innerHTML = typeof defaults2.sanitize === "function" ? defaults2.sanitize(text, { el }) : text;
-        } else {
-          contentEl.textContent = text;
-        }
-      }
-      function showTooltip(el, content, opts = {}) {
-        if (isDestroyed) {
-          warnDestroyed("show");
-          return;
-        }
-        if (!el)
-          return;
-        const st = elState.get(el) || {};
-        if (opts.disabled === true || opts.disabled === void 0 && st.disabled)
-          return;
-        const el_ = ensureTooltipEl();
-        if (!el_)
-          return;
-        clearTimers();
-        const theme = opts.theme || st.theme || defaults2.theme;
-        const placement = opts.placement || st.placement || defaults2.placement;
-        const animation = opts.animation || st.animation || defaults2.animation;
-        const isHtml = opts.html !== void 0 ? opts.html : !!st.html;
-        const isInteractive = opts.interactive !== void 0 ? opts.interactive : !!st.interactive;
-        const isFollow = opts.follow !== void 0 ? opts.follow : !!st.follow;
-        const offset = opts.offset ?? (typeof st.offset === "number" ? st.offset : defaults2.offset);
-        const showArrow = opts.arrow ?? (typeof st.arrow === "boolean" ? st.arrow : defaults2.arrow);
-        const maxWidth = opts.maxWidth ?? st.maxWidth;
-        const className = opts.className ?? st.className ?? null;
-        const doShow = () => {
-          setContent(content, isHtml, el);
-          if (lastThemeClass)
-            el_.classList.remove(lastThemeClass);
-          const themeClass = `hx-tooltip-${theme}`;
-          el_.classList.add(themeClass);
-          lastThemeClass = themeClass;
-          if (lastAnimClass)
-            el_.classList.remove(lastAnimClass);
-          const animClass = `hx-tooltip-anim-${animation}`;
-          el_.classList.add(animClass);
-          lastAnimClass = animClass;
-          if (lastCustomClassName)
-            el_.classList.remove(lastCustomClassName);
-          if (className)
-            el_.classList.add(className);
-          lastCustomClassName = className;
-          el_.style.maxWidth = maxWidth !== void 0 ? typeof maxWidth === "number" ? `${maxWidth}px` : maxWidth : "";
-          el_.classList.toggle("hx-tooltip-interactive", isInteractive);
-          el_.classList.toggle("hx-tooltip-no-arrow", !showArrow || isFollow);
-          el_.setAttribute("aria-hidden", "false");
-          el.setAttribute("aria-describedby", el_.id);
-          if (anchorResizeObserver)
-            anchorResizeObserver.disconnect();
-          if (anchorResizeObserver && !isFollow)
-            anchorResizeObserver.observe(el);
-          activeEl = el;
-          activePlacement = placement;
-          followMode = isFollow;
-          activeOverrides = { offset, arrow: showArrow };
-          if (isFollow && opts.followPos) {
-            positionFollow(opts.followPos.x, opts.followPos.y);
-          } else {
-            positionTooltip();
-          }
-          requestAnimationFrame(() => el_.classList.add("hx-tooltip-visible"));
-          startLiveTracking();
-        };
-        const delay = opts.delay ?? st.showDelay ?? defaults2.showDelay;
-        if (delay > 0)
-          showTimer = setTimeout(doShow, delay);
-        else
-          doShow();
-      }
-      function hideTooltip(opts = {}) {
-        clearTimers();
-        const doHide = () => {
-          if (tooltipEl) {
-            tooltipEl.classList.remove("hx-tooltip-visible");
-            tooltipEl.setAttribute("aria-hidden", "true");
-          }
-          if (activeEl)
-            activeEl.removeAttribute("aria-describedby");
-          if (anchorResizeObserver)
-            anchorResizeObserver.disconnect();
-          stopLiveTracking();
-          activeEl = null;
-          followMode = false;
-        };
-        const st = activeEl ? elState.get(activeEl) || {} : {};
-        const delay = opts.immediate ? 0 : opts.delay ?? st.hideDelay ?? defaults2.hideDelay;
-        if (delay > 0)
-          hideTimer = setTimeout(doHide, delay);
-        else
-          doHide();
-      }
-      function updateTooltip(el, content) {
-        if (activeEl === el && contentEl) {
-          const st = elState.get(el) || {};
-          setContent(content, !!st.html, el);
-          scheduleReposition();
-        }
-      }
-      const elState = /* @__PURE__ */ new WeakMap();
-      function findAnchor(target) {
-        let node = target;
-        while (node) {
-          if (elState.has(node))
-            return node;
-          node = node.parentNode;
-        }
-        return null;
-      }
-      app.directive("tooltip", {
-        mounted(el, binding) {
-          const { value: val, arg, modifiers, ctx, trackCleanup } = binding;
-          const trimmedVal = (val || "").trim();
-          let objectConfig = null;
-          let contentRaw = val;
-          if (OBJECT_LITERAL_RE.test(trimmedVal)) {
-            objectConfig = parseObjectLiteral(trimmedVal);
-            if (objectConfig === null) {
-              console.warn(`[Helix.js][$tooltip] hx-tooltip value looks like an object but couldn't be parsed: "${trimmedVal}". Rendering empty.`);
-              contentRaw = "''";
-            } else if (objectConfig.title !== void 0) {
-              contentRaw = objectConfig.title;
-            } else if (objectConfig.content !== void 0) {
-              contentRaw = objectConfig.content;
-            } else {
-              console.warn(`[Helix.js][$tooltip] hx-tooltip object config has no "title" or "content" key: "${trimmedVal}"`);
-              contentRaw = "''";
-            }
-          }
-          const cfg = (key) => objectConfig && objectConfig[key] !== void 0 ? resolveScalarValue(app, objectConfig[key], ctx, el, key) : void 0;
-          const modifierTrigger = TRIGGER_WORDS.find((t) => modifiers.includes(t));
-          const trigger2 = String(cfg("trigger") ?? (arg || modifierTrigger || "hover")).toLowerCase();
-          const placement = cfg("placement") ?? (PLACEMENTS.find((p) => modifiers.includes(p)) || defaults2.placement);
-          const customTheme = parsePrefixedModifier(modifiers, "theme-");
-          const modifierTheme = customTheme || (modifiers.includes("light") ? "light" : modifiers.includes("dark") ? "dark" : defaults2.theme);
-          const theme = cfg("theme") ?? modifierTheme;
-          const customAnim = parsePrefixedModifier(modifiers, "anim-");
-          const modifierAnim = customAnim || ANIMATION_WORDS.find((a) => modifiers.includes(a)) || defaults2.animation;
-          const animation = cfg("animation") ?? modifierAnim;
-          const html = cfg("html") ?? modifiers.includes("html");
-          const interactive = cfg("interactive") ?? modifiers.includes("interactive");
-          const follow = cfg("follow") ?? modifiers.includes("follow");
-          const disabled = cfg("disabled") ?? false;
-          const className = cfg("className") ?? null;
-          const maxWidth = cfg("maxWidth");
-          const offset = cfg("offset");
-          const showArrow = cfg("showArrow") ?? cfg("arrow");
-          const delayBoth = cfg("delay") ?? parseNumberModifier(modifiers, "delay-");
-          const showDelay = cfg("showDelay") ?? parseNumberModifier(modifiers, "show-") ?? delayBoth ?? defaults2.showDelay;
-          const hideDelay = cfg("hideDelay") ?? parseNumberModifier(modifiers, "hide-") ?? delayBoth ?? defaults2.hideDelay;
-          const state = {
-            trigger: trigger2,
-            placement,
-            theme,
-            animation,
-            html,
-            interactive,
-            follow,
-            showDelay,
-            hideDelay,
-            disabled,
-            className,
-            maxWidth,
-            offset,
-            arrow: showArrow,
-            content: "",
-            longPressTimer: null
-          };
-          elState.set(el, state);
-          if (!tryStartAsyncContent(app, contentRaw, ctx, el, state, trackCleanup, updateTooltip)) {
-            const stopWatch = app.watchEffect(() => {
-              state.content = resolveContent(app, contentRaw, ctx, el);
-              updateTooltip(el, state.content);
-            });
-            trackCleanup(stopWatch);
-          }
-        },
-        unmounted(el) {
-          if (activeEl === el)
-            hideTooltip({ immediate: true });
-          const st = elState.get(el);
-          if (st && st.longPressTimer)
-            clearTimeout(st.longPressTimer);
-          elState.delete(el);
-        }
-      });
-      function delegatedPointerOver(e) {
-        const anchor = findAnchor(e.target);
-        if (!anchor)
-          return;
-        const st = elState.get(anchor);
-        if (!st || st.trigger !== "hover")
-          return;
-        if (e.relatedTarget && anchor.contains(e.relatedTarget))
-          return;
-        showTooltip(anchor, st.content);
-      }
-      function delegatedPointerOut(e) {
-        const anchor = findAnchor(e.target);
-        if (!anchor)
-          return;
-        const st = elState.get(anchor);
-        if (!st || st.trigger !== "hover")
-          return;
-        if (e.relatedTarget && anchor.contains(e.relatedTarget))
-          return;
-        hideTooltip();
-      }
-      function delegatedFocusIn(e) {
-        const anchor = findAnchor(e.target);
-        if (!anchor)
-          return;
-        const st = elState.get(anchor);
-        if (!st || st.trigger !== "hover" && st.trigger !== "focus")
-          return;
-        showTooltip(anchor, st.content);
-      }
-      function delegatedFocusOut(e) {
-        const anchor = findAnchor(e.target);
-        if (!anchor)
-          return;
-        const st = elState.get(anchor);
-        if (!st || st.trigger !== "hover" && st.trigger !== "focus")
-          return;
-        hideTooltip({ immediate: true });
-      }
-      function delegatedClick(e) {
-        const anchor = findAnchor(e.target);
-        if (!anchor)
-          return;
-        const st = elState.get(anchor);
-        if (!st || st.trigger !== "click")
-          return;
-        if (activeEl === anchor)
-          hideTooltip({ immediate: true });
-        else
-          showTooltip(anchor, st.content, { delay: 0 });
-      }
-      function delegatedTouchStart(e) {
-        const anchor = findAnchor(e.target);
-        if (!anchor)
-          return;
-        const st = elState.get(anchor);
-        if (!st || st.trigger !== "hover")
-          return;
-        st.longPressTimer = setTimeout(() => showTooltip(anchor, st.content, { delay: 0 }), defaults2.longPressDelay);
-      }
-      function delegatedTouchEndOrMove(e) {
-        const anchor = findAnchor(e.target);
-        if (!anchor)
-          return;
-        const st = elState.get(anchor);
-        if (st && st.longPressTimer) {
-          clearTimeout(st.longPressTimer);
-          st.longPressTimer = null;
-        }
-      }
-      function delegatedPointerMove(e) {
-        if (!activeEl || !followMode)
-          return;
-        if (!activeEl.contains(e.target))
-          return;
-        positionFollow(e.clientX, e.clientY);
-      }
-      document.addEventListener("mouseover", delegatedPointerOver);
-      document.addEventListener("mouseout", delegatedPointerOut);
-      document.addEventListener("focusin", delegatedFocusIn);
-      document.addEventListener("focusout", delegatedFocusOut);
-      document.addEventListener("click", delegatedClick);
-      document.addEventListener("touchstart", delegatedTouchStart, { passive: true });
-      document.addEventListener("touchend", delegatedTouchEndOrMove);
-      document.addEventListener("touchmove", delegatedTouchEndOrMove);
-      document.addEventListener("pointermove", delegatedPointerMove);
-      const $tooltip = {
-        show(el, content, opts = {}) {
-          const state = elState.get(el) || {};
-          if (content !== void 0)
-            state.content = content;
-          elState.set(el, state);
-          showTooltip(el, content !== void 0 ? content : state.content, opts);
-        },
-        hide(opts = {}) {
-          if (isDestroyed) {
-            warnDestroyed("hide");
-            return;
-          }
-          hideTooltip(opts);
-        },
-        toggle(el, content, opts = {}) {
-          if (isDestroyed) {
-            warnDestroyed("toggle");
-            return;
-          }
-          if (activeEl === el)
-            hideTooltip({ immediate: true });
-          else
-            $tooltip.show(el, content, opts);
-        },
-        hideAll() {
-          if (isDestroyed) {
-            warnDestroyed("hideAll");
-            return;
-          }
-          hideTooltip({ immediate: true });
-        },
-        update(el, content) {
-          if (isDestroyed) {
-            warnDestroyed("update");
-            return;
-          }
-          const state = elState.get(el);
-          if (state)
-            state.content = content;
-          updateTooltip(el, content);
-        },
-        isVisible(el) {
-          return !isDestroyed && activeEl === el && !!tooltipEl && tooltipEl.classList.contains("hx-tooltip-visible");
-        },
-        setDefaults(patch = {}) {
-          if (isDestroyed) {
-            warnDestroyed("setDefaults");
-            return;
-          }
-          Object.assign(defaults2, patch);
-          validateDefaults();
-        },
-        destroy() {
-          pluginCleanup();
-        },
-        raw: () => tooltipEl
-      };
-      app.namespace("tooltip", {
-        $tooltip,
-        show: $tooltip.show,
-        hide: $tooltip.hide,
-        toggle: $tooltip.toggle,
-        hideAll: $tooltip.hideAll,
-        update: $tooltip.update,
-        isVisible: $tooltip.isVisible,
-        setDefaults: $tooltip.setDefaults
-      });
-      app.$tooltip = $tooltip;
-      if (app.provide) {
-        app.provide("$tooltip", $tooltip);
-      }
-      function pluginCleanup() {
-        if (isDestroyed)
-          return;
-        isDestroyed = true;
-        clearTimers();
-        stopLiveTracking();
-        if (repositionRaf) {
-          cancelAnimationFrame(repositionRaf);
-          repositionRaf = null;
-        }
-        window.removeEventListener("scroll", scheduleReposition, true);
-        window.removeEventListener("resize", scheduleReposition);
-        document.removeEventListener("visibilitychange", onVisibilityChange);
-        if (anchorResizeObserver) {
-          anchorResizeObserver.disconnect();
-          anchorResizeObserver = null;
-        }
-        if (tooltipResizeObserver) {
-          tooltipResizeObserver.disconnect();
-          tooltipResizeObserver = null;
-        }
-        if (defaults2.closeOnClickOutside) {
-          document.removeEventListener("click", onDismissGesture, true);
-          document.removeEventListener("touchstart", onDismissGesture, true);
-        }
-        if (defaults2.closeOnEscape) {
-          document.removeEventListener("keydown", onKeydown);
-        }
-        document.removeEventListener("mouseover", delegatedPointerOver);
-        document.removeEventListener("mouseout", delegatedPointerOut);
-        document.removeEventListener("focusin", delegatedFocusIn);
-        document.removeEventListener("focusout", delegatedFocusOut);
-        document.removeEventListener("click", delegatedClick);
-        document.removeEventListener("touchstart", delegatedTouchStart, { passive: true });
-        document.removeEventListener("touchend", delegatedTouchEndOrMove);
-        document.removeEventListener("touchmove", delegatedTouchEndOrMove);
-        document.removeEventListener("pointermove", delegatedPointerMove);
-        if (tooltipEl) {
-          tooltipEl.remove();
-          tooltipEl = null;
-        }
-        releaseStyles();
-        activeEl = null;
-        followMode = false;
-      }
-      return pluginCleanup;
-    }
-  };
-  var root6 = typeof window !== "undefined" ? window : globalThis;
-  root6.HelixTooltipPlugin = HelixTooltipPlugin;
-  if (root6.Helix && typeof root6.Helix.directive === "function") {
-    HelixTooltipPlugin.install(root6.Helix, {});
-  }
-  var src_default7 = HelixTooltipPlugin;
-
-  // packages/helix-notify/src/index.js
-  var import_meta8 = {};
-  var HelixNotifyPlugin = function() {
-    "use strict";
-    let swalLoadPromise = null;
-    function createFallbackSwal() {
-      return {
-        fire: (opts = {}) => {
-          const title = typeof opts === "string" ? opts : opts.title || "";
-          const text = typeof opts === "object" ? opts.text || "" : "";
-          if (typeof window !== "undefined" && typeof window.alert === "function") {
-            window.alert(`${title}
-${text}`.trim());
-          } else {
-            console.log(`[HelixNotify:Alert] ${title} ${text}`);
-          }
-          return Promise.resolve({ isConfirmed: true, isDenied: false, isDismissed: false, value: true });
-        },
-        mixin: function(mixinOpts) {
-          return {
-            fire: (opts = {}) => {
-              const title = typeof opts === "string" ? opts : opts.title || "";
-              console.log(`[HelixNotify:Toast] ${title}`);
-              return Promise.resolve({ isConfirmed: true, isDenied: false, isDismissed: false });
-            }
-          };
-        },
-        close: () => {
-        },
-        showLoading: () => {
-        },
-        stopTimer: () => {
-        },
-        resumeTimer: () => {
-        },
-        DismissReason: {
-          cancel: "cancel",
-          backdrop: "backdrop",
-          close: "close",
-          esc: "esc",
-          timer: "timer"
-        }
-      };
-    }
-    function ensureSwal(options = {}) {
-      const root10 = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : {};
-      if (root10.Swal) {
-        return Promise.resolve(root10.Swal);
-      }
-      if (swalLoadPromise) {
-        return swalLoadPromise;
-      }
-      if (typeof document === "undefined") {
-        return Promise.resolve(createFallbackSwal());
-      }
-      const cdnUrl = options.cdnUrl || "https://cdn.jsdelivr.net/npm/sweetalert2@11";
-      const existingScript = document.querySelector('script[src*="sweetalert2"]');
-      if (existingScript) {
-        swalLoadPromise = new Promise((resolve) => {
-          if (root10.Swal)
-            return resolve(root10.Swal);
-          const onLoad = () => resolve(root10.Swal || createFallbackSwal());
-          const onError = () => resolve(createFallbackSwal());
-          existingScript.addEventListener("load", onLoad, { once: true });
-          existingScript.addEventListener("error", onError, { once: true });
-          setTimeout(() => resolve(root10.Swal || createFallbackSwal()), 5e3);
-        });
-        return swalLoadPromise;
-      }
-      swalLoadPromise = new Promise((resolve) => {
-        const script = document.createElement("script");
-        script.src = cdnUrl;
-        script.async = true;
-        script.onload = () => {
-          resolve(root10.Swal || createFallbackSwal());
-        };
-        script.onerror = () => {
-          console.warn("[HelixNotify] Failed to auto-load SweetAlert2 from CDN:", cdnUrl);
-          resolve(createFallbackSwal());
-        };
-        (document.head || document.body || document.documentElement).appendChild(script);
-      });
-      return swalLoadPromise;
-    }
-    function install(api, options = {}) {
-      if (api.$notify)
-        return;
-      const themes2 = {
-        clinical: {
-          confirmColor: "#007bff",
-          cancelColor: "#6c757d",
-          denyColor: "#f59e0b",
-          popupClass: "hx-swal-clinical",
-          toastPosition: "top-end"
-        },
-        glass: {
-          confirmColor: "#4f46e5",
-          cancelColor: "#f43f5e",
-          denyColor: "#f59e0b",
-          popupClass: "hx-swal-glass",
-          toastPosition: "bottom-end"
-        },
-        dark: {
-          confirmColor: "#10b981",
-          cancelColor: "#ef4444",
-          denyColor: "#f59e0b",
-          popupClass: "hx-swal-dark",
-          toastPosition: "top-end"
-        },
-        neon: {
-          confirmColor: "#ec4899",
-          cancelColor: "#3b82f6",
-          denyColor: "#eab308",
-          popupClass: "hx-swal-neon",
-          toastPosition: "top-end"
-        },
-        brutal: {
-          confirmColor: "#000000",
-          cancelColor: "#ef4444",
-          denyColor: "#eab308",
-          popupClass: "hx-swal-brutal",
-          toastPosition: "bottom-right"
-        },
-        aurora: {
-          confirmColor: "#8b5cf6",
-          cancelColor: "#f43f5e",
-          denyColor: "#10b981",
-          popupClass: "hx-swal-aurora",
-          toastPosition: "top-center"
-        }
-      };
-      const defaults2 = {
-        theme: "clinical",
-        toastTimer: 3e3,
-        queueLimit: 3,
-        showCloseButton: false,
-        cdnUrl: "https://cdn.jsdelivr.net/npm/sweetalert2@11"
-      };
-      const baseTheme = themes2[options.theme || "clinical"] || themes2.clinical;
-      const config = { ...defaults2, ...baseTheme, ...options };
-      ensureSwal(config);
-      const styleId3 = "hx-notify-styles";
-      if (typeof document !== "undefined" && !document.getElementById(styleId3)) {
-        const style = document.createElement("style");
-        style.id = styleId3;
-        style.textContent = `
-                .swal2-popup { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; }
-
-                .hx-swal-clinical { 
-                    border-radius: 8px !important; 
-                    font-family: 'Inter', system-ui, sans-serif; 
-                    border: 1px solid #e5e7eb !important; 
-                }
-
-                .hx-swal-glass { 
-                    background: rgba(255, 255, 255, 0.65) !important; 
-                    backdrop-filter: blur(16px) saturate(180%) !important; 
-                    -webkit-backdrop-filter: blur(16px) saturate(180%) !important; 
-                    border-radius: 16px !important; 
-                    border: 1px solid rgba(255, 255, 255, 0.4) !important;
-                    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1) !important; 
-                    color: #1f2937 !important; 
-                }
-                .hx-swal-glass .swal2-title, .hx-swal-glass .swal2-html-container { color: #111827 !important; }
-
-                .hx-swal-dark { 
-                    background: #1f2937 !important; 
-                    color: #f9fafb !important; 
-                    border-radius: 12px !important; 
-                }
-                .hx-swal-dark .swal2-title, .hx-swal-dark .swal2-html-container { color: #f9fafb !important; }
-
-                .hx-swal-neon { 
-                    background: #0f172a !important; 
-                    color: #ffffff !important; 
-                    border: 1px solid #ec4899 !important; 
-                    box-shadow: 0 0 15px rgba(236, 72, 153, 0.3), inset 0 0 10px rgba(59, 130, 246, 0.1) !important; 
-                    border-radius: 12px !important; 
-                }
-                .hx-swal-neon .swal2-title, .hx-swal-neon .swal2-html-container { 
-                    color: #fdf2f8 !important; 
-                    text-shadow: 0 0 6px rgba(255, 255, 255, 0.2); 
-                }
-
-                .hx-swal-brutal { 
-                    background: #ffffff !important; 
-                    color: #000000 !important; 
-                    border: 3px solid #000000 !important; 
-                    box-shadow: 6px 6px 0px #000000 !important; 
-                    border-radius: 0px !important; 
-                    font-family: 'Courier New', ui-monospace, monospace !important; 
-                }
-                .hx-swal-brutal .swal2-title, .hx-swal-brutal .swal2-html-container { 
-                    color: #000000 !important; 
-                    font-weight: bold !important; 
-                }
-                .hx-swal-brutal .swal2-confirm, .hx-swal-brutal .swal2-cancel, .hx-swal-brutal .swal2-deny { 
-                    border: 2px solid #000 !important; 
-                    box-shadow: 3px 3px 0px #000 !important; 
-                    border-radius: 0 !important; 
-                    font-weight: bold !important;
-                }
-
-                .hx-swal-aurora { 
-                    background: linear-gradient(135deg, #1e1b4b, #312e81, #1e1b4b) !important; 
-                    color: #ffffff !important; 
-                    border: 1px solid rgba(255,255,255,0.12) !important; 
-                    box-shadow: 0 12px 40px rgba(0,0,0,0.4) !important; 
-                    border-radius: 20px !important; 
-                }
-                .hx-swal-aurora .swal2-title, .hx-swal-aurora .swal2-html-container { color: #e0e7ff !important; }
-            `;
-        if (document.head) {
-          document.head.appendChild(style);
-        }
-      }
-      let activeToasts = 0;
-      const toastQueue = [];
-      const runToast = (fn) => {
-        if (activeToasts < config.queueLimit) {
-          activeToasts++;
-          fn().finally(() => {
-            activeToasts--;
-            if (toastQueue.length)
-              runToast(toastQueue.shift());
-          });
-        } else {
-          toastQueue.push(fn);
-        }
-      };
-      const getToastInstance = async () => {
-        const SwalRef = await ensureSwal(config);
-        return SwalRef.mixin({
-          toast: true,
-          position: config.toastPosition,
-          showConfirmButton: false,
-          showCloseButton: config.showCloseButton,
-          timer: config.toastTimer,
-          timerProgressBar: true,
-          customClass: { popup: config.popupClass },
-          didOpen: (toast) => {
-            if (SwalRef.stopTimer)
-              toast.addEventListener("mouseenter", SwalRef.stopTimer);
-            if (SwalRef.resumeTimer)
-              toast.addEventListener("mouseleave", SwalRef.resumeTimer);
-          }
-        });
-      };
-      function createQuery(promiseFactory, resultMapper = null) {
-        const handlers = {
-          onConfirmed: null,
-          onCancelled: null,
-          onDismissed: null,
-          onDenied: null,
-          onSuccess: null,
-          onError: null,
-          onFinally: null
-        };
-        const executePromise = Promise.resolve().then(async () => {
-          try {
-            const rawResult = await promiseFactory();
-            const result = resultMapper ? resultMapper(rawResult) : rawResult;
-            if (result.confirmed && handlers.onConfirmed)
-              handlers.onConfirmed(result);
-            if (result.cancelled && handlers.onCancelled)
-              handlers.onCancelled(result);
-            if (result.dismissed && handlers.onDismissed)
-              handlers.onDismissed(result);
-            if (result.denied && handlers.onDenied)
-              handlers.onDenied(result);
-            if (handlers.onSuccess && !result.error)
-              handlers.onSuccess(result);
-            return result;
-          } catch (err) {
-            if (handlers.onError) {
-              handlers.onError(err);
-              return { error: err };
-            }
-            throw err;
-          } finally {
-            if (handlers.onFinally)
-              handlers.onFinally();
-          }
-        });
-        return {
-          onConfirmed(fn) {
-            handlers.onConfirmed = fn;
-            return this;
-          },
-          onCancelled(fn) {
-            handlers.onCancelled = fn;
-            return this;
-          },
-          onDismissed(fn) {
-            handlers.onDismissed = fn;
-            return this;
-          },
-          onDenied(fn) {
-            handlers.onDenied = fn;
-            return this;
-          },
-          onSuccess(fn) {
-            handlers.onSuccess = fn;
-            return this;
-          },
-          onError(fn) {
-            handlers.onError = fn;
-            return this;
-          },
-          onFinally(fn) {
-            handlers.onFinally = fn;
-            return this;
-          },
-          then: executePromise.then.bind(executePromise),
-          catch: executePromise.catch.bind(executePromise),
-          finally: executePromise.finally.bind(executePromise)
-        };
-      }
-      const $notify = {
-        ensureReady: () => ensureSwal(config),
-        toast: {
-          success: (title, ext = {}) => new Promise((res) => runToast(async () => {
-            const Toast = await getToastInstance();
-            const r = await Toast.fire({ icon: "success", title, ...ext });
-            res(r);
-            return r;
-          })),
-          error: (title, ext = {}) => new Promise((res) => runToast(async () => {
-            const Toast = await getToastInstance();
-            const r = await Toast.fire({ icon: "error", title, ...ext });
-            res(r);
-            return r;
-          })),
-          info: (title, ext = {}) => new Promise((res) => runToast(async () => {
-            const Toast = await getToastInstance();
-            const r = await Toast.fire({ icon: "info", title, ...ext });
-            res(r);
-            return r;
-          })),
-          warning: (title, ext = {}) => new Promise((res) => runToast(async () => {
-            const Toast = await getToastInstance();
-            const r = await Toast.fire({ icon: "warning", title, ...ext });
-            res(r);
-            return r;
-          })),
-          question: (title, ext = {}) => new Promise((res) => runToast(async () => {
-            const Toast = await getToastInstance();
-            const r = await Toast.fire({ icon: "question", title, ...ext });
-            res(r);
-            return r;
-          })),
-          fire: (title, icon = "info", ext = {}) => new Promise((res) => runToast(async () => {
-            const Toast = await getToastInstance();
-            const r = await Toast.fire({ icon, title, ...ext });
-            res(r);
-            return r;
-          }))
-        },
-        alert: async (title, text, icon = "info", ext = {}) => {
-          const SwalRef = await ensureSwal(config);
-          return SwalRef.fire({
-            title,
-            text,
-            icon,
-            confirmButtonColor: config.confirmColor,
-            customClass: { popup: config.popupClass },
-            ...ext
-          });
-        },
-        confirm: async (title, text = "Action cannot be reverted.", confirmText = "Confirm", ext = {}) => {
-          const SwalRef = await ensureSwal(config);
-          const res = await SwalRef.fire({
-            title,
-            text,
-            icon: "warning",
-            showCancelButton: true,
-            confirmButtonColor: config.confirmColor,
-            cancelButtonColor: config.cancelColor,
-            confirmButtonText: confirmText,
-            customClass: { popup: config.popupClass },
-            ...ext
-          });
-          return !!res.isConfirmed;
-        },
-        confirmQuery: (title, text = "Action cannot be reverted.", confirmText = "Confirm", ext = {}) => {
-          return createQuery(async () => {
-            const SwalRef = await ensureSwal(config);
-            const res = await SwalRef.fire({
-              title,
-              text,
-              icon: "warning",
-              showCancelButton: true,
-              confirmButtonColor: config.confirmColor,
-              cancelButtonColor: config.cancelColor,
-              confirmButtonText: confirmText,
-              customClass: { popup: config.popupClass },
-              ...ext
-            });
-            const cancelReason = SwalRef.DismissReason && SwalRef.DismissReason.cancel || "cancel";
-            return {
-              confirmed: !!res.isConfirmed,
-              cancelled: !!res.isDismissed && res.dismiss === cancelReason,
-              dismissed: !!res.isDismissed,
-              value: res.value
-            };
-          });
-        },
-        confirm3: async (title, text, opts = {}) => {
-          const SwalRef = await ensureSwal(config);
-          const { confirmText = "Yes", denyText = "No", cancelText = "Cancel", ...ext } = opts;
-          const res = await SwalRef.fire({
-            title,
-            text,
-            icon: "question",
-            showCancelButton: true,
-            showDenyButton: true,
-            confirmButtonText: confirmText,
-            denyButtonText: denyText,
-            cancelButtonText: cancelText,
-            confirmButtonColor: config.confirmColor,
-            denyButtonColor: config.denyColor,
-            cancelButtonColor: config.cancelColor,
-            customClass: { popup: config.popupClass },
-            ...ext
-          });
-          return { confirmed: !!res.isConfirmed, denied: !!res.isDenied, dismissed: !!res.isDismissed, value: res.value };
-        },
-        confirm3Query: (title, text, opts = {}) => {
-          const { confirmText = "Yes", denyText = "No", cancelText = "Cancel", ...ext } = opts;
-          return createQuery(async () => {
-            const SwalRef = await ensureSwal(config);
-            const res = await SwalRef.fire({
-              title,
-              text,
-              icon: "question",
-              showCancelButton: true,
-              showDenyButton: true,
-              confirmButtonText: confirmText,
-              denyButtonText: denyText,
-              cancelButtonText: cancelText,
-              confirmButtonColor: config.confirmColor,
-              denyButtonColor: config.denyColor,
-              cancelButtonColor: config.cancelColor,
-              customClass: { popup: config.popupClass },
-              ...ext
-            });
-            const cancelReason = SwalRef.DismissReason && SwalRef.DismissReason.cancel || "cancel";
-            return {
-              confirmed: !!res.isConfirmed,
-              denied: !!res.isDenied,
-              cancelled: !!res.isDismissed && res.dismiss === cancelReason,
-              dismissed: !!res.isDismissed,
-              value: res.value
-            };
-          });
-        },
-        prompt: async (title, options2 = {}) => {
-          const SwalRef = await ensureSwal(config);
-          const {
-            input = "text",
-            inputLabel = "",
-            inputPlaceholder = "",
-            inputValue = "",
-            inputOptions = null,
-            inputAttributes = {},
-            validationMessage = "This field is required",
-            allowEmpty = false,
-            confirmText = "Submit",
-            ...ext
-          } = options2;
-          const { value, isConfirmed, isDismissed } = await SwalRef.fire({
-            title,
-            input,
-            inputLabel,
-            inputPlaceholder,
-            inputValue,
-            inputOptions,
-            inputAttributes,
-            showCancelButton: true,
-            confirmButtonText: confirmText,
-            confirmButtonColor: config.confirmColor,
-            cancelButtonColor: config.cancelColor,
-            customClass: { popup: config.popupClass },
-            inputValidator: allowEmpty ? void 0 : (val) => {
-              if (!val)
-                return validationMessage;
-            },
-            ...ext
-          });
-          return { value, confirmed: !!isConfirmed, dismissed: !!isDismissed };
-        },
-        promptQuery: (title, options2 = {}) => {
-          const {
-            input = "text",
-            inputLabel = "",
-            inputPlaceholder = "",
-            inputValue = "",
-            inputOptions = null,
-            inputAttributes = {},
-            validationMessage = "This field is required",
-            allowEmpty = false,
-            confirmText = "Submit",
-            ...ext
-          } = options2;
-          return createQuery(async () => {
-            const SwalRef = await ensureSwal(config);
-            const res = await SwalRef.fire({
-              title,
-              input,
-              inputLabel,
-              inputPlaceholder,
-              inputValue,
-              inputOptions,
-              inputAttributes,
-              showCancelButton: true,
-              confirmButtonText: confirmText,
-              confirmButtonColor: config.confirmColor,
-              cancelButtonColor: config.cancelColor,
-              customClass: { popup: config.popupClass },
-              inputValidator: allowEmpty ? void 0 : (val) => {
-                if (!val)
-                  return validationMessage;
-              },
-              ...ext
-            });
-            const cancelReason = SwalRef.DismissReason && SwalRef.DismissReason.cancel || "cancel";
-            return {
-              value: res.value,
-              confirmed: !!res.isConfirmed,
-              cancelled: !!res.isDismissed && res.dismiss === cancelReason,
-              dismissed: !!res.isDismissed
-            };
-          });
-        },
-        async: async (title, text, promiseFn, options2 = {}) => {
-          const SwalRef = await ensureSwal(config);
-          const {
-            successTitle = "Success",
-            successText = "Operation completed.",
-            showSuccess = true,
-            showError = true,
-            errorTitle = "Error",
-            allowCancel = false,
-            ...ext
-          } = options2;
-          SwalRef.fire({
-            title,
-            text,
-            allowOutsideClick: false,
-            allowEscapeKey: allowCancel,
-            showConfirmButton: false,
-            showCancelButton: allowCancel,
-            cancelButtonText: "Cancel",
-            cancelButtonColor: config.cancelColor,
-            customClass: { popup: config.popupClass },
-            didOpen: () => {
-              if (SwalRef.showLoading)
-                SwalRef.showLoading();
-            },
-            ...ext
-          });
-          try {
-            const result = await promiseFn();
-            if (showSuccess) {
-              SwalRef.close();
-              await SwalRef.fire({
-                title: successTitle,
-                text: successText,
-                icon: "success",
-                confirmButtonColor: config.confirmColor,
-                customClass: { popup: config.popupClass },
-                timer: 2e3,
-                timerProgressBar: true
-              });
-            } else {
-              SwalRef.close();
-            }
-            return { success: true, data: result };
-          } catch (err) {
-            SwalRef.close();
-            if (showError) {
-              await SwalRef.fire({
-                title: errorTitle,
-                text: err?.message || err?.data?.message || "Operation failed",
-                icon: "error",
-                confirmButtonColor: config.confirmColor,
-                customClass: { popup: config.popupClass }
-              });
-            }
-            return { success: false, error: err };
-          }
-        },
-        asyncQuery: (title, text, promiseFn, options2 = {}) => {
-          const {
-            successTitle = "Success",
-            successText = "Operation completed.",
-            showSuccess = true,
-            showError = true,
-            errorTitle = "Error",
-            allowCancel = false,
-            ...ext
-          } = options2;
-          return createQuery(async () => {
-            const SwalRef = await ensureSwal(config);
-            SwalRef.fire({
-              title,
-              text,
-              allowOutsideClick: false,
-              allowEscapeKey: allowCancel,
-              showConfirmButton: false,
-              showCancelButton: allowCancel,
-              cancelButtonText: "Cancel",
-              cancelButtonColor: config.cancelColor,
-              customClass: { popup: config.popupClass },
-              didOpen: () => {
-                if (SwalRef.showLoading)
-                  SwalRef.showLoading();
-              },
-              ...ext
-            });
-            try {
-              const result = await promiseFn();
-              if (showSuccess) {
-                SwalRef.close();
-                await SwalRef.fire({
-                  title: successTitle,
-                  text: successText,
-                  icon: "success",
-                  confirmButtonColor: config.confirmColor,
-                  customClass: { popup: config.popupClass },
-                  timer: 2e3,
-                  timerProgressBar: true
-                });
-              } else {
-                SwalRef.close();
-              }
-              return { success: true, data: result, confirmed: true };
-            } catch (err) {
-              SwalRef.close();
-              if (showError) {
-                await SwalRef.fire({
-                  title: errorTitle,
-                  text: err?.message || err?.data?.message || "Operation failed",
-                  icon: "error",
-                  confirmButtonColor: config.confirmColor,
-                  customClass: { popup: config.popupClass }
-                });
-              }
-              throw err;
-            }
-          });
-        },
-        get raw() {
-          const root10 = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : {};
-          return root10.Swal || null;
-        }
-      };
-      api.$notify = $notify;
-      if (api.namespace) {
-        api.namespace("notify", {
-          $notify,
-          toast: $notify.toast,
-          alert: $notify.alert,
-          confirm: $notify.confirm,
-          confirmQuery: $notify.confirmQuery,
-          confirm3: $notify.confirm3,
-          confirm3Query: $notify.confirm3Query,
-          prompt: $notify.prompt,
-          promptQuery: $notify.promptQuery,
-          async: $notify.async,
-          asyncQuery: $notify.asyncQuery,
-          get raw() {
-            return $notify.raw;
-          }
-        });
-      }
-      if (api.provide) {
-        api.provide("$notify", $notify);
-      }
-      const GlobalHelix = typeof window !== "undefined" && window.Helix || typeof globalThis !== "undefined" && globalThis.Helix || (typeof Helix !== "undefined" ? Helix : null);
-      if (GlobalHelix) {
-        GlobalHelix.$notify = $notify;
-      }
-      const cleanup2 = () => {
-        toastQueue.length = 0;
-        activeToasts = 0;
-        const root10 = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : {};
-        if (root10.Swal && typeof root10.Swal.close === "function") {
-          root10.Swal.close();
-        }
-      };
-      if (api.onCleanup && typeof api.onCleanup === "function") {
-        api.onCleanup(cleanup2);
-      }
-      return cleanup2;
-    }
-    return {
-      name: "notify",
-      version: typeof import_meta8 !== "undefined" && define_import_meta_env_default && "2.2.6" || "2.2.6",
-      requires: { helix: ">=11.1.5" },
-      install
-    };
-  }();
-  var root7 = typeof window !== "undefined" ? window : globalThis;
-  root7.HelixNotifyPlugin = HelixNotifyPlugin;
-  var src_default8 = HelixNotifyPlugin;
-
-  // packages/helix-loader/src/theme.js
-  var themes = {
-    glass: {
-      background: "rgba(255, 255, 255, 0.75)",
-      blur: true,
-      blurAmount: 12,
-      textColor: "#1f2937",
-      iconColor: "#3b82f6"
-    },
-    dark: {
-      background: "rgba(15, 23, 42, 0.85)",
-      blur: true,
-      blurAmount: 10,
-      textColor: "#f9fafb",
-      iconColor: "#10b981"
-    },
-    light: {
-      background: "rgba(248, 250, 252, 0.9)",
-      blur: false,
-      blurAmount: 0,
-      textColor: "#0f172a",
-      iconColor: "#4f46e5"
-    },
-    clinical: {
-      background: "rgba(241, 245, 249, 0.95)",
-      blur: false,
-      blurAmount: 0,
-      textColor: "#334155",
-      iconColor: "#0d9488"
-    },
-    ocean: {
-      background: "rgba(8, 47, 73, 0.9)",
-      blur: true,
-      blurAmount: 8,
-      textColor: "#f0f9ff",
-      iconColor: "#38bdf8"
-    },
-    emerald: {
-      background: "rgba(6, 78, 59, 0.85)",
-      blur: true,
-      blurAmount: 8,
-      textColor: "#ecfdf5",
-      iconColor: "#34d399"
-    },
-    sunset: {
-      background: "linear-gradient(135deg, rgba(251, 146, 60, 0.9) 0%, rgba(244, 63, 94, 0.9) 100%)",
-      blur: true,
-      blurAmount: 6,
-      textColor: "#ffffff",
-      iconColor: "#ffffff"
-    },
-    cyberpunk: {
-      background: "rgba(3, 7, 18, 0.95)",
-      blur: true,
-      blurAmount: 12,
-      textColor: "#f43f5e",
-      iconColor: "#06b6d4"
-    }
-  };
-  var defaults = {
-    theme: "glass",
-    zIndex: 2147483647,
-    fade: [300, 200],
-    icon: "spinner",
-    iconColor: "#4285F4",
-    size: 48,
-    text: "",
-    gap: "16px",
-    direction: "column",
-    allowHtmlIcon: false,
-    // install-only opt-in for raw-HTML string icons
-    debug: false,
-    antiFlicker: 150,
-    // wait delay in ms to avoid flicker on fast actions
-    minDuration: 300,
-    // minimum display duration in ms to avoid quick flashing
-    // Progress bar customization configurations
-    progressWidth: "160px",
-    progressHeight: "4px",
-    progressBg: "rgba(0, 0, 0, 0.1)",
-    progressColor: "",
-    // falls back to theme iconColor if blank
-    autoHideOnComplete: true,
-    autoHideDelay: 250,
-    // Performance overlay pooling size limit
-    poolSize: 100
-  };
-  function normalizeFade(f) {
-    if (Array.isArray(f)) {
-      const i = Number.isFinite(f[0]) ? f[0] : 300;
-      const o = Number.isFinite(f[1]) ? f[1] : i;
-      return [i, o];
-    }
-    if (Number.isFinite(f))
-      return [f, f];
-    return [300, 200];
-  }
-
-  // packages/helix-loader/src/style.js
-  var styleId2 = "hx-loader-styles";
-  function setupStyles() {
-    if (typeof document === "undefined")
-      return null;
-    let styleEl = document.getElementById(styleId2);
-    if (!styleEl) {
-      styleEl = document.createElement("style");
-      styleEl.id = styleId2;
-      if (!styleEl.dataset)
-        styleEl.dataset = {};
-      styleEl.dataset.hxRefcount = "0";
-      styleEl.innerHTML = `
-            @keyframes hx-spin { to { transform: rotate(360deg); } }
-            .hx-dots { display:flex; gap:6px; }
-            .hx-dots span {
-                border-radius:50%;
-                background:var(--hx-color);
-                animation: hx-bounce 1s infinite alternate;
-            }
-            .hx-dots span:nth-child(2) { animation-delay: 0.15s; }
-            .hx-dots span:nth-child(3) { animation-delay: 0.3s; }
-            @keyframes hx-bounce {
-                from { opacity:.3; transform:translateY(0); }
-                to { opacity:1; transform:translateY(-8px); }
-            }
-            .fa-spin, .ri-spin { animation: hx-spin 1.2s linear infinite !important; }
-        `;
-      if (document.head && typeof document.head.appendChild === "function") {
-        document.head.appendChild(styleEl);
-      }
-    }
-    if (!styleEl.dataset)
-      styleEl.dataset = {};
-    styleEl.dataset.hxRefcount = String((parseInt(styleEl.dataset.hxRefcount, 10) || 0) + 1);
-    return styleEl;
-  }
-  function releaseStyles2() {
-    const s = document.getElementById(styleId2);
-    if (s) {
-      const n = (parseInt(s.dataset.hxRefcount, 10) || 1) - 1;
-      if (n <= 0)
-        s.remove();
-      else
-        s.dataset.hxRefcount = String(n);
-    }
-  }
-
-  // packages/helix-loader/src/icon.js
-  var warnedHtmlDowngrade = false;
-  function buildIcon(cfg, allowHtml = false) {
-    const wrap = document.createElement("div");
-    if (typeof cfg.icon === "function") {
-      const el = cfg.icon(cfg);
-      if (el instanceof HTMLElement)
-        wrap.appendChild(el);
-      return wrap;
-    }
-    wrap.style.color = cfg.iconColor;
-    wrap.style.fontSize = cfg.size + "px";
-    if (cfg.icon === "spinner") {
-      const el = document.createElement("div");
-      const border = Math.max(2, cfg.size / 10);
-      el.style.width = cfg.size + "px";
-      el.style.height = cfg.size + "px";
-      el.style.border = `${border}px solid rgba(0,0,0,0.1)`;
-      el.style.borderTopColor = cfg.iconColor;
-      el.style.borderRadius = "50%";
-      el.style.animation = "hx-spin 0.8s linear infinite";
-      wrap.appendChild(el);
-    } else if (cfg.icon === "dots") {
-      wrap.className = "hx-dots";
-      wrap.style.setProperty("--hx-color", cfg.iconColor);
-      const dot = cfg.size / 4;
-      wrap.innerHTML = `<span style="width:${dot}px;height:${dot}px"></span>`.repeat(3);
-    } else if (typeof cfg.icon === "string" && (cfg.icon.includes("fa-") || cfg.icon.includes("ri-"))) {
-      const i = document.createElement("i");
-      i.className = cfg.icon;
-      i.style.fontSize = cfg.size + "px";
-      wrap.appendChild(i);
-    } else if (typeof cfg.icon === "string") {
-      if (allowHtml) {
-        wrap.innerHTML = cfg.icon;
-      } else {
-        wrap.textContent = cfg.icon;
-        if (!warnedHtmlDowngrade) {
-          warnedHtmlDowngrade = true;
-          console.warn("[Helix Loader] string icon rendered as text. For markup use icon: () => HTMLElement, or set the install option allowHtmlIcon:true for raw-HTML strings.");
-        }
-      }
-    }
-    return wrap;
-  }
-
-  // packages/helix-loader/src/overlay.js
-  function buildOverlay(cfg, { scoped = false, allowHtmlIcon = false } = {}) {
-    const fade = normalizeFade(cfg.fade);
-    const el = document.createElement("div");
-    el.style.cssText = `
-        position:${scoped ? "absolute" : "fixed"}; inset:0; display:none;
-        align-items:center; justify-content:center;
-        background:${cfg.background};
-        ${cfg.blur ? `backdrop-filter: blur(${cfg.blurAmount}px); -webkit-backdrop-filter: blur(${cfg.blurAmount}px);` : ""}
-        z-index:${cfg.zIndex};
-        opacity:0;
-        transition: opacity ${fade[0]}ms ease;
-    `;
-    const container = document.createElement("div");
-    container.style.cssText = `
-        display:flex; flex-direction:${cfg.direction};
-        align-items:center; gap:${cfg.gap};
-    `;
-    container.appendChild(buildIcon(cfg, allowHtmlIcon));
-    let textEl = null;
-    if (!scoped) {
-      textEl = document.createElement("div");
-      textEl.style.color = cfg.textColor;
-      textEl.style.fontSize = "14px";
-      textEl.style.fontFamily = "system-ui, sans-serif";
-      container.appendChild(textEl);
-    }
-    const progressContainer = document.createElement("div");
-    progressContainer.style.cssText = `
-        width: ${cfg.progressWidth || "160px"};
-        height: ${cfg.progressHeight || "4px"};
-        background: ${cfg.progressBg || "rgba(0, 0, 0, 0.1)"};
-        border-radius: 2px;
-        overflow: hidden;
-        display: none;
-    `;
-    const progressBarColor = cfg.progressColor || cfg.iconColor || "#4285F4";
-    const progressBar = document.createElement("div");
-    progressBar.style.cssText = `
-        width: 0%;
-        height: 100%;
-        background: ${progressBarColor};
-        transition: width 0.15s ease;
-    `;
-    progressContainer.appendChild(progressBar);
-    container.appendChild(progressContainer);
-    el.appendChild(container);
-    return { el, container, textEl, progressContainer, progressBar };
-  }
-  function appendToBody(node) {
-    if (document.body) {
-      document.body.appendChild(node);
-    } else {
-      document.addEventListener(
-        "DOMContentLoaded",
-        () => document.body && document.body.appendChild(node),
-        { once: true }
-      );
-    }
-  }
-
-  // packages/helix-loader/src/index.js
-  var import_meta9 = {};
-  var HelixLoaderPlugin = {
-    name: "loader",
-    version: typeof import_meta9 !== "undefined" && define_import_meta_env_default && "2.2.0" || "2.2.0",
-    requires: {
-      helix: ">=11.1.5"
-    },
-    install(app, options = {}) {
-      const INSTALL_MARK = Symbol.for("helix.loader.installed");
-      if (app[INSTALL_MARK]) {
-        console.warn("[Helix Loader] already installed on this app; skipping.");
-        return () => {
-        };
-      }
-      const themeConfig = themes[options.theme || defaults.theme] || themes.glass;
-      const globalConfig2 = { ...defaults, ...themeConfig, ...options };
-      globalConfig2.fade = normalizeFade(globalConfig2.fade);
-      const HTML_ICON_ALLOWED = globalConfig2.allowHtmlIcon === true;
-      function log(...args) {
-        if (globalConfig2.debug)
-          console.log("[Helix Loader]", ...args);
-      }
-      setupStyles();
-      const { el: overlay, textEl, progressContainer, progressBar } = buildOverlay(globalConfig2, {
-        scoped: false,
-        allowHtmlIcon: HTML_ICON_ALLOWED
-      });
-      overlay.id = "hx-loader-overlay";
-      appendToBody(overlay);
-      log("Overlay queued for body");
-      const state = app.reactive({
-        count: 0,
-        active: false,
-        visible: false,
-        text: globalConfig2.text,
-        progress: 0
-      });
-      const displayEffect = app.effect(() => {
-        const display = state.active ? "flex" : "none";
-        if (overlay.style.display !== display) {
-          overlay.style.display = display;
-          log("display \u2192", display);
-        }
-      });
-      const opacityEffect = app.effect(() => {
-        const opacity = state.visible ? "1" : "0";
-        if (overlay.style.opacity !== opacity) {
-          overlay.style.opacity = opacity;
-          log("opacity \u2192", opacity);
-        }
-      });
-      const textEffect = app.effect(() => {
-        textEl.textContent = state.text;
-        textEl.style.display = state.text ? "block" : "none";
-      });
-      const progressEffect = app.effect(() => {
-        const p = state.progress;
-        if (p > 0) {
-          progressContainer.style.display = "block";
-          progressBar.style.width = `${Math.min(100, Math.max(0, p))}%`;
-        } else {
-          progressContainer.style.display = "none";
-          progressBar.style.width = "0%";
-        }
-      });
-      const overlayPool = {
-        pool: [],
-        acquire(cfg, allowHtmlIcon) {
-          if (this.pool.length > 0) {
-            const item = this.pool.pop();
-            const fade = normalizeFade(cfg.fade);
-            item.el.style.background = cfg.background;
-            item.el.style.zIndex = cfg.zIndex;
-            item.el.style.transition = `opacity ${fade[0]}ms ease`;
-            if (cfg.blur) {
-              item.el.style.backdropFilter = `blur(${cfg.blurAmount}px)`;
-              item.el.style.webkitBackdropFilter = `blur(${cfg.blurAmount}px)`;
-            } else {
-              item.el.style.backdropFilter = "";
-              item.el.style.webkitBackdropFilter = "";
-            }
-            item.container.innerHTML = "";
-            item.container.style.flexDirection = cfg.direction;
-            item.container.style.gap = cfg.gap;
-            item.container.appendChild(buildIcon(cfg, allowHtmlIcon));
-            return item;
-          }
-          return buildOverlay(cfg, { scoped: true, allowHtmlIcon });
-        },
-        release(item) {
-          item.el.style.opacity = "0";
-          item.el.style.display = "none";
-          if (item.el.parentNode)
-            item.el.remove();
-          if (this.pool.length < (globalConfig2.poolSize || 100)) {
-            this.pool.push(item);
-          }
-        },
-        clear() {
-          this.pool = [];
-        }
-      };
-      let flickerTimer = null;
-      let minDurationTimer = null;
-      let hideTimer = null;
-      let shownAt = 0;
-      const triggerShow = () => {
-        overlay.style.transition = `opacity ${globalConfig2.fade[0]}ms ease`;
-        state.active = true;
-        shownAt = Date.now();
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          if (state.count > 0)
-            state.visible = true;
-        }));
-      };
-      const triggerHide = () => {
-        const out = globalConfig2.fade[1];
-        overlay.style.transition = `opacity ${out}ms ease`;
-        state.visible = false;
-        if (hideTimer) {
-          clearTimeout(hideTimer);
-          hideTimer = null;
-        }
-        if (out === 0) {
-          if (state.count === 0)
-            state.active = false;
-        } else {
-          hideTimer = setTimeout(() => {
-            hideTimer = null;
-            if (state.count === 0) {
-              state.active = false;
-              log("active = false (fade complete)");
-            }
-          }, out);
-        }
-      };
-      const $loader = {
-        show(text) {
-          if (text !== void 0)
-            state.text = text;
-          state.count++;
-          log("show(), count =", state.count);
-          if (state.count === 1) {
-            if (hideTimer) {
-              clearTimeout(hideTimer);
-              hideTimer = null;
-            }
-            if (minDurationTimer) {
-              clearTimeout(minDurationTimer);
-              minDurationTimer = null;
-            }
-            const antiFlicker = globalConfig2.antiFlicker;
-            if (antiFlicker > 0) {
-              flickerTimer = setTimeout(() => {
-                flickerTimer = null;
-                triggerShow();
-              }, antiFlicker);
-            } else {
-              triggerShow();
-            }
-          }
-        },
-        hide(force = false) {
-          state.count = force ? 0 : Math.max(0, state.count - 1);
-          log("hide(), count =", state.count);
-          if (state.count === 0) {
-            if (flickerTimer) {
-              clearTimeout(flickerTimer);
-              flickerTimer = null;
-              return;
-            }
-            const minDuration = globalConfig2.minDuration;
-            const elapsed = Date.now() - shownAt;
-            if (minDuration > 0 && elapsed < minDuration) {
-              const remaining = minDuration - elapsed;
-              if (minDurationTimer)
-                clearTimeout(minDurationTimer);
-              minDurationTimer = setTimeout(() => {
-                minDurationTimer = null;
-                triggerHide();
-              }, remaining);
-            } else {
-              triggerHide();
-            }
-          }
-        },
-        text(val) {
-          state.text = val;
-        },
-        progress(val) {
-          state.progress = val;
-          if (val >= 100 && globalConfig2.autoHideOnComplete !== false) {
-            setTimeout(() => {
-              if (state.progress >= 100) {
-                $loader.hide();
-                state.progress = 0;
-              }
-            }, globalConfig2.autoHideDelay || 250);
-          }
-        },
-        async wrap(fnOrPromise, options2 = {}) {
-          const loaderText = options2.text || void 0;
-          $loader.show(loaderText);
-          try {
-            if (typeof fnOrPromise === "function") {
-              return await fnOrPromise();
-            }
-            return await fnOrPromise;
-          } finally {
-            $loader.hide();
-          }
-        },
-        state
-      };
-      const directiveCleanups = /* @__PURE__ */ new WeakMap();
-      const directiveUpdaters = /* @__PURE__ */ new WeakMap();
-      const directiveEffects = /* @__PURE__ */ new Set();
-      const allDirectiveCleanups = /* @__PURE__ */ new Set();
-      app.directive("loading", {
-        mounted(el, binding) {
-          let patchedPosition = false;
-          const prevInlinePosition = el.style.position;
-          if (getComputedStyle(el).position === "static") {
-            el.style.position = "relative";
-            patchedPosition = true;
-          }
-          let localConfig = {};
-          try {
-            const attr = el.getAttribute("hx-loading-config");
-            if (attr)
-              localConfig = JSON.parse(attr);
-          } catch (e) {
-            console.warn("[Helix Loader] Invalid hx-loading-config JSON:", e);
-          }
-          if ("allowHtmlIcon" in localConfig)
-            delete localConfig.allowHtmlIcon;
-          const localTheme = localConfig.theme ? themes[localConfig.theme] || {} : {};
-          const cfg = { ...defaults, ...globalConfig2, ...localTheme, ...localConfig };
-          cfg.fade = normalizeFade(cfg.fade);
-          const [fadeIn, fadeOut] = cfg.fade;
-          const iconFromAttr = Object.prototype.hasOwnProperty.call(localConfig, "icon");
-          const allowHtmlIcon = HTML_ICON_ALLOWED && !iconFromAttr;
-          const poolItem = overlayPool.acquire(cfg, allowHtmlIcon);
-          const localOverlay = poolItem.el;
-          localOverlay.style.borderRadius = getComputedStyle(el).borderRadius;
-          el.appendChild(localOverlay);
-          const elState = { binding, lastVal: false, timer: null };
-          const resolveVal = () => {
-            const b = elState.binding;
-            if (typeof b.value === "string" && b.ctx && app.resolvePath) {
-              return !!app.resolvePath(b.value, b.ctx);
-            }
-            return !!b.value;
-          };
-          const update = () => {
-            const val = resolveVal();
-            if (val === elState.lastVal)
-              return;
-            elState.lastVal = val;
-            if (val) {
-              if (elState.timer) {
-                clearTimeout(elState.timer);
-                elState.timer = null;
-              }
-              localOverlay.style.display = "flex";
-              void localOverlay.offsetWidth;
-              localOverlay.style.transition = `opacity ${fadeIn}ms ease`;
-              requestAnimationFrame(() => requestAnimationFrame(() => {
-                if (elState.lastVal)
-                  localOverlay.style.opacity = "1";
-              }));
-            } else {
-              if (elState.timer) {
-                clearTimeout(elState.timer);
-                elState.timer = null;
-              }
-              if (fadeOut === 0) {
-                localOverlay.style.transition = "none";
-                localOverlay.style.opacity = "0";
-                localOverlay.style.display = "none";
-              } else {
-                localOverlay.style.transition = `opacity ${fadeOut}ms ease`;
-                localOverlay.style.opacity = "0";
-                elState.timer = setTimeout(() => {
-                  elState.timer = null;
-                  if (!elState.lastVal)
-                    localOverlay.style.display = "none";
-                }, fadeOut);
-              }
-            }
-          };
-          const dirEffect = app.effect(() => {
-            update();
-          });
-          directiveEffects.add(dirEffect);
-          directiveUpdaters.set(el, (b) => {
-            elState.binding = b;
-            update();
-          });
-          const cleanup2 = () => {
-            if (elState.timer) {
-              clearTimeout(elState.timer);
-              elState.timer = null;
-            }
-            if (dirEffect && dirEffect.stop)
-              dirEffect.stop();
-            directiveEffects.delete(dirEffect);
-            overlayPool.release(poolItem);
-            if (patchedPosition)
-              el.style.position = prevInlinePosition;
-            allDirectiveCleanups.delete(cleanup2);
-          };
-          directiveCleanups.set(el, cleanup2);
-          allDirectiveCleanups.add(cleanup2);
-          update();
-        },
-        updated(el, binding) {
-          const u = directiveUpdaters.get(el);
-          if (u)
-            u(binding);
-        },
-        unmounted(el) {
-          const cleanup2 = directiveCleanups.get(el);
-          if (cleanup2) {
-            cleanup2();
-            directiveCleanups.delete(el);
-            directiveUpdaters.delete(el);
-          }
-        }
-      });
-      if (app.namespace) {
-        app.namespace("loader", {
-          $loader,
-          show: $loader.show,
-          hide: $loader.hide,
-          text: $loader.text,
-          progress: $loader.progress,
-          wrap: $loader.wrap,
-          state: $loader.state
-        });
-      }
-      app.$loader = $loader;
-      app[INSTALL_MARK] = true;
-      if (app.provide) {
-        app.provide("$loader", $loader);
-      }
-      const GlobalHelix = typeof window !== "undefined" && window.Helix || typeof globalThis !== "undefined" && globalThis.Helix || (typeof Helix !== "undefined" ? Helix : null);
-      if (GlobalHelix) {
-        GlobalHelix.$loader = $loader;
-      }
-      log("Plugin installed.");
-      return () => {
-        if (flickerTimer) {
-          clearTimeout(flickerTimer);
-          flickerTimer = null;
-        }
-        if (minDurationTimer) {
-          clearTimeout(minDurationTimer);
-          minDurationTimer = null;
-        }
-        if (hideTimer) {
-          clearTimeout(hideTimer);
-          hideTimer = null;
-        }
-        if (displayEffect && displayEffect.stop)
-          displayEffect.stop();
-        if (opacityEffect && opacityEffect.stop)
-          opacityEffect.stop();
-        if (textEffect && textEffect.stop)
-          textEffect.stop();
-        if (progressEffect && progressEffect.stop)
-          progressEffect.stop();
-        Array.from(allDirectiveCleanups).forEach((fn) => fn());
-        allDirectiveCleanups.clear();
-        directiveEffects.forEach((e) => {
-          if (e && e.stop)
-            e.stop();
-        });
-        directiveEffects.clear();
-        overlayPool.clear();
-        overlay.remove();
-        releaseStyles2();
-        if (app.removeDirective)
-          app.removeDirective("loading");
-        if (app.removeNamespace)
-          app.removeNamespace("loader");
-        if (app.$loader === $loader)
-          delete app.$loader;
-        delete app[INSTALL_MARK];
-        state.count = 0;
-        state.active = false;
-        state.visible = false;
-        state.progress = 0;
-        log("Cleanup complete");
-      };
-    }
-  };
-  var root8 = typeof window !== "undefined" ? window : globalThis;
-  root8.HelixLoaderPlugin = HelixLoaderPlugin;
-  var src_default9 = HelixLoaderPlugin;
-
-  // scripts/.temp-bundle-entry-1787637404671.js
-  var root9 = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : {};
-  if (!root9.Helix) {
-    root9.Helix = globalAPI;
+  // scripts/.temp-bundle-entry-1792479842310.js
+  var root4 = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : {};
+  if (!root4.Helix) {
+    root4.Helix = globalAPI;
   }
   var installed = [];
   if (globalAPI && typeof globalAPI.use === "function") {
@@ -17317,65 +14029,10 @@ ${text}`.trim());
         console.warn('[Helix Bundle] Error registering plugin "store":', e);
       }
     }
-    if (typeof src_default5 !== "undefined") {
-      try {
-        const plug = src_default5.default || src_default5;
-        if (typeof plug.install === "function" || typeof plug === "function") {
-          globalAPI.use(plug);
-        }
-        installed.push("axios");
-      } catch (e) {
-        console.warn('[Helix Bundle] Error registering plugin "axios":', e);
-      }
-    }
-    if (typeof src_default6 !== "undefined") {
-      try {
-        const plug = src_default6.default || src_default6;
-        if (typeof plug.install === "function" || typeof plug === "function") {
-          globalAPI.use(plug);
-        }
-        installed.push("scope");
-      } catch (e) {
-        console.warn('[Helix Bundle] Error registering plugin "scope":', e);
-      }
-    }
-    if (typeof src_default7 !== "undefined") {
-      try {
-        const plug = src_default7.default || src_default7;
-        if (typeof plug.install === "function" || typeof plug === "function") {
-          globalAPI.use(plug);
-        }
-        installed.push("tooltip");
-      } catch (e) {
-        console.warn('[Helix Bundle] Error registering plugin "tooltip":', e);
-      }
-    }
-    if (typeof src_default8 !== "undefined") {
-      try {
-        const plug = src_default8.default || src_default8;
-        if (typeof plug.install === "function" || typeof plug === "function") {
-          globalAPI.use(plug);
-        }
-        installed.push("notify");
-      } catch (e) {
-        console.warn('[Helix Bundle] Error registering plugin "notify":', e);
-      }
-    }
-    if (typeof src_default9 !== "undefined") {
-      try {
-        const plug = src_default9.default || src_default9;
-        if (typeof plug.install === "function" || typeof plug === "function") {
-          globalAPI.use(plug);
-        }
-        installed.push("loader");
-      } catch (e) {
-        console.warn('[Helix Bundle] Error registering plugin "loader":', e);
-      }
-    }
   }
   globalAPI.__bundledPlugins = installed;
   globalAPI.__isUnifiedBundle = true;
-  var temp_bundle_entry_1787637404671_default = globalAPI;
-  return __toCommonJS(temp_bundle_entry_1787637404671_exports);
+  var temp_bundle_entry_1792479842310_default = globalAPI;
+  return __toCommonJS(temp_bundle_entry_1792479842310_exports);
 })();
 if (typeof window !== "undefined" && window.HelixBundle && window.HelixBundle.default) { window.Helix = window.HelixBundle.default; }

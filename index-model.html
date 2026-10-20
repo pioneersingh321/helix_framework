@@ -1,0 +1,2402 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🧬 Helix Model · AST-Driven In-Memory Query Engine & Reactive Collection Studio</title>
+
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap 5 & Bootstrap Icons & Font Awesome -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Helix Framework & Official Helix Model Plugin -->
+  <script src="./dist/helix.js"></script>
+  <script src="./plugins/model/helix-model.js"></script>
+  <script src="./plugins/directives/helix-directives.js"></script>
+
+  <style>
+    :root {
+      --hx-bg: #f8fafc;
+      --hx-surface: #ffffff;
+      --hx-surface-subtle: #f1f5f9;
+      --hx-surface-hover: #f8fafc;
+      --hx-border: #e2e8f0;
+      --hx-border-hover: #cbd5e1;
+      --hx-border-focus: #818cf8;
+      
+      --hx-primary: #4f46e5;
+      --hx-primary-hover: #4338ca;
+      --hx-primary-light: #eef2ff;
+      --hx-primary-border: #c7d2fe;
+      --hx-primary-glow: rgba(79, 70, 229, 0.12);
+
+      --hx-cyan: #06b6d4;
+      --hx-cyan-light: #ecfeff;
+      --hx-cyan-border: #a5f3fc;
+
+      --hx-success: #10b981;
+      --hx-success-light: #ecfdf5;
+      --hx-success-border: #a7f3d0;
+
+      --hx-warning: #f59e0b;
+      --hx-warning-light: #fffbeb;
+      --hx-warning-border: #fde68a;
+
+      --hx-danger: #f43f5e;
+      --hx-danger-light: #fff1f2;
+      --hx-danger-border: #fecdd3;
+
+      --hx-purple: #9333ea;
+      --hx-purple-light: #faf5ff;
+      --hx-purple-border: #e9d5ff;
+
+      --hx-text-main: #0f172a;
+      --hx-text-secondary: #475569;
+      --hx-text-muted: #64748b;
+      --hx-text-light: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: var(--hx-bg);
+      background-image: 
+        radial-gradient(circle at 5% 5%, rgba(79, 70, 229, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 95% 30%, rgba(6, 182, 212, 0.05) 0%, transparent 45%),
+        radial-gradient(circle at 50% 85%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
+      background-attachment: fixed;
+      color: var(--hx-text-main);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    code, pre, .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Top Sticky Header */
+    .app-header {
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--hx-border);
+      position: sticky;
+      top: 0;
+      z-index: 1020;
+    }
+
+    /* Left Sidebar Navigation */
+    .sidebar-wrapper {
+      position: sticky;
+      top: 4.75rem;
+      height: calc(100vh - 5.5rem);
+      display: flex;
+      flex-direction: column;
+      background: var(--hx-surface);
+      border: 1px solid var(--hx-border);
+      border-radius: 1.15rem;
+      box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.03), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+      overflow-y: auto;
+      padding: 1.25rem;
+    }
+
+    .sidebar-wrapper::-webkit-scrollbar {
+      width: 5px;
+    }
+    .sidebar-wrapper::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+
+    .sidebar-nav-link {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.52rem 0.75rem;
+      color: var(--hx-text-secondary);
+      text-decoration: none;
+      font-size: 0.825rem;
+      font-weight: 500;
+      border-radius: 0.6rem;
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+      margin-bottom: 0.2rem;
+      position: relative;
+    }
+
+    .sidebar-nav-link:hover {
+      background-color: var(--hx-surface-subtle);
+      color: var(--hx-primary);
+      transform: translateX(2px);
+    }
+
+    .sidebar-nav-link.active {
+      background: var(--hx-primary-light);
+      color: var(--hx-primary);
+      font-weight: 600;
+    }
+
+    .sidebar-nav-badge {
+      width: 1.4rem;
+      height: 1.4rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.4rem;
+      background: var(--hx-surface-subtle);
+      color: var(--hx-text-muted);
+      font-size: 0.7rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      flex-shrink: 0;
+      transition: all 0.18s ease;
+    }
+
+    .sidebar-nav-link:hover .sidebar-nav-badge,
+    .sidebar-nav-link.active .sidebar-nav-badge {
+      background: var(--hx-primary);
+      color: #ffffff;
+    }
+
+    /* Sidebar Function Badges & Directory */
+    .sidebar-fn-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.675rem;
+      padding: 0.12rem 0.38rem;
+      border-radius: 0.35rem;
+      background: #f1f5f9;
+      color: #475569;
+      text-decoration: none;
+      display: inline-block;
+      transition: all 0.15s ease;
+      border: 1px solid #e2e8f0;
+      margin: 0.08rem;
+    }
+    .sidebar-fn-badge:hover {
+      background: #4f46e5;
+      color: #ffffff;
+      border-color: #4f46e5;
+      transform: translateY(-1px);
+    }
+    .sidebar-fn-badge.featured {
+      background: rgba(79, 70, 229, 0.08);
+      color: #4f46e5;
+      border-color: rgba(79, 70, 229, 0.2);
+      font-weight: 600;
+    }
+    .sidebar-fn-badge.featured:hover {
+      background: #4f46e5;
+      color: #ffffff;
+    }
+
+    .quick-fn-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      padding: 0.18rem 0.45rem;
+      border-radius: 9999px;
+      background: #ffffff;
+      border: 1px solid var(--hx-border);
+      color: var(--hx-text-secondary);
+      text-decoration: none;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      cursor: pointer;
+    }
+    .quick-fn-pill:hover {
+      background: var(--hx-primary-light);
+      border-color: var(--hx-primary-border);
+      color: var(--hx-primary);
+      transform: translateY(-1px);
+    }
+
+    /* Cards & Elevated Containers */
+    .light-card {
+      background: var(--hx-surface);
+      border: 1px solid var(--hx-border);
+      border-radius: 1.15rem;
+      box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.03), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      margin-bottom: 1.75rem;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .light-card:hover {
+      border-color: var(--hx-border-hover);
+      box-shadow: 0 12px 28px -6px var(--hx-primary-glow), 0 4px 10px -2px rgba(0, 0, 0, 0.03);
+    }
+
+    .card-header-custom {
+      padding: 1.1rem 1.4rem;
+      background: #fafbfc;
+      border-bottom: 1px solid var(--hx-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .output-panel {
+      background: #f8fafc;
+      border: 1px solid var(--hx-border);
+      border-radius: 0.85rem;
+      padding: 1.25rem;
+    }
+
+    .code-preview {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 0.85rem;
+      padding: 1.15rem 1.25rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      overflow-x: auto;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+      position: relative;
+    }
+
+    /* Hero Banner */
+    .hero-banner {
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%);
+      border: 1px solid var(--hx-border);
+      border-radius: 1.25rem;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-banner::after {
+      content: "";
+      position: absolute;
+      top: -50px;
+      right: -50px;
+      width: 260px;
+      height: 260px;
+      background: radial-gradient(circle, rgba(79, 70, 229, 0.08) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: var(--hx-primary-light);
+      color: var(--hx-primary);
+      border: 1px solid var(--hx-primary-border);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--hx-success);
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulseGreen 2s infinite;
+    }
+
+    @keyframes pulseGreen {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Buttons & Interactive Elements */
+    .btn-primary {
+      background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+      border: none;
+      color: #ffffff;
+      font-weight: 600;
+      border-radius: 0.55rem;
+      box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
+    }
+
+    .btn-outline-secondary {
+      background-color: #ffffff;
+      border: 1px solid var(--hx-border);
+      color: var(--hx-text-secondary);
+      font-weight: 500;
+      border-radius: 0.55rem;
+    }
+
+    .btn-outline-secondary:hover {
+      background-color: var(--hx-surface-subtle);
+      border-color: var(--hx-border-hover);
+      color: var(--hx-text-main);
+    }
+
+    /* Product Cards */
+    .product-grid-card {
+      background: #ffffff;
+      border: 1px solid var(--hx-border);
+      border-radius: 0.75rem;
+      padding: 0.85rem 1rem;
+      transition: all 0.18s ease;
+    }
+
+    .product-grid-card:hover {
+      border-color: var(--hx-primary-border);
+      box-shadow: 0 6px 14px var(--hx-primary-glow);
+      transform: translateY(-2px);
+    }
+
+    /* Metric KPI Card */
+    .kpi-card {
+      background: #ffffff;
+      border: 1px solid var(--hx-border);
+      border-radius: 0.85rem;
+      padding: 1rem;
+      text-align: center;
+      transition: all 0.18s ease;
+    }
+    .kpi-card:hover {
+      border-color: var(--hx-primary-border);
+      transform: translateY(-1px);
+    }
+
+    /* Floating Toast Shelf */
+    #toast-shelf {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      max-width: 380px;
+      pointer-events: none;
+    }
+
+    .toast-item {
+      pointer-events: auto;
+      background: #ffffff;
+      border: 1px solid var(--hx-border);
+      border-left: 4px solid var(--hx-primary);
+      color: var(--hx-text-main);
+      padding: 0.85rem 1.15rem;
+      border-radius: 0.75rem;
+      box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.12), 0 4px 10px rgba(0, 0, 0, 0.04);
+      animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  </style>
+</head>
+
+<body id="helix-model-app">
+
+  <!-- Top Sticky Header -->
+  <header class="app-header py-2 px-4 shadow-sm">
+    <div class="container-fluid d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="rounded-3 d-flex align-items-center justify-content-center text-white shadow-sm" style="width: 38px; height: 38px; background: linear-gradient(135deg, #4f46e5, #06b6d4) !important;">
+          <i class="fa-solid fa-database fs-5"></i>
+        </div>
+        <div>
+          <div class="d-flex align-items-center gap-2">
+            <h1 class="h6 mb-0 fw-bold text-dark" style="letter-spacing: -0.01em;">Helix Model</h1>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-mono">v2.2.1</span>
+            <span class="badge bg-cyan-subtle text-cyan border border-cyan-subtle font-mono" style="color: #0891b2; background-color: #ecfeff;">$model(data)</span>
+          </div>
+          <p class="small text-muted mb-0" style="font-size: 0.75rem;">AST-Driven In-Memory Query Engine & Reactive Collection Studio</p>
+        </div>
+      </div>
+
+      <!-- Quick Ecosystem Switcher -->
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="index.html" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-house me-1"></i> Core Demo
+        </a>
+        <a href="index-store.html" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-diagram-3 me-1"></i> Store Studio
+        </a>
+        <a href="index-model.html" class="btn btn-sm btn-primary">
+          <i class="fa-solid fa-database me-1"></i> Model Studio
+        </a>
+        <a href="index-helper.html" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-magic me-1"></i> Helpers (<code>$h</code>)
+        </a>
+        <a href="index-validation.html" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-shield-check me-1"></i> Validation
+        </a>
+        <a href="index-builder.html" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-boxes me-1"></i> Bundle Builder
+        </a>
+        <button class="btn btn-sm btn-outline-primary" @click="scrollToPlayground">
+          <i class="bi bi-terminal me-1"></i> Query Console
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container Layout: Left Navigation + Right Content -->
+  <div class="container-fluid px-lg-4 py-4">
+    <div class="row g-4">
+
+      <!-- ========================================================= -->
+      <!-- LEFT SIDEBAR NAVIGATION (STICKY) -->
+      <!-- ========================================================= -->
+      <div class="col-xl-3 col-lg-4 d-none d-lg-block">
+        <div class="sidebar-wrapper">
+          <div class="pb-3 mb-2 border-bottom">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+              <span class="small fw-bold text-uppercase text-muted" style="letter-spacing: 0.06em; font-size: 0.72rem;">Table of Contents</span>
+              <div class="d-flex align-items-center gap-1.5 small text-success fw-semibold font-mono" style="font-size: 0.75rem;">
+                <span class="pulse-dot"></span> Live
+              </div>
+            </div>
+            <div class="small text-secondary mb-2">14 Feature Domains & 60+ Methods</div>
+
+            <!-- Quick Filter in Sidebar -->
+            <div class="mb-2">
+              <input type="text" class="form-control form-control-sm" placeholder="Filter methods (where, when, like)..." hx-model="sidebarFilter" style="font-size: 0.78rem;">
+            </div>
+
+            <!-- Quick Method Directory Chips -->
+            <div class="pt-1 pb-1">
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <span class="small text-muted fw-bold" style="font-size: 0.68rem;">POPULAR METHODS:</span>
+                <span class="small text-primary font-mono" style="font-size: 0.68rem;">Click to jump</span>
+              </div>
+              <div class="d-flex flex-wrap gap-1">
+                <a href="#fn-where" class="quick-fn-pill" @click="loadFn('where')"><strong class="text-primary">where</strong></a>
+                <a href="#fn-when" class="quick-fn-pill" @click="loadFn('when')"><strong class="text-primary">when</strong></a>
+                <a href="#fn-like" class="quick-fn-pill" @click="loadFn('like')"><strong class="text-primary">like</strong></a>
+                <a href="#section-cheatsheet" class="quick-fn-pill" @click="loadFn('findAll')"><strong class="text-primary">findAll</strong></a>
+                <a href="#fn-orwhere" class="quick-fn-pill" @click="loadFn('orWhere')">orWhere</a>
+                <a href="#fn-wherein" class="quick-fn-pill" @click="loadFn('whereIn')">whereIn</a>
+                <a href="#fn-wherebetween" class="quick-fn-pill" @click="loadFn('whereBetween')">whereBetween</a>
+                <a href="#fn-search" class="quick-fn-pill" @click="loadFn('search')">search</a>
+                <a href="#section-sorting" class="quick-fn-pill" @click="loadFn('orderBy')">orderBy</a>
+                <a href="#section-pagination" class="quick-fn-pill" @click="loadFn('paginate')">paginate</a>
+                <a href="#section-projections" class="quick-fn-pill" @click="loadFn('pluck')">pluck</a>
+                <a href="#section-aggregations" class="quick-fn-pill" @click="loadFn('sum')">sum</a>
+                <a href="#section-transformations" class="quick-fn-pill" @click="loadFn('groupBy')">groupBy</a>
+                <a href="#section-joins" class="quick-fn-pill" @click="loadFn('innerJoin')">innerJoin</a>
+                <a href="#section-indexing" class="quick-fn-pill" @click="loadFn('index')">index</a>
+                <a href="#section-indexing" class="quick-fn-pill" @click="loadFn('find')">find</a>
+                <a href="#section-reactivity" class="quick-fn-pill" @click="loadFn('computed')">computed</a>
+                <a href="#section-mutations" class="quick-fn-pill" @click="loadFn('update')">update</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section Navigation Links with Method Sub-Lists -->
+          <nav class="d-flex flex-column mb-3">
+
+            <!-- 01. Instantiation & Clones -->
+            <div class="mb-2" hx-if="matchSearch('instantiation model clone lazy async fresh newquery')">
+              <a href="#section-instantiation" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">01</span>
+                  <span>1. Instantiation & Clones</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+              <div class="ps-4 d-flex flex-wrap gap-1">
+                <a href="#section-instantiation" class="sidebar-fn-badge featured">model()</a>
+                <a href="#section-instantiation" class="sidebar-fn-badge">.clone()</a>
+                <a href="#section-instantiation" class="sidebar-fn-badge">.fresh()</a>
+                <a href="#section-instantiation" class="sidebar-fn-badge">.lazy()</a>
+                <a href="#section-instantiation" class="sidebar-fn-badge">.async()</a>
+              </div>
+            </div>
+
+            <!-- 02. AST Filtering & Where -->
+            <div class="mb-2" hx-if="matchSearch('where when like filter search between orwhere wherein wherenull not')">
+              <a href="#section-where-filters" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">02</span>
+                  <span>2. AST Filtering & Where</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+              <div class="ps-4 d-flex flex-wrap gap-1">
+                <a href="#fn-where" class="sidebar-fn-badge featured" @click="loadFn('where')">where()</a>
+                <a href="#fn-when" class="sidebar-fn-badge featured" @click="loadFn('when')">when()</a>
+                <a href="#fn-like" class="sidebar-fn-badge featured" @click="loadFn('like')">like</a>
+                <a href="#fn-orwhere" class="sidebar-fn-badge" @click="loadFn('orWhere')">orWhere()</a>
+                <a href="#fn-wherein" class="sidebar-fn-badge" @click="loadFn('whereIn')">whereIn()</a>
+                <a href="#fn-wherein" class="sidebar-fn-badge" @click="loadFn('whereNotIn')">whereNotIn()</a>
+                <a href="#fn-wherebetween" class="sidebar-fn-badge" @click="loadFn('whereBetween')">whereBetween()</a>
+                <a href="#fn-wherenull" class="sidebar-fn-badge">whereNull()</a>
+                <a href="#fn-search" class="sidebar-fn-badge" @click="loadFn('search')">search()</a>
+              </div>
+            </div>
+
+            <!-- 03. Sorting & Ordering -->
+            <div class="mb-2" hx-if="matchSearch('sort orderby sortbydesc reverse comparator sortkeys')">
+              <a href="#section-sorting" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">03</span>
+                  <span>3. Sorting & Ordering</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+              <div class="ps-4 d-flex flex-wrap gap-1">
+                <a href="#section-sorting" class="sidebar-fn-badge featured" @click="loadFn('orderBy')">orderBy()</a>
+                <a href="#section-sorting" class="sidebar-fn-badge">sortBy()</a>
+                <a href="#section-sorting" class="sidebar-fn-badge">sortByDesc()</a>
+                <a href="#section-sorting" class="sidebar-fn-badge">reverse()</a>
+                <a href="#section-sorting" class="sidebar-fn-badge">sortKeys()</a>
+              </div>
+            </div>
+
+            <!-- 04. Pagination & Slicing -->
+            <div class="mb-2" hx-if="matchSearch('pagination paginate chunk forpage slice nth limit skip take')">
+              <a href="#section-pagination" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">04</span>
+                  <span>4. Pagination & Slicing</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+              <div class="ps-4 d-flex flex-wrap gap-1">
+                <a href="#section-pagination" class="sidebar-fn-badge featured" @click="loadFn('paginate')">paginate()</a>
+                <a href="#section-pagination" class="sidebar-fn-badge">limit()</a>
+                <a href="#section-pagination" class="sidebar-fn-badge">skip()</a>
+                <a href="#section-pagination" class="sidebar-fn-badge">take()</a>
+                <a href="#section-pagination" class="sidebar-fn-badge">slice()</a>
+                <a href="#section-pagination" class="sidebar-fn-badge">chunk()</a>
+                <a href="#section-pagination" class="sidebar-fn-badge">nth()</a>
+              </div>
+            </div>
+
+            <!-- 05. Projections & Pluck -->
+            <div class="mb-2" hx-if="matchSearch('select pluck except only projection')">
+              <a href="#section-projections" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">05</span>
+                  <span>5. Projections & Pluck</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+              <div class="ps-4 d-flex flex-wrap gap-1">
+                <a href="#section-projections" class="sidebar-fn-badge featured" @click="loadFn('select')">select()</a>
+                <a href="#section-projections" class="sidebar-fn-badge featured" @click="loadFn('pluck')">pluck()</a>
+                <a href="#section-projections" class="sidebar-fn-badge">except()</a>
+                <a href="#section-projections" class="sidebar-fn-badge">only()</a>
+              </div>
+            </div>
+
+            <!-- 06. Aggregations & Math -->
+            <div class="mb-2" hx-if="matchSearch('sum avg min max median mode count aggregation math reduce')">
+              <a href="#section-aggregations" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">06</span>
+                  <span>6. Aggregations & Math</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+              <div class="ps-4 d-flex flex-wrap gap-1">
+                <a href="#section-aggregations" class="sidebar-fn-badge featured" @click="loadFn('sum')">sum()</a>
+                <a href="#section-aggregations" class="sidebar-fn-badge">avg()</a>
+                <a href="#section-aggregations" class="sidebar-fn-badge">count()</a>
+                <a href="#section-aggregations" class="sidebar-fn-badge">min()</a>
+                <a href="#section-aggregations" class="sidebar-fn-badge">max()</a>
+                <a href="#section-aggregations" class="sidebar-fn-badge">median()</a>
+                <a href="#section-aggregations" class="sidebar-fn-badge">mode()</a>
+              </div>
+            </div>
+
+            <!-- 07. Grouping & Transform -->
+            <div class="mb-2" hx-if="matchSearch('groupby keyby unique partition map reject transform flatten implode')">
+              <a href="#section-transformations" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">07</span>
+                  <span>7. Grouping & Transform</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+              <div class="ps-4 d-flex flex-wrap gap-1">
+                <a href="#section-transformations" class="sidebar-fn-badge featured" @click="loadFn('groupBy')">groupBy()</a>
+                <a href="#section-transformations" class="sidebar-fn-badge">keyBy()</a>
+                <a href="#section-transformations" class="sidebar-fn-badge">unique()</a>
+                <a href="#section-transformations" class="sidebar-fn-badge">partition()</a>
+                <a href="#section-transformations" class="sidebar-fn-badge">map()</a>
+                <a href="#section-transformations" class="sidebar-fn-badge">flatten()</a>
+                <a href="#section-transformations" class="sidebar-fn-badge">implode()</a>
+              </div>
+            </div>
+
+            <!-- 08. Relational Joins -->
+            <div class="mb-2" hx-if="matchSearch('join innerjoin leftjoin joinlive relational')">
+              <a href="#section-joins" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">08</span>
+                  <span>8. Relational Joins</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+              <div class="ps-4 d-flex flex-wrap gap-1">
+                <a href="#section-joins" class="sidebar-fn-badge featured" @click="loadFn('leftJoin')">leftJoin()</a>
+                <a href="#section-joins" class="sidebar-fn-badge featured" @click="loadFn('innerJoin')">innerJoin()</a>
+                <a href="#section-joins" class="sidebar-fn-badge">joinLive()</a>
+              </div>
+            </div>
+
+            <!-- 09. O(1) Map Indexing -->
+            <div class="mb-2" hx-if="matchSearch('index find findby firstwhere sole o1 map index exists isempty')">
+              <a href="#section-indexing" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">09</span>
+                  <span>9. O(1) Map Indexing</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+              <div class="ps-4 d-flex flex-wrap gap-1">
+                <a href="#section-indexing" class="sidebar-fn-badge featured" @click="loadFn('index')">.index()</a>
+                <a href="#section-indexing" class="sidebar-fn-badge featured" @click="loadFn('find')">.find()</a>
+                <a href="#section-indexing" class="sidebar-fn-badge">findBy()</a>
+                <a href="#section-indexing" class="sidebar-fn-badge">firstWhere()</a>
+                <a href="#section-indexing" class="sidebar-fn-badge">sole()</a>
+                <a href="#section-indexing" class="sidebar-fn-badge">exists()</a>
+              </div>
+            </div>
+
+            <!-- 10. Signal Reactivity -->
+            <div class="mb-2" hx-if="matchSearch('computed live watch subscribe effect signal reactivity')">
+              <a href="#section-reactivity" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">10</span>
+                  <span>10. Signal Reactivity</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+              <div class="ps-4 d-flex flex-wrap gap-1">
+                <a href="#section-reactivity" class="sidebar-fn-badge featured" @click="loadFn('computed')">computed()</a>
+                <a href="#section-reactivity" class="sidebar-fn-badge">live()</a>
+                <a href="#section-reactivity" class="sidebar-fn-badge">watch()</a>
+                <a href="#section-reactivity" class="sidebar-fn-badge">subscribe()</a>
+                <a href="#section-reactivity" class="sidebar-fn-badge">effect()</a>
+              </div>
+            </div>
+
+            <!-- 11. In-Place Mutations -->
+            <div class="mb-2" hx-if="matchSearch('insert update delete push splice mutations with')">
+              <a href="#section-mutations" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">11</span>
+                  <span>11. In-Place Mutations</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+              <div class="ps-4 d-flex flex-wrap gap-1">
+                <a href="#section-mutations" class="sidebar-fn-badge featured" @click="loadFn('update')">update()</a>
+                <a href="#section-mutations" class="sidebar-fn-badge featured" @click="loadFn('delete')">delete()</a>
+                <a href="#section-mutations" class="sidebar-fn-badge">insert()</a>
+                <a href="#section-mutations" class="sidebar-fn-badge">push()</a>
+                <a href="#section-mutations" class="sidebar-fn-badge">splice()</a>
+              </div>
+            </div>
+
+            <!-- 12. AST & Custom Macros -->
+            <div class="mb-2" hx-if="matchSearch('ast toast fromast macro registeroperator serialization')">
+              <a href="#section-ast" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">12</span>
+                  <span>12. AST & Custom Macros</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+              <div class="ps-4 d-flex flex-wrap gap-1">
+                <a href="#section-ast" class="sidebar-fn-badge featured" @click="loadFn('toAst')">toAst()</a>
+                <a href="#section-ast" class="sidebar-fn-badge">fromAst()</a>
+                <a href="#section-ast" class="sidebar-fn-badge featured" @click="loadFn('macro')">.macro()</a>
+                <a href="#section-ast" class="sidebar-fn-badge">registerOperator()</a>
+              </div>
+            </div>
+
+            <!-- 13. Interactive Console -->
+            <div class="mb-2" hx-if="matchSearch('playground console interactive sandbox live test')">
+              <a href="#section-playground" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">13</span>
+                  <span>13. Interactive Console</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+            </div>
+
+            <!-- 14. Complete API Matrix -->
+            <div class="mb-2" hx-if="matchSearch('cheatsheet api reference table matrix all')">
+              <a href="#section-cheatsheet" class="sidebar-nav-link d-flex align-items-center justify-content-between mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="sidebar-nav-badge">14</span>
+                  <span>14. Complete API Matrix</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size: 0.7rem;"></i>
+              </a>
+            </div>
+
+          </nav>
+
+          <div class="mt-auto pt-3 border-top text-muted" style="font-size: 0.725rem;">
+            <div class="d-flex justify-content-between mb-1">
+              <span>Heap Cache Max:</span>
+              <span class="font-mono text-dark fw-bold">1,000</span>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span>Async Batch Size:</span>
+              <span class="font-mono text-dark fw-bold">8</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ========================================================= -->
+      <!-- MAIN CONTENT VIEW (RIGHT) -->
+      <!-- ========================================================= -->
+      <div class="col-xl-9 col-lg-8">
+
+        <!-- Top Hero Banner -->
+        <div class="hero-banner p-4 p-md-5 mb-4">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+            <span class="hero-badge">
+              <i class="fa-solid fa-cube text-primary"></i>
+              Official Helix Ecosystem Plugin
+            </span>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-white text-dark border font-mono">MIT License</span>
+              <span class="badge bg-indigo text-white font-mono" style="background-color: #4f46e5;">~18 KB Gzip</span>
+            </div>
+          </div>
+
+          <h2 class="display-6 fw-bold mb-2 text-dark" style="letter-spacing: -0.02em;">
+            AST-Driven In-Memory Query Engine & Reactive Collections
+          </h2>
+          <p class="lead text-secondary mb-4" style="font-size: 1.05rem; max-width: 820px;">
+            <code>helix-model</code> delivers fluent, SQL-like query builders and Laravel-inspired collection manipulation for JavaScript arrays. Features lazy generators, O(1) indexing, relational joins, AST serialization, and native Helix reactive signals.
+          </p>
+
+          <!-- Metrics Strip -->
+          <div class="d-flex flex-wrap gap-4 pt-3 border-top" style="font-size: 0.8rem;">
+            <div>
+              <span class="text-muted d-block">Query Pipeline</span>
+              <strong class="text-dark font-mono">AST Tree Compilation</strong>
+            </div>
+            <div>
+              <span class="text-muted d-block">Indexed Lookup Speed</span>
+              <strong class="text-success font-mono">O(1) Map Lookups</strong>
+            </div>
+            <div>
+              <span class="text-muted d-block">Execution Modes</span>
+              <strong class="text-primary font-mono">Eager · Lazy · Async</strong>
+            </div>
+            <div>
+              <span class="text-muted d-block">Signal Integration</span>
+              <strong class="text-dark font-mono">.computed() & .live()</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 01: MODEL INSTANTIATION & QUERY CLONES -->
+        <!-- ========================================================= -->
+        <section id="section-instantiation" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">01</span>
+                <h5 class="mb-0 fw-bold">Model Instantiation & Query Clones</h5>
+              </div>
+              <small class="text-muted">Create query instances via <code>model(data)</code>, clone query states, or enable lazy generator evaluation.</small>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="copySnippet('code-instantiation')">
+              <i class="bi bi-clipboard me-1"></i> Copy Code
+            </button>
+          </div>
+
+          <div class="p-4">
+            <div class="row g-4">
+              <div class="col-lg-6">
+                <div class="output-panel h-100">
+                  <h6 class="fw-bold mb-2 d-flex align-items-center gap-2">
+                    <i class="bi bi-play-circle text-primary"></i>
+                    Interactive Demonstration
+                  </h6>
+                  <p class="small text-muted mb-3">Demonstrates creating models, cloning query branches, and lazy evaluation.</p>
+
+                  <div class="p-3 bg-white rounded-3 border mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                      <span class="small fw-bold">Source Dataset (8 Items):</span>
+                      <span class="badge bg-secondary font-mono">Raw Array</span>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap mb-3">
+                      <button class="btn btn-sm btn-primary" @click="runCloneDemo">
+                        <i class="bi bi-diagram-2 me-1"></i> Test .clone() Branching
+                      </button>
+                      <button class="btn btn-sm btn-outline-secondary" @click="runLazyDemo">
+                        <i class="bi bi-lightning-charge me-1"></i> Test .lazy() Generator
+                      </button>
+                    </div>
+
+                    <div class="p-2.5 bg-light rounded border font-mono small" style="min-height: 100px;">
+                      <div class="text-muted small mb-1">// Console Output:</div>
+                      <div hx-text="cloneOutput">Click one of the buttons above to run query pipeline.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-6">
+                <div class="code-preview h-100" id="code-instantiation">
+<span class="text-secondary">// 1. Basic Model Creation</span>
+<span class="text-info">const</span> query = <span class="text-warning">Helix.$model</span>(products);
+
+<span class="text-secondary">// 2. Branching with .clone()</span>
+<span class="text-info">const</span> base = query.<span class="text-warning">where</span>(<span class="text-success">'active'</span>, <span class="text-success">'='</span>, <span class="text-primary">true</span>);
+<span class="text-info">const</span> cheap = base.<span class="text-warning">clone</span>().<span class="text-warning">where</span>(<span class="text-success">'price'</span>, <span class="text-success">'&lt;'</span>, <span class="text-primary">50</span>);
+<span class="text-info">const</span> premium = base.<span class="text-warning">clone</span>().<span class="text-warning">where</span>(<span class="text-success">'price'</span>, <span class="text-success">'&gt;='</span>, <span class="text-primary">100</span>);
+
+<span class="text-secondary">// 3. Lazy Generator Evaluation (On-demand)</span>
+<span class="text-info">const</span> generator = query.<span class="text-warning">where</span>(<span class="text-success">'rating'</span>, <span class="text-success">'&gt;='</span>, <span class="text-primary">4.5</span>).<span class="text-warning">lazy</span>();
+<span class="text-info">for</span> (<span class="text-info">const</span> item <span class="text-info">of</span> generator) {
+  <span class="text-secondary">// Evaluated row by row without full array scan</span>
+  console.log(item.name);
+}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 02: AST FILTERING & WHERE PREDICATES -->
+        <!-- ========================================================= -->
+        <section id="section-where-filters" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">02</span>
+                <h5 class="mb-0 fw-bold">AST Filtering & Where Predicates</h5>
+              </div>
+              <small class="text-muted">Multi-condition AST tree execution with <code>where</code>, <code>orWhere</code>, <code>whereIn</code>, <code>whereBetween</code>, and multi-field <code>search</code>.</small>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="copySnippet('code-where')">
+              <i class="bi bi-clipboard me-1"></i> Copy Code
+            </button>
+          </div>
+
+          <div class="p-4">
+            <!-- Live Catalog Filters Widget -->
+            <div class="output-panel mb-4">
+              <div class="row g-3 align-items-center">
+                <div class="col-md-4">
+                  <label class="form-label small fw-bold text-muted mb-1">Live Multi-Field Search (name, category, brand):</label>
+                  <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" class="form-control" placeholder="Search 'apple', 'audio'..." hx-model="catalogFilter.search">
+                  </div>
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold text-muted mb-1">Category (<code>whereIn</code>):</label>
+                  <select class="form-select form-select-sm" hx-model="catalogFilter.category">
+                    <option value="ALL">All Categories</option>
+                    <option value="Electronics">Electronics</option>
+                    <option value="Audio">Audio</option>
+                    <option value="Accessories">Accessories</option>
+                  </select>
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold text-muted mb-1">Max Price (<code>where &lt;=</code>): $[[ catalogFilter.maxPrice ]]</label>
+                  <input type="range" class="form-range" min="30" max="1200" step="10" hx-model.number="catalogFilter.maxPrice">
+                </div>
+
+                <div class="col-md-2">
+                  <div class="form-check form-switch mt-3">
+                    <input class="form-check-input" type="checkbox" id="inStockCheck" hx-model="catalogFilter.inStockOnly">
+                    <label class="form-check-label small fw-bold" for="inStockCheck">In-Stock Only</label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Filtered Results Count Strip -->
+              <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                <div class="small text-muted">
+                  Matching Items: <strong class="text-primary font-mono" hx-text="filteredProducts.length"></strong> / <span hx-text="rawProducts.length"></span>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2" @click="resetCatalogFilters">
+                  <i class="bi bi-arrow-counterclockwise me-1"></i> Reset Filters
+                </button>
+              </div>
+            </div>
+
+            <!-- Results Grid -->
+            <div class="row g-3 mb-4">
+              <div class="col-md-4 col-sm-6" hx-for="item in filteredProducts" :key="item.id">
+                <div class="product-grid-card h-100 d-flex flex-column justify-content-between">
+                  <div>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="badge bg-light text-dark border font-mono small" hx-text="item.category"></span>
+                      <span class="badge font-mono" :class="item.inStock ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'" hx-text="item.inStock ? 'In Stock' : 'Out of Stock'"></span>
+                    </div>
+                    <h6 class="fw-bold mb-1" hx-text="item.name"></h6>
+                    <small class="text-muted d-block mb-2">Brand: <span class="fw-semibold text-dark" hx-text="item.brand"></span></small>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                    <span class="fs-6 fw-bold text-primary font-mono">$[[ item.price ]]</span>
+                    <span class="small text-warning"><i class="bi bi-star-fill me-1"></i>[[ item.rating ]]</span>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12" hx-if="filteredProducts.length === 0">
+                <div class="p-4 text-center text-muted bg-light rounded-3 border">
+                  <i class="bi bi-emoji-neutral fs-2 d-block mb-1"></i>
+                  No products match the selected AST filter criteria.
+                </div>
+              </div>
+            </div>
+
+            <!-- Code Snippet -->
+            <div class="code-preview mb-4" id="code-where">
+<span class="text-info">const</span> results = <span class="text-warning">Helix.$model</span>(products)
+  .<span class="text-warning">where</span>(<span class="text-success">'price'</span>, <span class="text-success">'&lt;='</span>, maxPrice)
+  .<span class="text-warning">when</span>(category !== <span class="text-success">'ALL'</span>, q =&gt; q.<span class="text-warning">where</span>(<span class="text-success">'category'</span>, <span class="text-success">'='</span>, category))
+  .<span class="text-warning">when</span>(inStockOnly, q =&gt; q.<span class="text-warning">where</span>(<span class="text-success">'inStock'</span>, <span class="text-success">'='</span>, <span class="text-primary">true</span>))
+  .<span class="text-warning">when</span>(searchQuery, q =&gt; q.<span class="text-warning">search</span>([<span class="text-success">'name'</span>, <span class="text-success">'category'</span>, <span class="text-success">'brand'</span>], searchQuery))
+  .<span class="text-warning">orderBy</span>(<span class="text-success">'price'</span>, <span class="text-success">'asc'</span>)
+  .<span class="text-warning">get</span>();
+            </div>
+
+            <!-- Deep Dive Predicate Matrix & Method Reference -->
+            <div class="mt-4 pt-3 border-top">
+              <h6 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                <i class="bi bi-funnel-fill text-primary"></i>
+                Detailed Predicate Reference (where, when, like, and more)
+              </h6>
+
+              <div class="row g-3">
+                <!-- 1. where() -->
+                <div class="col-md-6" id="fn-where">
+                  <div class="p-3 bg-white rounded-3 border h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="badge bg-primary text-white font-mono">.where()</span>
+                      <button class="btn btn-sm btn-outline-primary py-0 px-2 font-mono" style="font-size: 0.72rem;" @click="loadFn('where')">Try in Console</button>
+                    </div>
+                    <small class="text-muted d-block mb-2">Evaluates column comparisons (<code>=</code>, <code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>), object hashes, or custom callbacks.</small>
+                    <pre class="bg-light p-2 rounded text-dark font-mono small mb-0" style="font-size: 0.75rem;"><code>// Standard 3-arg or 2-arg equality
+m.where('price', '&lt;=', 300);
+m.where('category', 'Electronics');
+
+// Hash / Object dictionary
+m.where({ active: true, inStock: true });
+
+// Custom Callback predicate
+m.where(item =&gt; item.price * 1.1 &gt; 500);</code></pre>
+                  </div>
+                </div>
+
+                <!-- 2. when() & unless() -->
+                <div class="col-md-6" id="fn-when">
+                  <div class="p-3 bg-white rounded-3 border h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="badge bg-primary text-white font-mono">.when() / .unless()</span>
+                      <button class="btn btn-sm btn-outline-primary py-0 px-2 font-mono" style="font-size: 0.72rem;" @click="loadFn('when')">Try in Console</button>
+                    </div>
+                    <small class="text-muted d-block mb-2">Conditionally append query clauses only when the first argument is truthy (or falsy in <code>unless</code>) without breaking method chaining.</small>
+                    <pre class="bg-light p-2 rounded text-dark font-mono small mb-0" style="font-size: 0.75rem;"><code>// Applies filter ONLY when selectedRole is present
+m.when(selectedRole, (query, role) =&gt; {
+  return query.where('role', '=', role);
+}, (query) =&gt; {
+  // Optional fallback when falsy
+  return query.where('role', '!=', 'banned');
+});</code></pre>
+                  </div>
+                </div>
+
+                <!-- 3. like & not like -->
+                <div class="col-md-6" id="fn-like">
+                  <div class="p-3 bg-white rounded-3 border h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="badge bg-indigo text-white font-mono" style="background-color: #4f46e5;">'like' Operator</span>
+                      <button class="btn btn-sm btn-outline-primary py-0 px-2 font-mono" style="font-size: 0.72rem;" @click="loadFn('like')">Try in Console</button>
+                    </div>
+                    <small class="text-muted d-block mb-2">Case-insensitive substring match inside string fields, equivalent to SQL <code>LIKE %term%</code>.</small>
+                    <pre class="bg-light p-2 rounded text-dark font-mono small mb-0" style="font-size: 0.75rem;"><code>// Match substring inside product name
+m.where('name', 'like', 'pro');
+
+// Compact 2-argument SQL syntax
+m.where('name like', 'air');
+
+// Negative substring check ('not like')
+m.where('sku', 'not like', 'TEST');</code></pre>
+                  </div>
+                </div>
+
+                <!-- 4. orWhere() -->
+                <div class="col-md-6" id="fn-orwhere">
+                  <div class="p-3 bg-white rounded-3 border h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="badge bg-primary text-white font-mono">.orWhere()</span>
+                      <button class="btn btn-sm btn-outline-primary py-0 px-2 font-mono" style="font-size: 0.72rem;" @click="loadFn('orWhere')">Try in Console</button>
+                    </div>
+                    <small class="text-muted d-block mb-2">Appends an OR branch to the AST query tree, allowing matches that satisfy either condition.</small>
+                    <pre class="bg-light p-2 rounded text-dark font-mono small mb-0" style="font-size: 0.75rem;"><code>// Matches Apple OR Bose products
+m.where('brand', '=', 'Apple')
+ .orWhere('brand', '=', 'Bose');</code></pre>
+                  </div>
+                </div>
+
+                <!-- 5. whereIn() & whereNotIn() -->
+                <div class="col-md-6" id="fn-wherein">
+                  <div class="p-3 bg-white rounded-3 border h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="badge bg-primary text-white font-mono">.whereIn() / .whereNotIn()</span>
+                      <button class="btn btn-sm btn-outline-primary py-0 px-2 font-mono" style="font-size: 0.72rem;" @click="loadFn('whereIn')">Try in Console</button>
+                    </div>
+                    <small class="text-muted d-block mb-2">Check if a column value exists (or does not exist) within an array of candidates.</small>
+                    <pre class="bg-light p-2 rounded text-dark font-mono small mb-0" style="font-size: 0.75rem;"><code>// Keep only Electronics or Audio
+m.whereIn('category', ['Electronics', 'Audio']);
+
+// Exclude deleted or archived records
+m.whereNotIn('status', ['archived', 'trash']);</code></pre>
+                  </div>
+                </div>
+
+                <!-- 6. whereBetween() & whereNotBetween() -->
+                <div class="col-md-6" id="fn-wherebetween">
+                  <div class="p-3 bg-white rounded-3 border h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="badge bg-primary text-white font-mono">.whereBetween()</span>
+                      <button class="btn btn-sm btn-outline-primary py-0 px-2 font-mono" style="font-size: 0.72rem;" @click="loadFn('whereBetween')">Try in Console</button>
+                    </div>
+                    <small class="text-muted d-block mb-2">Inclusive numeric or date range filter checking whether `min &lt;= field &lt;= max`.</small>
+                    <pre class="bg-light p-2 rounded text-dark font-mono small mb-0" style="font-size: 0.75rem;"><code>// Price between $100 and $500 (inclusive)
+m.whereBetween('price', [100, 500]);
+
+// Rating outside low spectrum
+m.whereNotBetween('rating', [0, 2.5]);</code></pre>
+                  </div>
+                </div>
+
+                <!-- 7. whereNull() & whereNotNull() -->
+                <div class="col-md-6" id="fn-wherenull">
+                  <div class="p-3 bg-white rounded-3 border h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="badge bg-secondary font-mono">.whereNull() / .whereNotNull()</span>
+                    </div>
+                    <small class="text-muted d-block mb-2">Filter items where a field is `null` or `undefined` (or defined and non-null).</small>
+                    <pre class="bg-light p-2 rounded text-dark font-mono small mb-0" style="font-size: 0.75rem;"><code>// Find items missing a discount code
+m.whereNull('discountCode');
+
+// Find verified accounts only
+m.whereNotNull('verifiedAt');</code></pre>
+                  </div>
+                </div>
+
+                <!-- 8. search() -->
+                <div class="col-md-6" id="fn-search">
+                  <div class="p-3 bg-white rounded-3 border h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="badge bg-cyan text-dark font-mono" style="background-color: #a5f3fc;">.search()</span>
+                      <button class="btn btn-sm btn-outline-primary py-0 px-2 font-mono" style="font-size: 0.72rem;" @click="loadFn('search')">Try in Console</button>
+                    </div>
+                    <small class="text-muted d-block mb-2">Multi-field fuzzy case-insensitive substring search across any array of fields.</small>
+                    <pre class="bg-light p-2 rounded text-dark font-mono small mb-0" style="font-size: 0.75rem;"><code>// Searches name, category, and brand simultaneously
+m.search(['name', 'category', 'brand'], 'apple');</code></pre>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 03: SORTING, REVERSAL & COMPARATORS -->
+        <!-- ========================================================= -->
+        <section id="section-sorting" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">03</span>
+                <h5 class="mb-0 fw-bold">Sorting & Ordering</h5>
+              </div>
+              <small class="text-muted">Fluent sorting with <code>orderBy</code>, <code>sortByDesc</code>, custom comparator functions, and dictionary <code>sortKeys</code>.</small>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="copySnippet('code-sort')">
+              <i class="bi bi-clipboard me-1"></i> Copy Code
+            </button>
+          </div>
+
+          <div class="p-4">
+            <div class="row g-4">
+              <div class="col-lg-6">
+                <div class="output-panel">
+                  <h6 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                    <i class="bi bi-sort-down text-primary"></i>
+                    Sorting Selector
+                  </h6>
+
+                  <div class="d-flex flex-wrap gap-2 mb-3">
+                    <button class="btn btn-sm" :class="activeSort === 'price-asc' ? 'btn-primary' : 'btn-outline-secondary'" @click="setSort('price-asc')">
+                      Price: Low → High
+                    </button>
+                    <button class="btn btn-sm" :class="activeSort === 'price-desc' ? 'btn-primary' : 'btn-outline-secondary'" @click="setSort('price-desc')">
+                      Price: High → Low
+                    </button>
+                    <button class="btn btn-sm" :class="activeSort === 'rating-desc' ? 'btn-primary' : 'btn-outline-secondary'" @click="setSort('rating-desc')">
+                      Top Rated (Rating ↓)
+                    </button>
+                    <button class="btn btn-sm" :class="activeSort === 'name-asc' ? 'btn-primary' : 'btn-outline-secondary'" @click="setSort('name-asc')">
+                      Alphabetical (A-Z)
+                    </button>
+                  </div>
+
+                  <ul class="list-group list-group-flush border rounded-3 bg-white">
+                    <li class="list-group-item d-flex justify-content-between align-items-center py-2" hx-for="item in sortedProductSample" :key="item.id">
+                      <div>
+                        <strong hx-text="item.name"></strong>
+                        <small class="text-muted d-block">Rating: [[ item.rating ]] ★</small>
+                      </div>
+                      <span class="badge bg-indigo text-white font-mono" style="background-color: #4f46e5;">$[[ item.price ]]</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="col-lg-6">
+                <div class="code-preview h-100" id="code-sort">
+<span class="text-secondary">// 1. Single Field Directional Ordering</span>
+<span class="text-info">const</span> byPrice = <span class="text-warning">Helix.$model</span>(items).<span class="text-warning">orderBy</span>(<span class="text-success">'price'</span>, <span class="text-success">'desc'</span>).<span class="text-warning">get</span>();
+
+<span class="text-secondary">// 2. Multi-column Ordering</span>
+<span class="text-info">const</span> multi = <span class="text-warning">Helix.$model</span>(items).<span class="text-warning">orderBy</span>([
+  { field: <span class="text-success">'category'</span>, dir: <span class="text-success">'asc'</span> },
+  { field: <span class="text-success">'price'</span>, dir: <span class="text-success">'desc'</span> }
+]).<span class="text-warning">get</span>();
+
+<span class="text-secondary">// 3. Shortcut Helpers</span>
+<span class="text-info">const</span> top = <span class="text-warning">Helix.$model</span>(items).<span class="text-warning">sortByDesc</span>(<span class="text-success">'rating'</span>).<span class="text-warning">take</span>(<span class="text-primary">5</span>).<span class="text-warning">get</span>();
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 04: PAGINATION & SLICING -->
+        <!-- ========================================================= -->
+        <section id="section-pagination" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">04</span>
+                <h5 class="mb-0 fw-bold">Pagination & Slicing</h5>
+              </div>
+              <small class="text-muted">Built-in Laravel-style <code>paginate(perPage, page)</code> metadata generator, <code>chunk(size)</code>, and <code>nth(step)</code>.</small>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="copySnippet('code-pagination')">
+              <i class="bi bi-clipboard me-1"></i> Copy Code
+            </button>
+          </div>
+
+          <div class="p-4">
+            <div class="output-panel mb-4">
+              <!-- Controls Header -->
+              <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                  <label class="small fw-bold text-muted mb-0">Items Per Page:</label>
+                  <select class="form-select form-select-sm" style="width: 80px;" hx-model.number="paginationConfig.perPage" @change="changePage(1)">
+                    <option value="3">3</option>
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                  </select>
+                </div>
+
+                <div class="small text-muted">
+                  Showing <strong class="text-dark font-mono">[[ paginationData.from ]] - [[ paginationData.to ]]</strong> of <strong class="text-dark font-mono">[[ paginationData.total ]]</strong> items (Page [[ paginationData.currentPage ]] / [[ paginationData.lastPage ]])
+                </div>
+              </div>
+
+              <!-- Table -->
+              <div class="table-responsive bg-white rounded-3 border mb-3">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                  <thead class="table-light">
+                    <tr>
+                      <th class="font-mono">#ID</th>
+                      <th>Product</th>
+                      <th>Category</th>
+                      <th class="font-mono text-end">Price</th>
+                      <th>Rating</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr hx-for="row in paginationData.data" :key="row.id">
+                      <td class="font-mono text-muted" hx-text="row.id"></td>
+                      <td class="fw-bold" hx-text="row.name"></td>
+                      <td><span class="badge bg-light text-dark border" hx-text="row.category"></span></td>
+                      <td class="font-mono text-end fw-bold text-primary">$[[ row.price ]]</td>
+                      <td class="text-warning"><i class="bi bi-star-fill me-1"></i>[[ row.rating ]]</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Pagination Navigation Bar -->
+              <div class="d-flex justify-content-between align-items-center">
+                <button class="btn btn-sm btn-outline-secondary" :disabled="paginationData.currentPage <= 1" @click="changePage(paginationData.currentPage - 1)">
+                  <i class="bi bi-chevron-left me-1"></i> Previous
+                </button>
+
+                <div class="d-flex gap-1">
+                  <button class="btn btn-sm font-mono" hx-for="p in paginationData.lastPage" :key="p" :class="p === paginationData.currentPage ? 'btn-primary' : 'btn-outline-secondary'" @click="changePage(p)">
+                    [[ p ]]
+                  </button>
+                </div>
+
+                <button class="btn btn-sm btn-outline-secondary" :disabled="paginationData.currentPage >= paginationData.lastPage" @click="changePage(paginationData.currentPage + 1)">
+                  Next <i class="bi bi-chevron-right ms-1"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Code Snippet -->
+            <div class="code-preview" id="code-pagination">
+<span class="text-secondary">// Execute pagination: returns full pagination bundle</span>
+<span class="text-info">const</span> pageResult = <span class="text-warning">Helix.$model</span>(dataset)
+  .<span class="text-warning">where</span>(<span class="text-success">'active'</span>, <span class="text-success">'='</span>, <span class="text-primary">true</span>)
+  .<span class="text-warning">orderBy</span>(<span class="text-success">'id'</span>, <span class="text-success">'asc'</span>)
+  .<span class="text-warning">paginate</span>(perPage, currentPage);
+
+<span class="text-secondary">/* Returns:
+{
+  data: [...],        // Current page slice
+  total: 50,          // Total filtered matching items
+  perPage: 5,         // Sliced per page
+  currentPage: 1,     // Current active page
+  lastPage: 10,       // Calculated total pages
+  from: 1,            // Item starting range index
+  to: 5               // Item ending range index
+}
+*/</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 05: FIELD PROJECTIONS & PLUCK -->
+        <!-- ========================================================= -->
+        <section id="section-projections" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">05</span>
+                <h5 class="mb-0 fw-bold">Projections & Pluck</h5>
+              </div>
+              <small class="text-muted">Extract narrow columns using <code>select('id, name')</code>, <code>pluck('price')</code>, <code>except()</code>, or <code>only()</code>.</small>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="copySnippet('code-projections')">
+              <i class="bi bi-clipboard me-1"></i> Copy Code
+            </button>
+          </div>
+
+          <div class="p-4">
+            <div class="row g-4">
+              <div class="col-lg-6">
+                <div class="output-panel h-100">
+                  <h6 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                    <i class="bi bi-layout-three-columns text-primary"></i>
+                    Interactive Column Plucking
+                  </h6>
+
+                  <div class="d-flex gap-2 flex-wrap mb-3">
+                    <button class="btn btn-sm btn-outline-primary" @click="runPluck('name')">
+                      Pluck: ['name']
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary" @click="runPluck('price')">
+                      Pluck: ['price']
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @click="runSelect('name, price')">
+                      Select: ('name, price')
+                    </button>
+                  </div>
+
+                  <div class="p-3 bg-white rounded-3 border">
+                    <small class="text-muted font-mono d-block mb-1">Projection Output Preview:</small>
+                    <pre class="bg-light p-2 rounded text-dark font-mono small mb-0" style="max-height: 180px; overflow-y: auto;">[[ projectionOutput ]]</pre>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-6">
+                <div class="code-preview h-100" id="code-projections">
+<span class="text-secondary">// 1. Pluck a single column as a flat array</span>
+<span class="text-info">const</span> names = <span class="text-warning">Helix.$model</span>(products).<span class="text-warning">pluck</span>(<span class="text-success">'name'</span>);
+<span class="text-secondary">// Output: ['MacBook Pro', 'Sony WH-1000XM5', ...]</span>
+
+<span class="text-secondary">// 2. Keep only selected keys (string or array)</span>
+<span class="text-info">const</span> mini = <span class="text-warning">Helix.$model</span>(products).<span class="text-warning">select</span>(<span class="text-success">'id, name, price'</span>).<span class="text-warning">get</span>();
+
+<span class="text-secondary">// 3. Exclude sensitive fields</span>
+<span class="text-info">const</span> publicUsers = <span class="text-warning">Helix.$model</span>(users).<span class="text-warning">except</span>(<span class="text-success">'password, token'</span>).<span class="text-warning">get</span>();
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 06: AGGREGATIONS & MATH ANALYTICS -->
+        <!-- ========================================================= -->
+        <section id="section-aggregations" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">06</span>
+                <h5 class="mb-0 fw-bold">Aggregations & Math Analytics</h5>
+              </div>
+              <small class="text-muted">Instant statistical calculations: <code>sum</code>, <code>avg</code>, <code>min</code>, <code>max</code>, <code>median</code>, <code>mode</code>, and <code>count</code>.</small>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="copySnippet('code-aggregations')">
+              <i class="bi bi-clipboard me-1"></i> Copy Code
+            </button>
+          </div>
+
+          <div class="p-4">
+            <!-- Analytics KPI Strip -->
+            <div class="row g-3 mb-4">
+              <div class="col-md-2 col-4">
+                <div class="kpi-card">
+                  <small class="text-muted d-block mb-1">Total Count</small>
+                  <strong class="fs-4 font-mono text-dark" hx-text="analyticsMetrics.count"></strong>
+                </div>
+              </div>
+              <div class="col-md-2 col-4">
+                <div class="kpi-card">
+                  <small class="text-muted d-block mb-1">Total Inventory</small>
+                  <strong class="fs-4 font-mono text-success">$[[ analyticsMetrics.sum ]]</strong>
+                </div>
+              </div>
+              <div class="col-md-2 col-4">
+                <div class="kpi-card">
+                  <small class="text-muted d-block mb-1">Average Price</small>
+                  <strong class="fs-4 font-mono text-primary">$[[ analyticsMetrics.avg ]]</strong>
+                </div>
+              </div>
+              <div class="col-md-2 col-4">
+                <div class="kpi-card">
+                  <small class="text-muted d-block mb-1">Median Price</small>
+                  <strong class="fs-4 font-mono text-purple">$[[ analyticsMetrics.median ]]</strong>
+                </div>
+              </div>
+              <div class="col-md-2 col-4">
+                <div class="kpi-card">
+                  <small class="text-muted d-block mb-1">Min Price</small>
+                  <strong class="fs-4 font-mono text-info">$[[ analyticsMetrics.min ]]</strong>
+                </div>
+              </div>
+              <div class="col-md-2 col-4">
+                <div class="kpi-card">
+                  <small class="text-muted d-block mb-1">Max Price</small>
+                  <strong class="fs-4 font-mono text-danger">$[[ analyticsMetrics.max ]]</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="code-preview" id="code-aggregations">
+<span class="text-info">const</span> m = <span class="text-warning">Helix.$model</span>(inventory);
+
+<span class="text-info">const</span> totalValue  = m.<span class="text-warning">sum</span>(<span class="text-success">'price'</span>);     <span class="text-secondary">// Total sum of numbers</span>
+<span class="text-info">const</span> averageCost = m.<span class="text-warning">avg</span>(<span class="text-success">'price'</span>);     <span class="text-secondary">// Arithmetic mean</span>
+<span class="text-info">const</span> medianCost  = m.<span class="text-warning">median</span>(<span class="text-success">'price'</span>);  <span class="text-secondary">// 50th percentile value</span>
+<span class="text-info">const</span> lowestPrice = m.<span class="text-warning">min</span>(<span class="text-success">'price'</span>);     <span class="text-secondary">// Lowest recorded price</span>
+<span class="text-info">const</span> peakPrice   = m.<span class="text-warning">max</span>(<span class="text-success">'price'</span>);     <span class="text-secondary">// Highest recorded price</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 07: TRANSFORMATIONS & GROUPING -->
+        <!-- ========================================================= -->
+        <section id="section-transformations" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">07</span>
+                <h5 class="mb-0 fw-bold">Grouping & Collection Transformations</h5>
+              </div>
+              <small class="text-muted">High-order array transformations: <code>groupBy</code>, <code>keyBy</code>, <code>unique</code>, <code>partition</code>, <code>flatten</code>, and <code>implode</code>.</small>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="copySnippet('code-transform')">
+              <i class="bi bi-clipboard me-1"></i> Copy Code
+            </button>
+          </div>
+
+          <div class="p-4">
+            <div class="row g-4">
+              <div class="col-lg-6">
+                <div class="output-panel">
+                  <h6 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                    <i class="bi bi-folder2-open text-primary"></i>
+                    Live Grouped Dictionary by Category
+                  </h6>
+
+                  <div class="d-flex flex-column gap-3">
+                    <div class="p-3 bg-white rounded-3 border" hx-for="(group, catName) in groupedCategories" :key="catName">
+                      <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom">
+                        <strong class="text-dark"><i class="bi bi-tag me-1 text-primary"></i>[[ catName ]]</strong>
+                        <span class="badge bg-primary-subtle text-primary font-mono">[[ group.length ]] items</span>
+                      </div>
+                      <div class="d-flex flex-wrap gap-1.5">
+                        <span class="badge bg-light text-secondary border font-mono small" hx-for="item in group" :key="item.id">
+                          [[ item.name ]] ($[[ item.price ]])
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-6">
+                <div class="code-preview h-100" id="code-transform">
+<span class="text-secondary">// 1. Group items by field into an object</span>
+<span class="text-info">const</span> grouped = <span class="text-warning">Helix.$model</span>(items).<span class="text-warning">groupBy</span>(<span class="text-success">'category'</span>);
+
+<span class="text-secondary">// 2. Split collection into [pass, fail] partitions</span>
+<span class="text-info">const</span> [expensive, budget] = <span class="text-warning">Helix.$model</span>(items)
+  .<span class="text-warning">partition</span>(item =&gt; item.price &gt;= <span class="text-primary">100</span>);
+
+<span class="text-secondary">// 3. Deduplicate by unique property</span>
+<span class="text-info">const</span> uniqueBrands = <span class="text-warning">Helix.$model</span>(items).<span class="text-warning">unique</span>(<span class="text-success">'brand'</span>).<span class="text-warning">get</span>();
+
+<span class="text-secondary">// 4. Join string with delimiter</span>
+<span class="text-info">const</span> tags = <span class="text-warning">Helix.$model</span>(items).<span class="text-warning">implode</span>(<span class="text-success">'name'</span>, <span class="text-success">', '</span>);
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 08: RELATIONAL JOINS -->
+        <!-- ========================================================= -->
+        <section id="section-joins" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">08</span>
+                <h5 class="mb-0 fw-bold">Relational In-Memory Joins</h5>
+              </div>
+              <small class="text-muted">Combine disparate datasets with <code>innerJoin</code>, <code>leftJoin</code>, and reactive <code>joinLive</code>.</small>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="copySnippet('code-joins')">
+              <i class="bi bi-clipboard me-1"></i> Copy Code
+            </button>
+          </div>
+
+          <div class="p-4">
+            <div class="row g-4">
+              <div class="col-lg-6">
+                <div class="output-panel h-100">
+                  <h6 class="fw-bold mb-2 d-flex align-items-center gap-2">
+                    <i class="bi bi-intersect text-primary"></i>
+                    Orders ⨝ Customers Join
+                  </h6>
+                  <p class="small text-muted mb-3">Joins `orders` (with customerId) against `customers` (with id) to create an enriched order invoice record.</p>
+
+                  <div class="table-responsive bg-white rounded-3 border">
+                    <table class="table table-hover table-sm mb-0" style="font-size: 0.8rem;">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Order #</th>
+                          <th>Customer</th>
+                          <th>City</th>
+                          <th class="text-end">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr hx-for="row in joinedOrders" :key="row.orderNumber">
+                          <td class="font-mono fw-bold" hx-text="row.orderNumber"></td>
+                          <td hx-text="row.name || 'Anonymous'"></td>
+                          <td class="text-muted" hx-text="row.city || 'N/A'"></td>
+                          <td class="font-mono text-end fw-bold text-success">$[[ row.total ]]</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-6">
+                <div class="code-preview h-100" id="code-joins">
+<span class="text-secondary">// Perform relational left-join between two datasets</span>
+<span class="text-info">const</span> ordersWithCustomer = <span class="text-warning">Helix.$model</span>(orders)
+  .<span class="text-warning">leftJoin</span>(customers, <span class="text-success">'customerId'</span>, <span class="text-success">'id'</span>)
+  .<span class="text-warning">select</span>(<span class="text-success">'orderNumber, name, city, total'</span>)
+  .<span class="text-warning">get</span>();
+
+<span class="text-secondary">// Reactive live join (auto-updates when either array changes)</span>
+<span class="text-info">const</span> liveView = <span class="text-warning">Helix.$model</span>(orders)
+  .<span class="text-warning">joinLive</span>(customers, <span class="text-success">'customerId'</span>, <span class="text-success">'id'</span>);
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 09: O(1) MAP INDEXING -->
+        <!-- ========================================================= -->
+        <section id="section-indexing" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">09</span>
+                <h5 class="mb-0 fw-bold">O(1) Map Indexing & Fast Lookups</h5>
+              </div>
+              <small class="text-muted">Build instant in-memory Map indexes with <code>.index('sku')</code> for $O(1)$ lookups via <code>.find()</code> and <code>.findBy()</code>.</small>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="copySnippet('code-indexing')">
+              <i class="bi bi-clipboard me-1"></i> Copy Code
+            </button>
+          </div>
+
+          <div class="p-4">
+            <div class="row g-4">
+              <div class="col-lg-6">
+                <div class="output-panel h-100">
+                  <h6 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                    <i class="bi bi-speedometer2 text-primary"></i>
+                    SKU Fast Lookup Tester
+                  </h6>
+
+                  <div class="input-group input-group-sm mb-3">
+                    <span class="input-group-text bg-white font-mono">SKU</span>
+                    <input type="text" class="form-control font-mono" placeholder="Try 'SKU-001' or 'SKU-003'..." hx-model="searchSku" @input="executeFastLookup">
+                    <button class="btn btn-primary" @click="executeFastLookup">O(1) Find</button>
+                  </div>
+
+                  <div class="p-3 bg-white rounded-3 border">
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom">
+                      <span class="small fw-bold">Lookup Result:</span>
+                      <span class="badge bg-success font-mono">O(1) Map Access</span>
+                    </div>
+                    <div hx-if="indexedSearchResult">
+                      <h6 class="fw-bold text-dark mb-1" hx-text="indexedSearchResult.name"></h6>
+                      <div class="d-flex justify-content-between text-muted small">
+                        <span>Price: <strong class="text-primary font-mono">$[[ indexedSearchResult.price ]]</strong></span>
+                        <span>Stock: <strong class="text-dark font-mono">[[ indexedSearchResult.stock ]] units</strong></span>
+                      </div>
+                    </div>
+                    <div hx-if="!indexedSearchResult" class="text-muted small">
+                      Enter a SKU above to perform an instant Map lookup.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-6">
+                <div class="code-preview h-100" id="code-indexing">
+<span class="text-secondary">// 1. Build an O(1) Map index on a unique key</span>
+<span class="text-info">const</span> catalog = <span class="text-warning">Helix.$model</span>(items).<span class="text-warning">index</span>(<span class="text-success">'sku'</span>);
+
+<span class="text-secondary">// 2. Instant O(1) lookups</span>
+<span class="text-info">const</span> item = catalog.<span class="text-warning">findBy</span>(<span class="text-success">'sku'</span>, <span class="text-success">'SKU-003'</span>);
+
+<span class="text-secondary">// 3. Fallback or strict error thrower</span>
+<span class="text-info">const</span> strict = catalog.<span class="text-warning">findOrFail</span>(<span class="text-success">'SKU-001'</span>, <span class="text-success">'sku'</span>);
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 10: SIGNAL REACTIVITY -->
+        <!-- ========================================================= -->
+        <section id="section-reactivity" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">10</span>
+                <h5 class="mb-0 fw-bold">Signal Reactivity & Subscriptions</h5>
+              </div>
+              <small class="text-muted">Derive native Helix <code>computed()</code> views, <code>watch()</code> queries, and subscribe to collection mutations.</small>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="copySnippet('code-reactivity')">
+              <i class="bi bi-clipboard me-1"></i> Copy Code
+            </button>
+          </div>
+
+          <div class="p-4">
+            <div class="row g-4">
+              <div class="col-lg-6">
+                <div class="output-panel h-100">
+                  <h6 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                    <i class="bi bi-broadcast text-primary"></i>
+                    Live Reactive Signal Demo
+                  </h6>
+
+                  <p class="small text-muted mb-3">Push an item into the underlying array — the derived model view re-computes automatically!</p>
+
+                  <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-sm btn-primary" @click="addRandomProduct">
+                      <i class="bi bi-plus-circle me-1"></i> Add Random Product
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" @click="removeLastProduct">
+                      <i class="bi bi-trash me-1"></i> Remove Last
+                    </button>
+                  </div>
+
+                  <div class="p-3 bg-white rounded-3 border">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="small text-muted">Reactive Model Count:</span>
+                      <strong class="font-mono text-dark" hx-text="reactiveModelCount"></strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="small text-muted">Reactive Inventory Sum:</span>
+                      <strong class="font-mono text-success fs-6">$[[ reactiveModelSum ]]</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-6">
+                <div class="code-preview h-100" id="code-reactivity">
+<span class="text-secondary">// 1. Create a reactive signal view</span>
+<span class="text-info">const</span> view = <span class="text-warning">Helix.$model</span>(state.items)
+  .<span class="text-warning">where</span>(<span class="text-success">'active'</span>, <span class="text-success">'='</span>, <span class="text-primary">true</span>)
+  .<span class="text-warning">computed</span>();
+
+<span class="text-secondary">// 2. Watch query changes</span>
+<span class="text-warning">Helix.$model</span>(state.items).<span class="text-warning">watch</span>((newItems, oldItems) =&gt; {
+  console.log(<span class="text-success">'Collection mutated:'</span>, newItems.length);
+});
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 11: IN-PLACE MUTATIONS -->
+        <!-- ========================================================= -->
+        <section id="section-mutations" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">11</span>
+                <h5 class="mb-0 fw-bold">In-Place & Immutable Mutations</h5>
+              </div>
+              <small class="text-muted">Mutate matching rows directly using <code>model.where(...).update()</code> and <code>model.where(...).delete()</code>.</small>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="copySnippet('code-mutations')">
+              <i class="bi bi-clipboard me-1"></i> Copy Code
+            </button>
+          </div>
+
+          <div class="p-4">
+            <div class="code-preview" id="code-mutations">
+<span class="text-secondary">// 1. Mass update matching query items in-place</span>
+<span class="text-warning">Helix.$model</span>(tasks)
+  .<span class="text-warning">where</span>(<span class="text-success">'status'</span>, <span class="text-success">'='</span>, <span class="text-success">'pending'</span>)
+  .<span class="text-warning">where</span>(<span class="text-success">'priority'</span>, <span class="text-success">'='</span>, <span class="text-success">'urgent'</span>)
+  .<span class="text-warning">update</span>({ status: <span class="text-success">'in_progress'</span>, assignedTo: <span class="text-success">'lead'</span> });
+
+<span class="text-secondary">// 2. Mass delete matching rows from underlying dataset</span>
+<span class="text-warning">Helix.$model</span>(logs)
+  .<span class="text-warning">where</span>(<span class="text-success">'level'</span>, <span class="text-success">'='</span>, <span class="text-success">'debug'</span>)
+  .<span class="text-warning">delete</span>();
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 12: AST SERIALIZATION & CUSTOM MACROS -->
+        <!-- ========================================================= -->
+        <section id="section-ast" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">12</span>
+                <h5 class="mb-0 fw-bold">AST Serialization & Custom Macros</h5>
+              </div>
+              <small class="text-muted">Export AST queries to JSON with <code>toAst()</code>, re-hydrate via <code>fromAst()</code>, and register custom query macros.</small>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="copySnippet('code-ast')">
+              <i class="bi bi-clipboard me-1"></i> Copy Code
+            </button>
+          </div>
+
+          <div class="p-4">
+            <div class="row g-4">
+              <div class="col-lg-6">
+                <div class="output-panel h-100">
+                  <h6 class="fw-bold mb-2 d-flex align-items-center gap-2">
+                    <i class="bi bi-braces text-primary"></i>
+                    Exported Query AST JSON
+                  </h6>
+                  <p class="small text-muted mb-3">The compiled AST tree representing the active filter query:</p>
+                  <pre class="bg-dark text-light p-3 rounded font-mono small mb-0" style="max-height: 220px; overflow-y: auto;">[[ activeQueryAstJson ]]</pre>
+                </div>
+              </div>
+
+              <div class="col-lg-6">
+                <div class="code-preview h-100" id="code-ast">
+<span class="text-secondary">// 1. Register a reusable query macro</span>
+<span class="text-warning">Helix.$model</span>.<span class="text-warning">macro</span>(<span class="text-success">'premiumProducts'</span>, <span class="text-info">function</span>() {
+  <span class="text-info">return</span> <span class="text-info">this</span>.<span class="text-warning">where</span>(<span class="text-success">'price'</span>, <span class="text-success">'&gt;='</span>, <span class="text-primary">500</span>).<span class="text-warning">where</span>(<span class="text-success">'rating'</span>, <span class="text-success">'&gt;='</span>, <span class="text-primary">4.8</span>);
+});
+
+<span class="text-secondary">// 2. Use the registered macro anywhere</span>
+<span class="text-info">const</span> vipItems = <span class="text-warning">Helix.$model</span>(items).<span class="text-warning">premiumProducts</span>().<span class="text-warning">get</span>();
+
+<span class="text-secondary">// 3. Register custom comparison operator</span>
+<span class="text-warning">Helix.$model</span>.<span class="text-warning">registerOperator</span>(<span class="text-success">'starts_with'</span>, ({ accessFn, value }) =&gt; {
+  <span class="text-info">return</span> item =&gt; String(accessFn(item)).startsWith(value);
+});
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 13: INTERACTIVE QUERY PLAYGROUND & CONSOLE -->
+        <!-- ========================================================= -->
+        <section id="section-playground" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">13</span>
+                <h5 class="mb-0 fw-bold">Interactive Query Playground & Console</h5>
+              </div>
+              <small class="text-muted">Type arbitrary fluent query expressions or click one of the presets to execute live in your browser.</small>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-primary" @click="runPlaygroundQuery">
+                <i class="bi bi-play-fill me-1"></i> Execute Query
+              </button>
+            </div>
+          </div>
+
+          <div class="p-4">
+            <!-- Preset Buttons -->
+            <div class="mb-3 d-flex flex-wrap gap-2">
+              <span class="small fw-bold text-muted d-flex align-items-center">Presets:</span>
+              <button class="btn btn-sm btn-outline-secondary" @click="loadPreset('cheapElectronics')">
+                Electronics Under $100
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" @click="loadPreset('topAudio')">
+                Top Rated Audio
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" @click="loadPreset('categorySum')">
+                Category Grouping
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" @click="loadPreset('stockPaginate')">
+                Paginated Page 1 (3/page)
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" @click="loadFn('findAll')">
+                .findAll(3) [CI4/Laravel]
+              </button>
+            </div>
+
+            <!-- Code Editor Box -->
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted mb-1">Query Expression (returns query or array):</label>
+              <textarea class="form-control font-mono bg-dark text-light border-secondary" rows="4" hx-model="playgroundCode" style="font-size: 0.85rem; line-height: 1.5;"></textarea>
+            </div>
+
+            <!-- Output Display -->
+            <div class="row g-3">
+              <div class="col-md-8">
+                <div class="p-3 bg-white rounded-3 border">
+                  <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom">
+                    <span class="small fw-bold text-dark"><i class="bi bi-terminal me-1 text-primary"></i> Execution Output:</span>
+                    <span class="badge bg-success-subtle text-success font-mono">Status: 200 OK</span>
+                  </div>
+                  <pre class="bg-light p-2.5 rounded font-mono small text-dark mb-0" style="max-height: 240px; overflow-y: auto;">[[ playgroundOutput ]]</pre>
+                </div>
+              </div>
+
+              <div class="col-md-4">
+                <div class="p-3 bg-white rounded-3 border h-100">
+                  <span class="small fw-bold text-dark d-block mb-2"><i class="bi bi-info-circle me-1 text-primary"></i> Quick Tips:</span>
+                  <ul class="small text-muted ps-3 mb-0" style="font-size: 0.775rem;">
+                    <li class="mb-1"><code>data</code> is bound to the test product catalog.</li>
+                    <li class="mb-1">Call <code>.get()</code> or <code>.all()</code> to resolve the query array.</li>
+                    <li class="mb-1">Try calling <code>.sum('price')</code> or <code>.paginate(3, 1)</code>.</li>
+                    <li>Inspect errors safely in the console output.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- SECTION 14: COMPLETE API MATRIX & CHEATSHEET -->
+        <!-- ========================================================= -->
+        <section id="section-cheatsheet" class="light-card">
+          <div class="card-header-custom">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white font-mono">14</span>
+                <h5 class="mb-0 fw-bold">Complete API Matrix & Method Reference</h5>
+              </div>
+              <small class="text-muted">Alphabetical and functional catalog of all 60+ built-in collection and query methods.</small>
+            </div>
+          </div>
+
+          <div class="p-4">
+            <div class="table-responsive">
+              <table class="table table-hover table-striped align-middle" style="font-size: 0.825rem;">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width: 25%;">Method</th>
+                    <th style="width: 40%;">Description</th>
+                    <th style="width: 35%;">Example Usage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>.where(field, op, val)</code></td>
+                    <td>Filter rows matching operator comparison</td>
+                    <td><code>.where('age', '>=', 18)</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.where(object)</code></td>
+                    <td>Key-value equality filter</td>
+                    <td><code>.where({ active: true, role: 'admin' })</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.whereIn(field, array)</code></td>
+                    <td>Check if field matches any value in array</td>
+                    <td><code>.whereIn('status', ['paid', 'shipped'])</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.whereBetween(field, [min, max])</code></td>
+                    <td>Inclusive numeric or date range filter</td>
+                    <td><code>.whereBetween('score', [50, 100])</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.search(fields, query)</code></td>
+                    <td>Case-insensitive multi-field search</td>
+                    <td><code>.search(['name', 'email'], 'john')</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.orderBy(field, dir)</code></td>
+                    <td>Sort items by column ascending/descending</td>
+                    <td><code>.orderBy('price', 'desc')</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.paginate(perPage, page)</code></td>
+                    <td>Returns structured pagination metadata</td>
+                    <td><code>.paginate(10, 1)</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.pluck(field)</code></td>
+                    <td>Extract single column as flat array</td>
+                    <td><code>.pluck('email')</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.sum(field)</code> / <code>.avg(field)</code></td>
+                    <td>Calculate mathematical sum or average</td>
+                    <td><code>.sum('amount')</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.groupBy(field)</code></td>
+                    <td>Group items into object by key</td>
+                    <td><code>.groupBy('department')</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.index(field)</code></td>
+                    <td>Construct O(1) Map index for rapid lookups</td>
+                    <td><code>.index('sku').find('SKU-1')</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.innerJoin()</code> / <code>.leftJoin()</code></td>
+                    <td>Relational join against another collection</td>
+                    <td><code>.leftJoin(orders, 'userId', 'id')</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.computed()</code> / <code>.live()</code></td>
+                    <td>Signal-native reactive view derivation</td>
+                    <td><code>.where('active', true).computed()</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.update(attrs)</code> / <code>.delete()</code></td>
+                    <td>Mass in-place mutation of matching rows</td>
+                    <td><code>.where('id', 5).update({ paid: true })</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>.findAll(limit?, offset?)</code></td>
+                    <td>CI4 & Laravel style eager query execution: returns all items, with optional limit & offset</td>
+                    <td><code>.where('active', true).findAll(10, 0)</code></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Toast Shelf -->
+  <div id="toast-shelf">
+    <div class="toast-item" hx-for="toast in toastList" :key="toast.id">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi text-primary fs-5" :class="toast.icon || 'bi-check-circle-fill'"></i>
+        <div>
+          <strong class="d-block" hx-text="toast.title"></strong>
+          <small class="text-muted" hx-text="toast.message"></small>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-link text-muted p-0" @click="dismissToast(toast.id)">&times;</button>
+    </div>
+  </div>
+
+  <!-- Application Bootstrap Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // 1. Configure Framework
+      Helix.config.delimiters = ['[[', ']]'];
+      Helix.config.prefix = 'hx-';
+
+      // Sample Mock Product Dataset
+      const mockProducts = [
+        { id: 1, sku: 'SKU-001', name: 'MacBook Pro 16"', category: 'Electronics', brand: 'Apple', price: 1199, rating: 4.9, inStock: true, stock: 14 },
+        { id: 2, sku: 'SKU-002', name: 'Sony WH-1000XM5', category: 'Audio', brand: 'Sony', price: 349, rating: 4.8, inStock: true, stock: 28 },
+        { id: 3, sku: 'SKU-003', name: 'Dell UltraSharp 27"', category: 'Electronics', brand: 'Dell', price: 499, rating: 4.7, inStock: false, stock: 0 },
+        { id: 4, sku: 'SKU-004', name: 'Bose QuietComfort', category: 'Audio', brand: 'Bose', price: 279, rating: 4.6, inStock: true, stock: 45 },
+        { id: 5, sku: 'SKU-005', name: 'Logitech MX Master 3S', category: 'Accessories', brand: 'Logitech', price: 99, rating: 4.9, inStock: true, stock: 80 },
+        { id: 6, sku: 'SKU-006', name: 'Keychron Q1 Pro', category: 'Accessories', brand: 'Keychron', price: 199, rating: 4.8, inStock: true, stock: 19 },
+        { id: 7, sku: 'SKU-007', name: 'Anker USB-C Hub', category: 'Accessories', brand: 'Anker', price: 49, rating: 4.4, inStock: true, stock: 110 },
+        { id: 8, sku: 'SKU-008', name: 'AirPods Max', category: 'Audio', brand: 'Apple', price: 549, rating: 4.5, inStock: false, stock: 0 }
+      ];
+
+      // Sample Orders & Customers Dataset for Relational Join Demo
+      const mockCustomers = [
+        { id: 101, name: 'Alice Walker', city: 'San Francisco' },
+        { id: 102, name: 'Bob Smith', city: 'New York' },
+        { id: 103, name: 'Charlie Davis', city: 'Austin' }
+      ];
+
+      const mockOrders = [
+        { orderNumber: 'ORD-901', customerId: 101, total: 1199 },
+        { orderNumber: 'ORD-902', customerId: 102, total: 349 },
+        { orderNumber: 'ORD-903', customerId: 101, total: 99 },
+        { orderNumber: 'ORD-904', customerId: 999, total: 49 } // Unmatched customer
+      ];
+
+      // 2. Initialize Helix Application
+      const app = Helix.createApp({
+        setup({ reactive, computed, watch }) {
+          const rawProducts = reactive([...mockProducts]);
+          const customers = reactive([...mockCustomers]);
+          const orders = reactive([...mockOrders]);
+
+          // Filter State for Section 02
+          const catalogFilter = reactive({
+            search: '',
+            category: 'ALL',
+            maxPrice: 1200,
+            inStockOnly: false
+          });
+
+          // Sidebar Filter
+          const sidebarFilter = reactive('');
+          const matchSearch = (keywords) => {
+            if (!sidebarFilter.value || !sidebarFilter.value.trim()) return true;
+            const term = sidebarFilter.value.toLowerCase().trim();
+            return keywords.toLowerCase().includes(term);
+          };
+
+          // Section 01 outputs
+          const cloneOutput = reactive('Query ready. Click a button to test.');
+
+          // Section 03 Sort state
+          const activeSort = reactive('price-asc');
+
+          // Section 04 Pagination state
+          const paginationConfig = reactive({
+            perPage: 3,
+            page: 1
+          });
+
+          // Section 05 Projection state
+          const projectionOutput = reactive('[\n  "MacBook Pro 16\"",\n  "Sony WH-1000XM5",\n  "Dell UltraSharp 27\""\n]');
+
+          // Section 09 Index state
+          const searchSku = reactive('SKU-001');
+          const indexedSearchResult = reactive(mockProducts[0]);
+
+          // Section 13 Playground state
+          const playgroundCode = reactive(`Helix.$model(data)\n  .where('price', '<=', 400)\n  .orderBy('price', 'asc')\n  .get();`);
+          const playgroundOutput = reactive('Click "Execute Query" to run your expression.');
+
+          // Toast Notification Queue
+          const toastList = reactive([]);
+          const showToast = (title, message, icon = 'bi-check-circle-fill') => {
+            const id = Date.now() + Math.random();
+            toastList.push({ id, title, message, icon });
+            setTimeout(() => {
+              const idx = toastList.findIndex(t => t.id === id);
+              if (idx > -1) toastList.splice(idx, 1);
+            }, 3500);
+          };
+          const dismissToast = (id) => {
+            const idx = toastList.findIndex(t => t.id === id);
+            if (idx > -1) toastList.splice(idx, 1);
+          };
+
+          const copySnippet = (elementId) => {
+            const el = document.getElementById(elementId);
+            if (el) {
+              navigator.clipboard.writeText(el.innerText);
+              showToast('Copied to Clipboard', 'Code snippet copied successfully!', 'bi-clipboard-check-fill');
+            }
+          };
+
+          // --- COMPUTED QUERIES ---
+
+          // Filtered Products for Section 02
+          const filteredProducts = computed(() => {
+            let m = Helix.$model(rawProducts);
+
+            if (catalogFilter.maxPrice) {
+              m = m.where('price', '<=', catalogFilter.maxPrice);
+            }
+            if (catalogFilter.category && catalogFilter.category !== 'ALL') {
+              m = m.where('category', '=', catalogFilter.category);
+            }
+            if (catalogFilter.inStockOnly) {
+              m = m.where('inStock', '=', true);
+            }
+            if (catalogFilter.search && catalogFilter.search.trim()) {
+              m = m.search(['name', 'category', 'brand'], catalogFilter.search.trim());
+            }
+
+            return m.orderBy('price', 'asc').get();
+          });
+
+          // Sorted Products for Section 03
+          const sortedProductSample = computed(() => {
+            let m = Helix.$model(rawProducts);
+            if (activeSort.value === 'price-asc') m = m.orderBy('price', 'asc');
+            else if (activeSort.value === 'price-desc') m = m.orderBy('price', 'desc');
+            else if (activeSort.value === 'rating-desc') m = m.sortByDesc('rating');
+            else if (activeSort.value === 'name-asc') m = m.orderBy('name', 'asc');
+            return m.take(4).get();
+          });
+
+          // Paginated Results for Section 04
+          const paginationData = computed(() => {
+            return Helix.$model(rawProducts).paginate(paginationConfig.perPage, paginationConfig.page);
+          });
+
+          // Aggregations KPI for Section 06
+          const analyticsMetrics = computed(() => {
+            const m = Helix.$model(rawProducts);
+            return {
+              count: m.count(),
+              sum: m.sum('price'),
+              avg: Math.round(m.avg('price')),
+              min: m.min('price'),
+              max: m.max('price'),
+              median: m.median('price')
+            };
+          });
+
+          // Grouped Categories for Section 07
+          const groupedCategories = computed(() => {
+            return Helix.$model(rawProducts).groupBy('category');
+          });
+
+          // Relational Orders Left Join for Section 08
+          const joinedOrders = computed(() => {
+            return Helix.$model(orders)
+              .leftJoin(customers, 'customerId', 'id')
+              .select('orderNumber, name, city, total')
+              .get();
+          });
+
+          // Reactive Signals for Section 10
+          const reactiveModelCount = computed(() => Helix.$model(rawProducts).count());
+          const reactiveModelSum = computed(() => Helix.$model(rawProducts).sum('price'));
+
+          // Exported AST JSON for Section 12
+          const activeQueryAstJson = computed(() => {
+            const ast = Helix.$model(rawProducts)
+              .where('price', '<=', catalogFilter.maxPrice)
+              .when(catalogFilter.category !== 'ALL', q => q.where('category', '=', catalogFilter.category))
+              .orderBy('price', 'asc')
+              .toAst();
+            return JSON.stringify(ast, null, 2);
+          });
+
+          // --- INTERACTIVE ACTIONS ---
+
+          const resetCatalogFilters = () => {
+            catalogFilter.search = '';
+            catalogFilter.category = 'ALL';
+            catalogFilter.maxPrice = 1200;
+            catalogFilter.inStockOnly = false;
+            showToast('Filters Reset', 'Catalog filters restored to default.');
+          };
+
+          const setSort = (sortKey) => {
+            activeSort.value = sortKey;
+          };
+
+          const changePage = (pageNum) => {
+            paginationConfig.page = pageNum;
+          };
+
+          const runCloneDemo = () => {
+            const base = Helix.$model(rawProducts).where('inStock', '=', true);
+            const branchA = base.clone().where('price', '<', 300).pluck('name');
+            const branchB = base.clone().where('price', '>=', 300).pluck('name');
+            cloneOutput.value = `Base (In-Stock): ${base.count()} items\nBranch A (<$300): ${JSON.stringify(branchA)}\nBranch B (≥$300): ${JSON.stringify(branchB)}`;
+            showToast('.clone() Executed', 'Two independent query branches evaluated.');
+          };
+
+          const runLazyDemo = () => {
+            const gen = Helix.$model(rawProducts).where('price', '>', 200).lazy();
+            const collected = [];
+            for (const item of gen) {
+              collected.push(`${item.name} ($${item.price})`);
+              if (collected.length >= 3) break; // Break early
+            }
+            cloneOutput.value = `Lazy Generator evaluated 3 items on-demand:\n${collected.join('\n')}`;
+            showToast('.lazy() Executed', 'Generator paused after on-demand iteration.');
+          };
+
+          const runPluck = (field) => {
+            const res = Helix.$model(rawProducts).take(4).pluck(field);
+            projectionOutput.value = JSON.stringify(res, null, 2);
+          };
+
+          const runSelect = (fields) => {
+            const res = Helix.$model(rawProducts).take(2).select(fields).get();
+            projectionOutput.value = JSON.stringify(res, null, 2);
+          };
+
+          const executeFastLookup = () => {
+            const val = (searchSku.value || '').trim();
+            const indexed = Helix.$model(rawProducts).index('sku');
+            const found = indexed.findBy('sku', val);
+            indexedSearchResult.value = found || null;
+            if (found) {
+              showToast('SKU Found', `O(1) Map lookup matched: ${found.name}`, 'bi-check2-circle');
+            } else {
+              showToast('Not Found', `No product with SKU "${val}"`, 'bi-exclamation-triangle');
+            }
+          };
+
+          const addRandomProduct = () => {
+            const randomId = rawProducts.length + 1;
+            const item = {
+              id: randomId,
+              sku: `SKU-00${randomId}`,
+              name: `New Gadget #${randomId}`,
+              category: 'Accessories',
+              brand: 'Helix Labs',
+              price: Math.floor(Math.random() * 200) + 25,
+              rating: 5.0,
+              inStock: true,
+              stock: 12
+            };
+            rawProducts.push(item);
+            showToast('Item Added', `Added ${item.name} for $${item.price}`);
+          };
+
+          const removeLastProduct = () => {
+            if (rawProducts.length > 3) {
+              const removed = rawProducts.pop();
+              showToast('Item Removed', `Removed ${removed.name}`);
+            } else {
+              showToast('Notice', 'Keeping at least 3 items in dataset.');
+            }
+          };
+
+          // Function Link Quick-Loader
+          const loadFn = (fnName) => {
+            if (fnName === 'where') {
+              playgroundCode.value = `Helix.$model(data)\n  .where('price', '<=', 350)\n  .where('inStock', '=', true)\n  .get();`;
+              showToast('.where() Loaded', 'Filtering by price <= 350 and inStock = true');
+            } else if (fnName === 'when') {
+              playgroundCode.value = `const filterCategory = 'Audio';\nHelix.$model(data)\n  .when(filterCategory, (q, cat) => q.where('category', '=', cat))\n  .get();`;
+              showToast('.when() Loaded', 'Conditional execution only when condition is truthy');
+            } else if (fnName === 'like') {
+              playgroundCode.value = `Helix.$model(data)\n  .where('name', 'like', 'pro')\n  .get();`;
+              showToast("'like' Operator Loaded", "Case-insensitive substring match for 'pro'");
+            } else if (fnName === 'orWhere') {
+              playgroundCode.value = `Helix.$model(data)\n  .where('brand', '=', 'Apple')\n  .orWhere('brand', '=', 'Bose')\n  .get();`;
+              showToast('.orWhere() Loaded', 'OR logic branch matching Apple or Bose');
+            } else if (fnName === 'whereIn') {
+              playgroundCode.value = `Helix.$model(data)\n  .whereIn('category', ['Audio', 'Accessories'])\n  .get();`;
+              showToast('.whereIn() Loaded', 'Candidates match within provided array');
+            } else if (fnName === 'whereNotIn') {
+              playgroundCode.value = `Helix.$model(data)\n  .whereNotIn('brand', ['Apple'])\n  .get();`;
+              showToast('.whereNotIn() Loaded', "Candidates exclusion for 'Apple'");
+            } else if (fnName === 'whereBetween') {
+              playgroundCode.value = `Helix.$model(data)\n  .whereBetween('price', [100, 500])\n  .get();`;
+              showToast('.whereBetween() Loaded', 'Inclusive numeric range filter [100, 500]');
+            } else if (fnName === 'search') {
+              playgroundCode.value = `Helix.$model(data)\n  .search(['name', 'brand', 'category'], 'apple')\n  .get();`;
+              showToast('.search() Loaded', 'Multi-field fuzzy search for keyword');
+            } else if (fnName === 'orderBy') {
+              playgroundCode.value = `Helix.$model(data)\n  .orderBy('price', 'desc')\n  .get();`;
+              showToast('.orderBy() Loaded', 'Sorted by price descending');
+            } else if (fnName === 'paginate') {
+              playgroundCode.value = `Helix.$model(data)\n  .where('inStock', '=', true)\n  .paginate(3, 1);`;
+              showToast('.paginate() Loaded', 'Structured pagination metadata generation');
+            } else if (fnName === 'select') {
+              playgroundCode.value = `Helix.$model(data)\n  .select('id, name, price')\n  .get();`;
+              showToast('.select() Loaded', 'Extracted specific column subset');
+            } else if (fnName === 'pluck') {
+              playgroundCode.value = `Helix.$model(data)\n  .pluck('name');`;
+              showToast('.pluck() Loaded', 'Flat array extraction of single field');
+            } else if (fnName === 'sum') {
+              playgroundCode.value = `{\n  count: Helix.$model(data).count(),\n  totalSum: Helix.$model(data).sum('price'),\n  average: Helix.$model(data).avg('price')\n};`;
+              showToast('.sum() & Math Loaded', 'Instant mathematical aggregations');
+            } else if (fnName === 'groupBy') {
+              playgroundCode.value = `Helix.$model(data)\n  .groupBy('category');`;
+              showToast('.groupBy() Loaded', 'Dictionary grouped by category key');
+            } else if (fnName === 'innerJoin' || fnName === 'leftJoin') {
+              playgroundCode.value = `Helix.$model(data)\n  .select('id, name, price')\n  .get();`;
+              showToast('Joins Loaded', 'See Section 08 for Orders ⨝ Customers Join');
+            } else if (fnName === 'index' || fnName === 'find') {
+              playgroundCode.value = `const catalog = Helix.$model(data).index('sku');\ncatalog.findBy('sku', 'SKU-001');`;
+              showToast('O(1) Map Index Loaded', 'Fast instant lookup via Map index');
+            } else if (fnName === 'computed') {
+              playgroundCode.value = `const view = Helix.$model(data).where('active', '=', true).computed();\nview.value;`;
+              showToast('.computed() Loaded', 'Derived reactive signal view');
+            } else if (fnName === 'update') {
+              playgroundCode.value = `// Helix.$model(data).where('category', 'Audio').update({ onSale: true });`;
+              showToast('.update() Loaded', 'Mass in-place mutation of matching rows');
+            } else if (fnName === 'delete') {
+              playgroundCode.value = `// Helix.$model(data).where('stock', '<=', 0).delete();`;
+              showToast('.delete() Loaded', 'Mass removal of matching rows');
+            } else if (fnName === 'toAst') {
+              playgroundCode.value = `Helix.$model(data)\n  .where('price', '<=', 500)\n  .where('name', 'like', 'pro')\n  .toAst();`;
+              showToast('.toAst() Loaded', 'Exported query AST JSON tree');
+            } else if (fnName === 'macro') {
+              playgroundCode.value = `Helix.$model.macro('bargains', function() {\n  return this.where('price', '<=', 100);\n});\nHelix.$model(data).bargains().get();`;
+              showToast('.macro() Loaded', 'Registered custom reusable query macro');
+            }
+            runPlaygroundQuery();
+          };
+
+          const loadPreset = (presetName) => {
+            if (presetName === 'cheapElectronics') {
+              playgroundCode.value = `Helix.$model(data)\n  .where('category', '=', 'Electronics')\n  .where('price', '<=', 500)\n  .get();`;
+            } else if (presetName === 'topAudio') {
+              playgroundCode.value = `Helix.$model(data)\n  .where('category', '=', 'Audio')\n  .sortByDesc('rating')\n  .pluck('name');`;
+            } else if (presetName === 'categorySum') {
+              playgroundCode.value = `Helix.$model(data)\n  .groupBy('category');`;
+            } else if (presetName === 'stockPaginate') {
+              playgroundCode.value = `Helix.$model(data)\n  .where('inStock', '=', true)\n  .paginate(3, 1);`;
+            }
+            runPlaygroundQuery();
+          };
+
+          const runPlaygroundQuery = () => {
+            try {
+              const fn = new Function('data', 'Helix', `return (${playgroundCode.value});`);
+              const res = fn(rawProducts, Helix);
+              const output = res && typeof res.get === 'function' ? res.get() : res;
+              playgroundOutput.value = JSON.stringify(output, null, 2);
+              showToast('Query Success', 'Playground query evaluated successfully!');
+            } catch (err) {
+              playgroundOutput.value = `Error: ${err.message}`;
+              showToast('Query Error', err.message, 'bi-x-circle-fill');
+            }
+          };
+
+          const scrollToPlayground = () => {
+            const el = document.getElementById('section-playground');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          };
+
+          return {
+            rawProducts,
+            catalogFilter,
+            sidebarFilter,
+            matchSearch,
+            loadFn,
+            filteredProducts,
+            cloneOutput,
+            runCloneDemo,
+            runLazyDemo,
+            activeSort,
+            setSort,
+            sortedProductSample,
+            paginationConfig,
+            paginationData,
+            changePage,
+            projectionOutput,
+            runPluck,
+            runSelect,
+            analyticsMetrics,
+            groupedCategories,
+            joinedOrders,
+            searchSku,
+            indexedSearchResult,
+            executeFastLookup,
+            reactiveModelCount,
+            reactiveModelSum,
+            addRandomProduct,
+            removeLastProduct,
+            activeQueryAstJson,
+            playgroundCode,
+            playgroundOutput,
+            loadPreset,
+            runPlaygroundQuery,
+            scrollToPlayground,
+            resetCatalogFilters,
+            toastList,
+            dismissToast,
+            copySnippet
+          };
+        }
+      });
+
+      app.mount('#helix-model-app');
+    });
+  </script>
+
+</body>
+</html>

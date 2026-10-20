@@ -145,7 +145,7 @@ export const PRESETS = {
     essentials: {
         name: 'Essentials Suite',
         description: 'Core + Directives + Helpers + Fetch + Store (Most popular web app setup)',
-        plugins: ['directives', 'helpers', 'fetch', 'store','axios','scope','tooltip','notify','loader']
+        plugins: ['directives', 'helpers', 'fetch', 'store']
     },
     ui: {
         name: 'UI & Interactivity',

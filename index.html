@@ -388,7 +388,7 @@
           <span class="text-primary">🧬</span>
           <span>Helix.js</span>
         </h5>
-        <span class="badge bg-indigo text-white font-mono" id="helix-version-badge" style="background-color: #4f46e5;">v11.1.21</span>
+        <span class="badge bg-indigo text-white font-mono" id="helix-version-badge" style="background-color: #4f46e5;">v11.2.0</span>
       </div>
       <small class="text-muted" style="font-size: 0.725rem;">Developer Console & Playground</small>
     </div>
@@ -399,6 +399,10 @@
       <div class="d-flex flex-column gap-1">
         <a href="index-store.html" class="text-decoration-none text-dark d-flex align-items-center justify-content-between p-1.5 rounded hover-bg" style="font-size: 0.75rem; font-weight: 600;">
           <span><i class="fa-solid fa-store text-indigo me-1.5" style="color: #4f46e5;"></i> Store Studio</span>
+          <i class="bi bi-arrow-right-short text-muted"></i>
+        </a>
+        <a href="index-model.html" class="text-decoration-none text-dark d-flex align-items-center justify-content-between p-1.5 rounded hover-bg" style="font-size: 0.75rem; font-weight: 600;">
+          <span><i class="fa-solid fa-database text-indigo me-1.5" style="color: #4f46e5;"></i> Model Studio</span>
           <i class="bi bi-arrow-right-short text-muted"></i>
         </a>
         <a href="index-builder.html" class="text-decoration-none text-dark d-flex align-items-center justify-content-between p-1.5 rounded hover-bg" style="font-size: 0.75rem; font-weight: 600;">
@@ -427,6 +431,7 @@
       <li class="nav-item"><a class="nav-link" href="#phase3-directives"><i class="fa-solid fa-scroll"></i> 11. Phase 3 Directives</a></li>
       <li class="nav-item"><a class="nav-link" href="#transitions"><i class="fa-solid fa-film"></i> 12. Transitions & FLIP</a></li>
       <li class="nav-item"><a class="nav-link" href="#teleport"><i class="fa-solid fa-door-open"></i> 13. Teleport Portals</a></li>
+      <li class="nav-item"><a class="nav-link" href="#modules"><i class="fa-solid fa-cubes-stacked"></i> 14. Reusable Modules</a></li>
     </ul>
   </div>
 
@@ -442,7 +447,7 @@
               <i class="fa-solid fa-microchip me-1"></i> Reactive Framework Runtime
             </span>
             <span class="badge bg-success-subtle text-success border border-success-subtle">
-              <i class="fa-solid fa-circle-check me-1"></i> All 13 Test Suites Ready
+              <i class="fa-solid fa-circle-check me-1"></i> All 14 Test Suites Ready
             </span>
           </div>
           <h2 class="mb-1 fw-bold" style="font-size: 1.65rem; letter-spacing: -0.5px;">
@@ -1763,6 +1768,124 @@ Helix.watch([refA, refB], ([a, b]) => {
       </div>
     </section>
 
+    <!-- 📦 Section 14: Reusable Domain Modules (Helix.module) -->
+    <section id="modules" class="mb-4">
+      <div class="glass-card">
+        <div class="section-title">
+          <span class="section-badge">Section 14</span>
+          <span>📦 Reusable Domain Modules (Helix.module)</span>
+        </div>
+        <p class="text-secondary">
+          Decoupled, reactive singleton modules with cross-module discovery (<code>this.$app.module()</code>),
+          direct template resolution, snapshot reset (<code>$reset()</code>), and external runtime mutations.
+        </p>
+
+        <div class="row g-4 mt-2">
+          <!-- Live Interactive Module Showcase -->
+          <div class="col-lg-6">
+            <div class="sandbox-box">
+              <h4><i class="fa-solid fa-cubes text-primary me-1"></i> Interactive Cart & Tax Module Demo</h4>
+              <p class="text-muted-custom">
+                Modules are directly accessible in template expressions (e.g. <code>[[ tax.rate ]]%</code> and <code>[[ cart.total() ]]</code>) and react immediately when mutated internally or from external code.
+              </p>
+
+              <!-- Live Card Showcase -->
+              <div class="p-3 mb-3 rounded-3 bg-white border border-light-subtle shadow-xs">
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                  <h6 class="m-0 fw-bold text-dark d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-calculator text-indigo"></i>
+                    <span>E-Commerce Invoice Calculation</span>
+                  </h6>
+                  <span class="badge bg-success-subtle text-success border border-success-subtle">
+                    Live Reactive Proxy
+                  </span>
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-6">
+                    <label class="form-label text-muted small fw-bold mb-1">Cart Base Price ($):</label>
+                    <input type="number" class="form-control form-control-sm" hx-model.number="cart.price" min="0" step="50" />
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label text-muted small fw-bold mb-1">Tax Rate (%):</label>
+                    <input type="number" class="form-control form-control-sm" hx-model.number="tax.rate" min="0" max="100" />
+                  </div>
+                </div>
+
+                <div class="mt-3 p-3 rounded-3 bg-light border">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-muted small">Cart Subtotal:</span>
+                    <strong class="font-mono text-dark">$[[ cart.price ]]</strong>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-muted small">Tax Rate Applied:</span>
+                    <span class="badge bg-indigo text-white font-mono">[[ tax.rate ]]%</span>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                    <span class="text-muted small">Computed Tax Amount:</span>
+                    <span class="text-primary font-mono fw-bold">+$[[ tax.calculate(cart.price) ]]</span>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-dark">Grand Total (Inter-module):</span>
+                    <span class="fs-5 fw-bold font-mono text-success">$[[ cart.total() ]]</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Interactive Mutation Buttons -->
+              <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-outline-primary btn-sm" onclick="Helix.module('tax').rate = 12">
+                  <i class="fa-solid fa-pen me-1"></i> External: tax.rate = 12%
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="Helix.module('tax').rate = 25">
+                  <i class="fa-solid fa-bolt me-1"></i> External: tax.rate = 25%
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="Helix.module('cart').$reset(); Helix.module('tax').$reset();">
+                  <i class="fa-solid fa-rotate-left me-1"></i> Reset Both ($reset())
+                </button>
+              </div>
+              <small class="text-muted d-block mt-2">
+                <i class="fa-solid fa-circle-info me-1 text-primary"></i>
+                Try clicking external buttons or inspecting in DevTools: <code>Helix.module('tax').rate = 5</code>!
+              </small>
+            </div>
+          </div>
+
+          <!-- Code Snippet -->
+          <div class="col-lg-6">
+            <pre class="bg-dark text-light p-3 rounded-3 mb-0" style="font-size: 0.85rem; height: 100%;"><code>// 1. Register Reusable Modules
+Helix.module('cart', {
+  price: 1000,
+  total() {
+    const tax = this.$app.module('tax');
+    return this.price + tax.calculate(this.price);
+  }
+});
+
+Helix.module('tax', {
+  rate: 18,
+  calculate(amount) {
+    return (amount * this.rate) / 100;
+  }
+});
+
+// 2. Direct In-Template Usage
+&lt;div&gt;
+  &lt;p&gt;Tax rate: [[ tax.rate ]]%&lt;/p&gt;
+  &lt;p&gt;Tax amount: $[[ tax.calculate(1000) ]]&lt;/p&gt;
+  &lt;p&gt;Total: $[[ cart.total() ]]&lt;/p&gt;
+&lt;/div&gt;
+
+// 3. Mutate Globally Anywhere
+Helix.module('tax').rate = 12;
+
+// 4. Restore Baseline Snapshot
+Helix.module('cart').$reset();</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </div>
 
   <!-- Dedicated Modal Portal Target Container outside the main app content -->
@@ -1787,9 +1910,26 @@ Helix.watch([refA, refB], ([a, b]) => {
     Helix.config.debug = true;
     Helix.config.allowInlineExpressions = true;
     Helix.config.removeAttributeBindings = false;
+    Helix.config.delimiters = ['[[', ']]'];
 
     // Display version on load
     document.getElementById('helix-version-badge').textContent = `v${Helix.version}`;
+
+    // Register Reusable Domain Modules (Helix.module)
+    Helix.module('cart', {
+      price: 1000,
+      total() {
+        const tax = this.$app.module('tax');
+        return this.price + (tax ? tax.calculate(this.price) : 0);
+      }
+    });
+
+    Helix.module('tax', {
+      rate: 18,
+      calculate(amount) {
+        return (amount * this.rate) / 100;
+      }
+    });
 
     // Extract core tools
     const { reactive, computed, effect, watch, queuePostFlushCb } = Helix;
@@ -2366,7 +2506,9 @@ Helix.watch([refA, refB], ([a, b]) => {
         toggle: state.toggle,
         v11State: state.v11State,
         eventDemo: state.eventDemo,
-        teleportDemo: state.teleportDemo
+        teleportDemo: state.teleportDemo,
+        // cart: Helix.module('cart'),
+        // tax: Helix.module('tax')
       };
     });
 

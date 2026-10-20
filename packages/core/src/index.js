@@ -124,6 +124,13 @@ import {
     id,
     uniqueId
 } from './renderer/component.js';
+import {
+    moduleGlobal,
+    hasGlobalModule,
+    getGlobalModule,
+    createModulesProxy,
+    setDefaultGlobalHelix
+} from './app/module.js';
 
 globalComponents["transition"] = Transition;
 globalComponents["transitiongroup"] = TransitionGroup;
@@ -180,6 +187,7 @@ function useGlobal(plugin, options = {}) {
         installedAt: Date.now(),
         _executed: true
     });
+    syncPluginShortcuts();
     return globalAPI;
 }
 
@@ -416,6 +424,21 @@ function directivesGlobal(definitions) {
     return globalAPI;
 }
 
+function syncPluginShortcuts() {
+    if (globalConfig.exposePluginShortcuts === false) return;
+    const root = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
+    if (!root) return;
+    for (const key of Object.keys(globalAPI)) {
+        if (key.startsWith('$') && key !== '$apps') {
+            try {
+                if (root[key] !== globalAPI[key]) {
+                    root[key] = globalAPI[key];
+                }
+            } catch (e) {}
+        }
+    }
+}
+
 const globalAPI = {
     createApp,
     create: createApp,
@@ -534,14 +557,27 @@ const globalAPI = {
     enableHtmx: () => enableHtmxIntegration(globalAPI),
     initHtmx: () => initHtmxIntegration(globalAPI),
     devtools: devtoolsAPI,
+    module: moduleGlobal,
+    hasModule: hasGlobalModule,
+    $modules: createModulesProxy(null),
+    modules: createModulesProxy(null),
     _internal: globalInternal,
     $bus: globalBus,
     $apps: globalApps,
-    registry: globalRegistry
+    registry: globalRegistry,
+    syncPluginShortcuts
 };
 
+setDefaultGlobalHelix(globalAPI);
+syncPluginShortcuts();
+
+const globalRoot = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
+if (globalRoot) {
+    globalRoot.Helix = globalAPI;
+    globalRoot.helix = globalAPI;
+}
+
 if (typeof window !== 'undefined') {
-    window.Helix = globalAPI;
     initDevtools();
     initHtmxIntegration(globalAPI);
 }
@@ -669,9 +705,13 @@ export {
     createEventListener,
     matchesKey,
     KEY_ALIASES,
+    moduleGlobal as module,
+    hasGlobalModule as hasModule,
+    createModulesProxy as modules,
     globalApps as $apps,
     globalRegistry as registry,
     globalBus as $bus,
     globalInternal as _internal,
+    syncPluginShortcuts,
     globalAPI as default
 };

@@ -1,6 +1,6 @@
 # 🧬 Helix.js Framework
 
-[![Version](https://img.shields.io/badge/version-11.1.21-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
+[![Version](https://img.shields.io/badge/version-11.2.0-indigo.svg?style=flat-square)](https://github.com/pioneersingh321/helix_framework)
 [![Bundle Size](https://img.shields.io/badge/bundle-115KB--uncompressed-teal.svg?style=flat-square)](#)
 [![Reactivity](https://img.shields.io/badge/reactivity-signal--native-blue.svg?style=flat-square)](#)
 [![Build Step](https://img.shields.io/badge/build-zero--build--step-orange.svg?style=flat-square)](#)
@@ -33,6 +33,7 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 - [🔏 Dependency Injection](#-dependency-injection)
 - [📢 Event Bus](#-event-bus)
 - [🧩 Plugins & namespaces](#-plugins--namespaces)
+- [📦 Reusable Modules (Helix.module)](#-reusable-modules-helixmodule)
 - [⚙️ Global Configuration](#-global-configuration)
 - [⚡ Ecosystem Plugins (Interactive)](#-ecosystem-plugins-interactive)
 - [🔬 Advanced Design Patterns](#-advanced-design-patterns)
@@ -60,6 +61,7 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 *   🔄 **HTMX Auto-Rebind Integration (`Helix.enableHtmx`):** Automatically re-mounts reactive bindings on `htmx:afterSwap` / `htmx:load` and cleans up stale event listeners.
 *   🏢 **Multi-App Registry (`Helix.$apps`):** Cross-app registry tracking all active apps by selector, element, and instance ID.
 *   🔌 **Single-Execution Plugin Engine (v11.1.21):** `Helix.use()` & `app.use()` featuring automated single-execution deduplication (`_executed` lifecycle tracking), semver validation, and teardown cleanup.
+*   📦 **Reusable Module Architecture (`Helix.module` & `app.module` - v11.2.1):** Register reusable reactive domain modules. Support factory destructuring (`({ $fetch, $notify })`), instance delegation (`this.$fetch`, `this.$notify`), bare global shortcuts (`$fetch`, `$notify`), inter-module access (`this.$app.module('name')`), direct in-template binding (`[[ tax.rate ]]`, `[[ tax.calculate(1000) ]]`), live external mutations (`helix.module('tax').rate = 12`), `$reset()`, and component priority.
 *   🧱 **Composable Scoped Components:** Define elements with `setup()`, props, custom emits, slots, and an effect-scope cleanup model (`onScopeDispose`).
 *   ⏳ **Async Components & Suspense:** Lazy-load components with `defineAsyncComponent`, fallback loaders, preloading (`Helix.preload`), and built-in `<Suspense>` UI state management.
 *   🛠️ **DevTools & Memory Profiler:** Dynamic component tree inspection (`inspectTree()`), active dependency tracking (`inspectDeps()`), render performance profiling (`profile()`), and memory diagnostics (`checkMemoryLeaks()`).
@@ -78,7 +80,7 @@ All of this is bundled in a **single dependency-free file** that runs out of the
 ```
 helix_framework/
 ├── dist/                 # Production distribution builds (Single-file & unified bundles)
-│   ├── helix.js          # Core framework library (v11.1.21)
+│   ├── helix.js          # Core framework library (v11.2.0)
 │   ├── helix.all.js      # Unified complete bundle (Core + all official plugins)
 │   ├── helix.essentials.js # Core + Store + Fetch + Notify
 │   ├── helix.ui.js       # Core + Tooltip + Loader + Notify
@@ -932,6 +934,104 @@ Helix.registry.dependsOn("a", "b");// Evaluates semver ranges
 
 ---
 
+## 📦 Reusable Modules (`Helix.module`)
+
+`Helix.module(name, definition)` provides a lightweight, signal-native domain module architecture built directly into the core engine. It enables registering reusable state and logic that can be consumed across modules, used directly in templates without namespace ceremony, and mutated from anywhere with instant reactive DOM updates.
+
+### 1. Registering Modules & Inter-Module Communication
+Modules can access other modules via `this.$app.module(name)`:
+
+```javascript
+// Register 'cart' module that retrieves 'tax' module
+Helix.module('cart', {
+    price: 1000,
+    total() {
+        const tax = this.$app.module('tax');
+        return this.price + tax.calculate(this.price);
+    }
+});
+
+// Register 'tax' module
+Helix.module('tax', {
+    rate: 18,
+    calculate(amount) {
+        return amount * this.rate / 100;
+    }
+});
+```
+
+### 2. Direct Plugin Access & Factory Destructuring (v11.2.1)
+Modules have direct access to all official ecosystem plugins (`$fetch`, `$notify`, `$loader`, `$store`, `$h`, `$bus`, etc.) across three flexible styles:
+
+#### A. Factory Parameter Destructuring
+Extract plugins and reactivity primitives directly in the factory function signature:
+```javascript
+Helix.module('discounts', ({ $fetch, $notify }) => ({
+    async apply() {
+        await $fetch.post('/apply');
+        $notify.toast('Applied!');
+    }
+}));
+```
+
+#### B. Instance Delegation (`this.$plugin`)
+In object-literal and factory modules, all plugins are automatically available on `this`:
+```javascript
+Helix.module('discounts', {
+    async apply() {
+        await this.$fetch.post('/apply');
+        this.$notify.toast('Applied!');
+    }
+});
+```
+
+#### C. Bare Global Shortcuts
+Helix automatically mirrors registered `$` plugins to `window` and `globalThis`, allowing zero-boilerplate calls:
+```javascript
+Helix.module('discounts', {
+    async apply() {
+        await $fetch.post('/apply');
+        $notify.toast('Applied!');
+    }
+});
+```
+*(Configurable via `Helix.config.exposePluginShortcuts = false`)*
+
+### 3. Direct In-Template Usage
+Registered modules are exposed directly as top-level identifiers within template expressions and directives:
+
+```html
+<div id="app">
+    <p>Tax rate: [[ tax.rate ]]%</p>
+    <p>Tax amount: [[ tax.calculate(1000) ]]</p>
+    <p>Cart total: [[ cart.total() ]]</p>
+</div>
+```
+
+```javascript
+Helix.create({
+    config: { delimiters: ['[[', ']]'] }
+}).mount('#app');
+```
+
+### 4. Live Standalone Mutations
+Mutating module properties from outside the app (e.g. event handlers or asynchronous tasks) reactively updates all watching templates immediately:
+
+```javascript
+// External mutation instantly updates templates to 12% / 120
+helix.module('tax').rate = 12;
+```
+
+### 5. Key Architectural Capabilities
+- **Component State Priority**: Local component data takes priority. If an identifier is not found on local state, it seamlessly resolves to the registered module. Explicit access is also supported via `$modules.tax` and `$app.module('tax')`.
+- **Factory Functions**: In addition to object literals, modules support factory functions `Helix.module('profile', (app) => ({ ... }))`.
+- **Automatic Method Binding**: All methods are auto-bound with `this` pointing to the reactive module proxy, and `this.$app` referencing the active app instance.
+- **State Reset (`$reset()`)**: Every module instance provides a `$reset()` method that restores state properties to their initial definition values.
+- **Lifecycle Hooks**: Modules can define optional `mounted()` and `destroy()` hooks that trigger automatically on `app.mount()` and `app.unmount()`.
+- **App-Scoped Overrides**: Individual app instances can register localized overrides via `app.module(name, definition)` without polluting other apps or the global registry.
+
+---
+
 ## ⚙️ Global Configuration
 
 Configure global configuration parameters prior to mounting any application instances.
@@ -1415,11 +1515,11 @@ If you are hosting the workspace under a local web server like MAMP, access them
 
 ---
 
-## 🚀 Releases & Downloads (v11.1.21)
+## 🚀 Releases & Downloads (v11.2.0)
 
-- 📦 **Release Archive**: [helix-v11.1.21.zip](file:///d:/mamp/htdocs/helix_framework/dist/helix-v11.1.21.zip)
-- 📄 **Development Bundle**: [dist/helix.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.js) (154 KB)
-- ⚡ **Production Minified**: [dist/helix.min.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.min.js) (68 KB)
+- 📦 **Release Archive**: [helix-v11.2.0.zip](file:///d:/mamp/htdocs/helix_framework/dist/helix-v11.2.0.zip)
+- 📄 **Development Bundle**: [dist/helix.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.js) (155 KB)
+- ⚡ **Production Minified**: [dist/helix.min.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.min.js) (69 KB)
 - 📦 **Unified All-In-One**: [dist/helix.all.js](file:///d:/mamp/htdocs/helix_framework/dist/helix.all.js) (240 KB)
-- 📋 **Full Changelog**: [dist/Changelog.md](file:///d:/mamp/htdocs/helix_framework/dist/Changelog.md)
-- 🏷️ **GitHub Tag & Release**: [v11.1.21](https://github.com/pioneersingh321/helix_framework/releases/tag/v11.1.21)
+- 📋 **Full Changelog**: [CHANGELOG.md](file:///d:/mamp/htdocs/helix_framework/CHANGELOG.md)
+- 🏷️ **GitHub Tag & Release**: [v11.2.0](https://github.com/pioneersingh321/helix_framework/releases/tag/v11.2.0)

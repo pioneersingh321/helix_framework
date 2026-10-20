@@ -1,8 +1,8 @@
 # @helix/core (`helix-core`)
 
-The core reactive framework engine for **Helix.js** (v11.1.19).
+The core reactive framework engine for **Helix.js** (v11.2.1).
 
-`helix-core` provides fine-grained reactivity, setup-based component architecture, template directive binding, dependency injection, async component suspense, error boundaries, memory profiling, and a single-execution plugin registry.
+`helix-core` provides fine-grained reactivity, reusable domain modules (`Helix.module`), setup-based component architecture, template directive binding, dependency injection, async component suspense, error boundaries, memory profiling, and a single-execution plugin registry.
 
 ---
 
@@ -14,12 +14,19 @@ The core reactive framework engine for **Helix.js** (v11.1.19).
 - **Effects & Watchers**: `effect()`, `simpleEffect()`, `batch()`, `watch()`, and `watchEffect()`.
 - **Effect Scopes**: `effectScope()`, `getCurrentScope()`, `onScopeDispose()`, `createEffectGroup()`, and `ScopeScheduler` for clean memory management.
 
-### 🔌 2. Single-Execution Plugin System (v11.1.19 Compliant)
+### 📦 2. Reusable Domain Modules (`Helix.module`)
+- **Global & App Scoping**: `Helix.module(name, def)` and `app.module(name, def)`.
+- **Direct Plugin Access & Destructuring**: Factory destructuring `Helix.module('discounts', ({ $fetch, $notify }) => ({ ... }))`, instance prototype delegation (`this.$fetch`, `this.$notify`), and global shortcut mirroring (`$fetch.post(...)`, `$notify.toast(...)`).
+- **Inter-Module Communication**: `this.$app.module('name')` with auto-bound methods and reactive proxies.
+- **Direct Template Integration**: Native in-template variable resolution (e.g. `[[ tax.rate ]]` and `[[ tax.calculate(...) ]]`).
+- **Resilience**: Component local state precedence, live external mutations, `$reset()`, and `mounted()`/`destroy()` hooks.
+
+### 🔌 3. Single-Execution Plugin System
 - **Global & App Plugins**: `Helix.use()` and `app.use()` with automated deduplication (`_executed` state tracking).
 - **Dependency Validation**: `validatePluginDependencies()` with semver range resolution.
 - **Plugin Lifecycle**: `definePlugin()`, `triggerPluginLifecycle()`, and `registry` inspection.
 
-### 🧩 3. Component & Template System
+### 🧩 4. Component & Template System
 - **App Instances**: `Helix.createApp()` and `Helix.mount()`.
 - **Global & Local Components**: `Helix.component()` and `app.component()`.
 - **Custom Directives**: `Helix.directive()` supporting `mounted`, `updated`, and `unmounted` hooks.

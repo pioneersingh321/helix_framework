@@ -48,12 +48,59 @@ import {
     provide
 } from './lifecycle.js';
 import { resolvePath } from '../compiler/compiler.js';
+import { createModuleInstance, hasGlobalModule, getGlobalModule, createModulesProxy } from './module.js';
+
+export function createAppContextProxy(target, app) {
+    if (!target || typeof target !== 'object') return target;
+    return new Proxy(target, {
+        get(t, prop, receiver) {
+            if (prop in t) {
+                const val = t[prop];
+                return isRef(val) ? val.value : val;
+            }
+            if (prop === "$app") return app;
+            if (prop === "$modules") return app ? app.$modules : createModulesProxy(null);
+            if (app && typeof app.hasModule === "function" && app.hasModule(prop)) {
+                return app.module(prop);
+            }
+            if (hasGlobalModule(prop)) {
+                return app && typeof app.module === "function" ? app.module(prop) : getGlobalModule(prop);
+            }
+            if (app && prop in app) {
+                const val = app[prop];
+                return isRef(val) ? val.value : val;
+            }
+            const globalHelix = (typeof window !== "undefined" && window.Helix) || (typeof globalThis !== "undefined" && globalThis.Helix) || null;
+            if (globalHelix && prop in globalHelix) {
+                const val = globalHelix[prop];
+                return isRef(val) ? val.value : val;
+            }
+            return undefined;
+        },
+        set(t, prop, value, receiver) {
+            t[prop] = value;
+            return true;
+        },
+        has(t, prop) {
+            if (prop in t) return true;
+            if (prop === "$app" || prop === "$modules") return true;
+            if (app && typeof app.hasModule === "function" && app.hasModule(prop)) return true;
+            if (hasGlobalModule(prop)) return true;
+            if (app && prop in app) return true;
+            const globalHelix = (typeof window !== "undefined" && window.Helix) || (typeof globalThis !== "undefined" && globalThis.Helix) || null;
+            if (globalHelix && prop in globalHelix) return true;
+            return false;
+        }
+    });
+}
 
 export function createApp(rootComponent = {}) {
     const appComponents = {};
     const appDirectives = {};
     const appPlugins = [];
     const appProvides = Object.create(null);
+    const appModuleDefs = new Map();
+    const appModules = new Map();
     let isMounted = false;
     let rootElement = null;
     let rootInstance = null;
@@ -65,6 +112,7 @@ export function createApp(rootComponent = {}) {
         components: appComponents,
         directives: appDirectives,
         provides: appProvides,
+        modules: appModules,
         app: null
     };
     const bindNode = makeBindNode(appContext);
@@ -223,6 +271,8 @@ export function createApp(rootComponent = {}) {
                 config: appConfig,
                 component: app.component.bind(app),
                 directive: app.directive.bind(app),
+                module: app.module.bind(app),
+                hasModule: app.hasModule.bind(app),
                 removeDirective: app.removeDirective.bind(app),
                 removeNamespace: app.removeNamespace.bind(app),
                 provide: app.provide.bind(app),
@@ -313,6 +363,51 @@ export function createApp(rootComponent = {}) {
         provide(key, value) {
             appProvides[key] = value;
             return app;
+        },
+        module(name, definition) {
+            if (typeof name !== "string") {
+                warn(`Module name must be a string.`, "module");
+                return undefined;
+            }
+            if (definition !== undefined) {
+                appModuleDefs.set(name, definition);
+                const inst = createModuleInstance(name, definition, app);
+                appModules.set(name, inst);
+                if (isMounted && typeof inst.__hx_module_mounted === "function") {
+                    try { inst.__hx_module_mounted(); } catch (e) { handleError(e, `module mounted: ${name}`); }
+                }
+                return inst;
+            }
+            if (appModules.has(name)) {
+                return appModules.get(name);
+            }
+            if (appModuleDefs.has(name)) {
+                const def = appModuleDefs.get(name);
+                const inst = createModuleInstance(name, def, app);
+                appModules.set(name, inst);
+                if (isMounted && typeof inst.__hx_module_mounted === "function") {
+                    try { inst.__hx_module_mounted(); } catch (e) { handleError(e, `module mounted: ${name}`); }
+                }
+                return inst;
+            }
+            if (hasGlobalModule(name)) {
+                const inst = getGlobalModule(name);
+                if (inst) {
+                    inst.$app = app;
+                    appModules.set(name, inst);
+                    if (isMounted && typeof inst.__hx_module_mounted === "function" && !inst._mountedForApps?.has(app)) {
+                        if (!inst._mountedForApps) inst._mountedForApps = new Set();
+                        inst._mountedForApps.add(app);
+                        try { inst.__hx_module_mounted(); } catch (e) { handleError(e, `module mounted: ${name}`); }
+                    }
+                    return inst;
+                }
+            }
+            return undefined;
+        },
+        hasModule(name) {
+            if (typeof name !== "string") return false;
+            return appModules.has(name) || appModuleDefs.has(name) || hasGlobalModule(name);
         },
         async mount(rootSelector) {
             if (isMounted) {
@@ -529,7 +624,7 @@ export function createApp(rootComponent = {}) {
                 scope.stop();
                 return null;
             }
-            rootCtx = ctx;
+            rootCtx = createAppContextProxy(ctx, app);
             setCurrentInstance(null);
 
             globalApps.register(rootSelector, rootElement, instance, app);
@@ -540,7 +635,14 @@ export function createApp(rootComponent = {}) {
                 el.removeAttribute(`${appConfig.prefix}cloak`);
             });
 
-            trace("Initial Mount Binding", () => bindNode(rootElement, ctx, instance));
+            // Trigger module mounted hooks
+            appModules.forEach((mod, modName) => {
+                if (typeof mod.__hx_module_mounted === "function") {
+                    try { mod.__hx_module_mounted(); } catch (e) { handleError(e, `module mounted: ${modName}`); }
+                }
+            });
+
+            trace("Initial Mount Binding", () => bindNode(rootElement, rootCtx, instance));
             instance.hooks.beforeMount.forEach((fn) => fn());
             instance.hooks.mount.forEach((fn) => fn());
             isMounted = true;
@@ -563,6 +665,13 @@ export function createApp(rootComponent = {}) {
                 rootInstance.hooks.destroy.forEach((fn) => fn());
                 rootInstance.hooks.unmounted.forEach((fn) => fn());
             }
+
+            // Trigger module destroy hooks
+            appModules.forEach((mod, modName) => {
+                if (typeof mod.__hx_module_destroy === "function") {
+                    try { mod.__hx_module_destroy(); } catch (e) { handleError(e, `module destroy: ${modName}`); }
+                }
+            });
 
             globalApps.unregister(mountedRootSelector, rootElement, rootInstance);
 
@@ -662,6 +771,11 @@ export function createApp(rootComponent = {}) {
             }
         }
     };
+
+    const appModulesProxy = createModulesProxy(app);
+    app.$modules = appModulesProxy;
+    app.modules = appModulesProxy;
+    appProvides['$modules'] = appModulesProxy;
 
     appContext.app = app;
     return app;

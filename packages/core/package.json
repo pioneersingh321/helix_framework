@@ -1,6 +1,6 @@
 {
   "name": "helix-core",
-  "version": "11.1.21",
+  "version": "11.2.1",
   "description": "Core framework of Helix.js",
   "main": "../../dist/helix.js",
   "module": "./src/index.js",
@@ -16,7 +16,7 @@
   },
   "scripts": {
     "build": "vite build && vite build --mode min && node post-build.js",
-    "test": "node test-improvements.js"
+    "test": "node test-improvements.js && node test-module.js"
   },
   "devDependencies": {
     "vite": "^4.0.0"

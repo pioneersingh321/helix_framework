@@ -1,5 +1,6 @@
 (function(exports) {
   "use strict";
+  var _documentCurrentScript = typeof document !== "undefined" ? document.currentScript : null;
   const config = {
     asyncBatchSize: 8,
     maxHeapSize: 1e3,
@@ -453,8 +454,9 @@
       const trimmed = field.trim();
       const match = trimmed.match(/^(.+?)\s+(=|!=|<>|>|>=|<|<=|like)\s*$/i);
       if (match)
-        return createCompareNode(match[1].trim(), match[2].toLowerCase(), value);
-      return createCompareNode(trimmed, "=", value);
+        return createCompareNode(match[1].trim(), match[2].toLowerCase(), value !== void 0 ? value : operator);
+      const targetVal = value !== void 0 ? value : operator;
+      return createCompareNode(trimmed, "=", targetVal);
     }
     return { type: "AND", children: [] };
   }
@@ -2188,6 +2190,12 @@
       all() {
         return this.get();
       },
+      findAll(limit = null, offset = 0) {
+        if (limit != null) {
+          return this.limit(limit, offset).get();
+        }
+        return this.get();
+      },
       toJson() {
         const { type, isAsync } = _dispatch();
         if (isAsync || type === "async-lazy") {
@@ -2240,7 +2248,7 @@
     // PLUGIN METADATA (Helix v11.1.5)
     // ==========================================
     name: "model",
-    version: "2.2.1",
+    version: typeof { url: _documentCurrentScript && _documentCurrentScript.tagName.toUpperCase() === "SCRIPT" && _documentCurrentScript.src || new URL("helix-model.js", document.baseURI).href } !== "undefined" && { "VITE_CORE_VERSION": "11.2.0", "VITE_AXIOS_DEFAULT_URL": "/", "VITE_AXIOS_VERSION": "2.2.1", "VITE_DIRECTIVES_VERSION": "2.2.0", "VITE_FETCH_VERSION": "2.8.8", "VITE_HELPERS_VERSION": "1.1.0", "VITE_LOADER_VERSION": "2.5.1", "VITE_MODEL_VERSION": "2.2.1", "VITE_NOTIFY_VERSION": "2.2.6", "VITE_SCOPE_VERSION": "2.0.2", "VITE_TOOLTIP_VERSION": "1.7.0", "BASE_URL": "/", "MODE": "production", "DEV": false, "PROD": true, "SSR": false } && "2.2.1" || "1.0.0",
     requires: {
       helix: ">=11.1.5"
     },

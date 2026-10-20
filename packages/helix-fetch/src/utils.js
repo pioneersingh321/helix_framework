@@ -24,7 +24,8 @@ export const buildSearchParams = (obj) => {
                 if (typeof item === 'object' && item !== null && !(item instanceof Date) && !isFile(item)) {
                     appendRecursive(item, `${prefix}[${index}]`);
                 } else {
-                    appendRecursive(item, `${prefix}[]`);
+                    const key = prefix.endsWith('[]') ? prefix : `${prefix}[]`;
+                    appendRecursive(item, key);
                 }
             });
             return;
@@ -50,27 +51,88 @@ export const buildSearchParams = (obj) => {
     return sp;
 };
 
+// Duck-type check for FileList — works even when obj is behind a reactive proxy
+export const isFileList = (val) =>
+    val != null &&
+    typeof val === 'object' &&
+    typeof val.length === 'number' &&
+    typeof val.item === 'function' &&
+    !(val instanceof Array) &&
+    (typeof FileList === 'undefined' || !(val instanceof File)) &&
+    (typeof File === 'undefined' || !(val instanceof File)) &&
+    (typeof Blob === 'undefined' || !(val instanceof Blob)) &&
+    // Must be iterable and items must be File-like
+    typeof val[Symbol.iterator] === 'function' &&
+    (val.length === 0 || (typeof File !== 'undefined' && val[0] instanceof File));
+
 export const isFile = (val) =>
     (typeof File !== 'undefined' && val instanceof File) ||
     (typeof Blob !== 'undefined' && val instanceof Blob) ||
-    (typeof FileList !== 'undefined' && val instanceof FileList);
+    (typeof FileList !== 'undefined' && val instanceof FileList) ||
+    isFileList(val);
 
 export const containsFiles = (obj) => {
     if (!obj || typeof obj !== 'object') return false;
     if (isFile(obj)) return true;
+    if (isFileList(obj)) return true;
     if (Array.isArray(obj)) return obj.some(containsFiles);
     return Object.values(obj).some(containsFiles);
 };
 
 export const objectToFormData = (obj, form = new FormData(), namespace = '') => {
-    if (!obj || typeof obj !== 'object' || obj instanceof Date || isFile(obj)) {
-        form.append(namespace, obj === null ? '' : obj);
-    } else {
-        Object.keys(obj).forEach(prop => {
-            const formKey = namespace ? `${namespace}[${prop}]` : prop;
-            objectToFormData(obj[prop], form, formKey);
-        });
+    if (obj === undefined) return form;
+
+    // FileList (or duck-typed FileList behind a reactive proxy)
+    if (isFileList(obj) || (typeof FileList !== 'undefined' && obj instanceof FileList)) {
+        const key = namespace ? (namespace.endsWith('[]') ? namespace : `${namespace}[]`) : '[]';
+        Array.from(obj).forEach(file => form.append(key, file));
+        return form;
     }
+
+    // Array of values/files
+    if (Array.isArray(obj)) {
+        obj.forEach((item, index) => {
+            if (typeof item === 'object' && item !== null && !(item instanceof Date) && !isFile(item)) {
+                const formKey = namespace ? `${namespace}[${index}]` : `${index}`;
+                objectToFormData(item, form, formKey);
+            } else {
+                const formKey = namespace ? (namespace.endsWith('[]') ? namespace : `${namespace}[]`) : '[]';
+                objectToFormData(item, form, formKey);
+            }
+        });
+        return form;
+    }
+
+    if (obj instanceof Date) {
+        form.append(namespace, obj.toISOString());
+        return form;
+    }
+
+    if (isFile(obj)) {
+        form.append(namespace, obj);
+        return form;
+    }
+
+    if (!obj || typeof obj !== 'object') {
+        form.append(namespace, obj === null ? '' : obj);
+        return form;
+    }
+
+    // Plain object: iterate keys.
+    // If a key already contains brackets (e.g. 'variant_images[1][]'), use it as-is
+    // instead of further wrapping it as namespace[key] which would corrupt the field name.
+    Object.keys(obj).forEach(prop => {
+        let formKey;
+        if (namespace) {
+            // Only append [prop] if prop itself is a plain identifier (no brackets)
+            // If prop contains brackets it is already a full bracket-notation key
+            formKey = /[\[\]]/.test(prop) ? prop : `${namespace}[${prop}]`;
+        } else {
+            formKey = prop;
+        }
+        objectToFormData(obj[prop], form, formKey);
+    });
+
     return form;
 };
 
@@ -87,8 +149,16 @@ export const serializeForm = (formElement, emptyAsNull = true) => {
         let current = target;
         pathArray.forEach((key, index) => {
             if (index === pathArray.length - 1) {
-                if (key === '') { if (!Array.isArray(current)) return; current.push(value); }
-                else if (current[key] !== undefined) { if (!Array.isArray(current[key])) current[key] = [current[key]]; current[key].push(value); }
+                if (key === '') {
+                    if (!Array.isArray(current)) return;
+                    if (Array.isArray(value)) current.push(...value);
+                    else current.push(value);
+                }
+                else if (current[key] !== undefined) {
+                    if (!Array.isArray(current[key])) current[key] = [current[key]];
+                    if (Array.isArray(value)) current[key].push(...value);
+                    else current[key].push(value);
+                }
                 else current[key] = value;
             } else {
                 if (key === '') key = current.length;

@@ -9,7 +9,8 @@ export const globalConfig = {
     rethrowErrors: true,
     htmlSanitizer: null,
     htmxIntegration: false,
-    autoInjectCloak: true
+    autoInjectCloak: true,
+    exposePluginShortcuts: true
 };
 
 Object.seal(globalConfig);

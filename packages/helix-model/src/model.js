@@ -61,8 +61,9 @@ function parseWhereToAst(field, operator, value) {
   if (typeof field === 'string') {
     const trimmed = field.trim();
     const match = trimmed.match(/^(.+?)\s+(=|!=|<>|>|>=|<|<=|like)\s*$/i);
-    if (match) return createCompareNode(match[1].trim(), match[2].toLowerCase(), value);
-    return createCompareNode(trimmed, '=', value);
+    if (match) return createCompareNode(match[1].trim(), match[2].toLowerCase(), value !== undefined ? value : operator);
+    const targetVal = value !== undefined ? value : operator;
+    return createCompareNode(trimmed, '=', targetVal);
   }
   return { type: 'AND', children: [] };
 }
@@ -1731,6 +1732,12 @@ export function model(source = [], _sharedReactive = null) {
     },
     toArray() { return this.get(); },
     all() { return this.get(); },
+    findAll(limit = null, offset = 0) {
+      if (limit != null) {
+        return this.limit(limit, offset).get();
+      }
+      return this.get();
+    },
     toJson() {
       const { type, isAsync } = _dispatch();
       if (isAsync || type === 'async-lazy') {

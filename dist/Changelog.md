@@ -1,5 +1,23 @@
 # Helix.js Changelog
 
+## v11.2.1
+
+### Added & Improved
+
+- 📦 **Direct Plugin Access & Factory Destructuring for Modules (`Helix.module`)**:
+  - Factory parameter destructuring `Helix.module('discounts', ({ $fetch, $notify }) => ({ ... }))`.
+  - Prototype delegation for module methods accessing `this.$fetch`, `this.$notify`, `this.$loader`, `this.$bus`.
+  - Global shortcut synchronization mirroring `$*` plugins to `window` and `globalThis` (`$fetch.post(...)`, `$notify.toast(...)`).
+  - Preserved explicit inter-module encapsulation via `this.$app.module('tax')`.
+
+## v11.2.0
+
+### Added & Improved
+
+- 📦 **Reusable Module Architecture (`Helix.module` & `app.module`)**:
+  - Global & App Registration with inter-module communication (`this.$app.module('name')`).
+  - Direct template interpolation (`[[ tax.rate ]]`), live external mutations (`helix.module('tax').rate = 12`), `$reset()`, and component priority.
+
 ## v11.1.20
 
 ### Added & Improved

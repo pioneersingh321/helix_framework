@@ -1,6 +1,6 @@
 {
   "name": "helix-framework",
-  "version": "11.1.21",
+  "version": "11.2.1",
   "description": "Signal-native reactive frontend framework and official plugin ecosystem",
   "type": "module",
   "private": true,

@@ -1,5 +1,6 @@
 import { resolvePath } from '../compiler/compiler.js';
 import { isRef } from '../reactivity/ref.js';
+import { hasGlobalModule, getGlobalModule, createModulesProxy } from '../app/module.js';
 
 const componentProxyCache = new WeakMap();
 
@@ -77,6 +78,18 @@ export function getOrCreateAppCtxProxy(baseAppCtx, app) {
                 if (prop === "$root") {
                     return target?.$el || target?.root || null;
                 }
+                if (prop === "$app") {
+                    return app || (typeof window !== "undefined" && window.Helix) || (typeof globalThis !== "undefined" && globalThis.Helix) || null;
+                }
+                if (prop === "$modules") {
+                    return app ? app.$modules : createModulesProxy(null);
+                }
+                if (app && typeof app.hasModule === "function" && app.hasModule(prop)) {
+                    return app.module(prop);
+                }
+                if (hasGlobalModule(prop)) {
+                    return app && typeof app.module === "function" ? app.module(prop) : getGlobalModule(prop);
+                }
                 if (app && prop in app) {
                     const val = app[prop];
                     return isRef(val) ? val.value : val;
@@ -94,7 +107,9 @@ export function getOrCreateAppCtxProxy(baseAppCtx, app) {
             },
             has(target, prop) {
                 if (prop in target) return true;
-                if (prop === "$dispatch" || prop === "$id" || prop === "$root") return true;
+                if (prop === "$dispatch" || prop === "$id" || prop === "$root" || prop === "$app" || prop === "$modules") return true;
+                if (app && typeof app.hasModule === "function" && app.hasModule(prop)) return true;
+                if (hasGlobalModule(prop)) return true;
                 if (app && prop in app) return true;
                 const globalHelix = typeof window !== "undefined" && window.Helix || typeof globalThis !== "undefined" && globalThis.Helix || null;
                 if (globalHelix && prop in globalHelix) return true;

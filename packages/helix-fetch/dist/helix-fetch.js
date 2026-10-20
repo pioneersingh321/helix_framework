@@ -1,5 +1,6 @@
 (function(exports) {
   "use strict";
+  var _documentCurrentScript = typeof document !== "undefined" ? document.currentScript : null;
   const normalizeHeaders = (h = {}) => Object.fromEntries(Object.entries(h).map(([k, v]) => [k.toLowerCase(), v]));
   const resolveHeaders = (method, cfg, req, override) => ({
     ...normalizeHeaders(cfg.common),
@@ -21,7 +22,8 @@
           if (typeof item === "object" && item !== null && !(item instanceof Date) && !isFile(item)) {
             appendRecursive(item, `${prefix}[${index}]`);
           } else {
-            appendRecursive(item, `${prefix}[]`);
+            const key = prefix.endsWith("[]") ? prefix : `${prefix}[]`;
+            appendRecursive(item, key);
           }
         });
         return;
@@ -42,25 +44,61 @@
     }
     return sp;
   };
-  const isFile = (val) => typeof File !== "undefined" && val instanceof File || typeof Blob !== "undefined" && val instanceof Blob || typeof FileList !== "undefined" && val instanceof FileList;
+  const isFileList = (val) => val != null && typeof val === "object" && typeof val.length === "number" && typeof val.item === "function" && !(val instanceof Array) && (typeof FileList === "undefined" || !(val instanceof File)) && (typeof File === "undefined" || !(val instanceof File)) && (typeof Blob === "undefined" || !(val instanceof Blob)) && // Must be iterable and items must be File-like
+  typeof val[Symbol.iterator] === "function" && (val.length === 0 || typeof File !== "undefined" && val[0] instanceof File);
+  const isFile = (val) => typeof File !== "undefined" && val instanceof File || typeof Blob !== "undefined" && val instanceof Blob || typeof FileList !== "undefined" && val instanceof FileList || isFileList(val);
   const containsFiles = (obj) => {
     if (!obj || typeof obj !== "object")
       return false;
     if (isFile(obj))
+      return true;
+    if (isFileList(obj))
       return true;
     if (Array.isArray(obj))
       return obj.some(containsFiles);
     return Object.values(obj).some(containsFiles);
   };
   const objectToFormData = (obj, form = new FormData(), namespace = "") => {
-    if (!obj || typeof obj !== "object" || obj instanceof Date || isFile(obj)) {
-      form.append(namespace, obj === null ? "" : obj);
-    } else {
-      Object.keys(obj).forEach((prop) => {
-        const formKey = namespace ? `${namespace}[${prop}]` : prop;
-        objectToFormData(obj[prop], form, formKey);
-      });
+    if (obj === void 0)
+      return form;
+    if (isFileList(obj) || typeof FileList !== "undefined" && obj instanceof FileList) {
+      const key = namespace ? namespace.endsWith("[]") ? namespace : `${namespace}[]` : "[]";
+      Array.from(obj).forEach((file) => form.append(key, file));
+      return form;
     }
+    if (Array.isArray(obj)) {
+      obj.forEach((item, index) => {
+        if (typeof item === "object" && item !== null && !(item instanceof Date) && !isFile(item)) {
+          const formKey = namespace ? `${namespace}[${index}]` : `${index}`;
+          objectToFormData(item, form, formKey);
+        } else {
+          const formKey = namespace ? namespace.endsWith("[]") ? namespace : `${namespace}[]` : "[]";
+          objectToFormData(item, form, formKey);
+        }
+      });
+      return form;
+    }
+    if (obj instanceof Date) {
+      form.append(namespace, obj.toISOString());
+      return form;
+    }
+    if (isFile(obj)) {
+      form.append(namespace, obj);
+      return form;
+    }
+    if (!obj || typeof obj !== "object") {
+      form.append(namespace, obj === null ? "" : obj);
+      return form;
+    }
+    Object.keys(obj).forEach((prop) => {
+      let formKey;
+      if (namespace) {
+        formKey = /[\[\]]/.test(prop) ? prop : `${namespace}[${prop}]`;
+      } else {
+        formKey = prop;
+      }
+      objectToFormData(obj[prop], form, formKey);
+    });
     return form;
   };
   const serializeForm = (formElement, emptyAsNull = true) => {
@@ -88,11 +126,17 @@
           if (key === "") {
             if (!Array.isArray(current))
               return;
-            current.push(value);
+            if (Array.isArray(value))
+              current.push(...value);
+            else
+              current.push(value);
           } else if (current[key] !== void 0) {
             if (!Array.isArray(current[key]))
               current[key] = [current[key]];
-            current[key].push(value);
+            if (Array.isArray(value))
+              current[key].push(...value);
+            else
+              current[key].push(value);
           } else
             current[key] = value;
         } else {
@@ -1251,7 +1295,7 @@
   }
   const HelixFetchPlugin = {
     name: "fetch",
-    version: "2.8.8",
+    version: typeof { url: _documentCurrentScript && _documentCurrentScript.tagName.toUpperCase() === "SCRIPT" && _documentCurrentScript.src || new URL("helix-fetch.js", document.baseURI).href } !== "undefined" && { "VITE_CORE_VERSION": "11.1.21", "VITE_AXIOS_DEFAULT_URL": "/", "VITE_AXIOS_VERSION": "2.2.1", "VITE_DIRECTIVES_VERSION": "2.2.0", "VITE_FETCH_VERSION": "2.8.8", "VITE_HELPERS_VERSION": "1.1.0", "VITE_LOADER_VERSION": "2.5.1", "VITE_MODEL_VERSION": "2.2.1", "VITE_NOTIFY_VERSION": "2.2.6", "VITE_SCOPE_VERSION": "2.0.2", "VITE_TOOLTIP_VERSION": "1.7.0", "BASE_URL": "/", "MODE": "production", "DEV": false, "PROD": true, "SSR": false } && "2.8.8" || "2.8.7",
     install(app, options = {}) {
       const { reactive } = typeof Helix !== "undefined" ? Helix : app;
       if (!reactive) {

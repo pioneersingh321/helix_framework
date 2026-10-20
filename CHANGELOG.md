@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [11.2.1] - 2026-10-20
+
+### 🚀 Added
+- **Direct Plugin Access & Factory Destructuring for Modules (`Helix.module`)**:
+  - **Factory Parameter Destructuring**: Module factory functions can now directly destructure active plugins and reactivity primitives `Helix.module('discounts', ({ $fetch, $notify }) => ({ ... }))`.
+  - **Instance Prototype Scope Delegation**: Object-literal and factory module methods can access plugins directly on `this` (`this.$fetch`, `this.$notify`, `this.$loader`, `this.$bus`, etc.) via non-invasive prototype delegation.
+  - **Global Plugin Shortcut Synchronization**: Automatically mirrors registered `$` plugins (`$fetch`, `$notify`, etc.) onto `window` and `globalThis`, enabling bare calls like `$fetch.post(...)` and `$notify.toast(...)` anywhere in the application. Configurable via `Helix.config.exposePluginShortcuts`.
+  - **Explicit Inter-Module Preserved**: Preserved clean encapsulation using `this.$app.module('name')` for inter-module calls.
+
+---
+
+## [11.2.0] - 2026-10-16
+
+### 🚀 Added
+- **Reusable Module Architecture (`Helix.module` & `app.module`)**:
+  - **Global & App Registration**: Register reusable domain modules via `Helix.module(name, definition)` or app-scoped via `app.module(name, definition)`.
+  - **Inter-Module Retrieval**: Retrieve modules from within other modules using `this.$app.module('name')` or globally via `Helix.module('name')` / `helix.module('name')`.
+  - **Direct Template Interpolation**: Registered modules are accessible directly in template expressions (e.g., `[[ tax.rate ]]` and `[[ tax.calculate(1000) ]]` or `{{ tax.rate }}`) with automatic reactive dependency tracking.
+  - **Component State Priority**: Local component state takes precedence; missing identifiers seamlessly resolve to registered modules, with explicit access available via `$modules.<name>` and `$app.module('<name>')`.
+  - **Live Standalone Mutations**: Mutating module properties outside templates (e.g., `helix.module('tax').rate = 12`) immediately triggers reactive DOM updates.
+  - **Flexible Definitions**: Supports plain object literals with auto-bound methods/getters and factory functions `(app) => ({ ... })`.
+  - **Built-in Helpers & Lifecycle**: Includes `$reset()` to restore the initial state snapshot, along with optional `mounted()` and `destroy()` lifecycle hooks.
+
+---
+
 ## [11.1.21] - 2026-08-23
 
 ### 🚀 Added

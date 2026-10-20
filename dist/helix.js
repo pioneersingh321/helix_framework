@@ -108,7 +108,8 @@
     rethrowErrors: true,
     htmlSanitizer: null,
     htmxIntegration: false,
-    autoInjectCloak: true
+    autoInjectCloak: true,
+    exposePluginShortcuts: true
   };
   Object.seal(globalConfig);
   function queueJob(job, priority = 0) {
@@ -500,7 +501,7 @@
       cleanup(effectFn);
     }
   }
-  const VERSION = "11.1.21";
+  const VERSION = "11.2.1";
   const RAW = Symbol("__hx_raw");
   const IS_REF = Symbol("__hx_is_ref");
   const IS_REACTIVE = Symbol("__hx_is_reactive");
@@ -2006,6 +2007,315 @@
     }
     return asBoolean ? !!result : result;
   }
+  const globalModuleRegistry = /* @__PURE__ */ new Map();
+  const globalModuleInstances = /* @__PURE__ */ new Map();
+  let defaultGlobalHelix = null;
+  function setDefaultGlobalHelix(helix) {
+    defaultGlobalHelix = helix;
+  }
+  function getActiveApp() {
+    if (currentInstance && currentInstance.app) {
+      return currentInstance.app;
+    }
+    const all = globalApps.all();
+    if (all && all.length > 0) {
+      return all[all.length - 1].app;
+    }
+    return null;
+  }
+  function getGlobalHelix() {
+    if (defaultGlobalHelix)
+      return defaultGlobalHelix;
+    if (typeof window !== "undefined" && window.Helix)
+      return window.Helix;
+    if (typeof globalThis !== "undefined" && globalThis.Helix)
+      return globalThis.Helix;
+    return null;
+  }
+  function cloneValue(val) {
+    if (val === null || typeof val !== "object")
+      return val;
+    if (typeof val === "function" || val.nodeType !== void 0)
+      return val;
+    if (Array.isArray(val)) {
+      return val.map(cloneValue);
+    }
+    if (val instanceof Date)
+      return new Date(val.getTime());
+    if (val instanceof RegExp)
+      return new RegExp(val.source, val.flags);
+    if (val instanceof Set) {
+      const s = /* @__PURE__ */ new Set();
+      val.forEach((v) => s.add(cloneValue(v)));
+      return s;
+    }
+    if (val instanceof Map) {
+      const m = /* @__PURE__ */ new Map();
+      val.forEach((v, k) => m.set(k, cloneValue(v)));
+      return m;
+    }
+    const copy = {};
+    for (const key of Object.keys(val)) {
+      copy[key] = cloneValue(val[key]);
+    }
+    return copy;
+  }
+  function createModuleContext(app = null) {
+    const target = /* @__PURE__ */ Object.create(null);
+    return new Proxy(target, {
+      get(t, prop, receiver) {
+        if (typeof prop !== "string" || prop === "then")
+          return void 0;
+        if (prop === "$app") {
+          return app || getActiveApp() || getGlobalHelix() || null;
+        }
+        const activeApp = app || getActiveApp();
+        if (activeApp && prop in activeApp) {
+          return activeApp[prop];
+        }
+        const globalHelix = getGlobalHelix();
+        if (globalHelix && prop in globalHelix) {
+          return globalHelix[prop];
+        }
+        return void 0;
+      },
+      has(t, prop) {
+        if (typeof prop !== "string")
+          return false;
+        if (prop === "$app")
+          return true;
+        const activeApp = app || getActiveApp();
+        if (activeApp && prop in activeApp)
+          return true;
+        const globalHelix = getGlobalHelix();
+        if (globalHelix && prop in globalHelix)
+          return true;
+        return false;
+      },
+      ownKeys(t) {
+        const keys = /* @__PURE__ */ new Set(["$app"]);
+        const activeApp = app || getActiveApp();
+        if (activeApp) {
+          Reflect.ownKeys(activeApp).forEach((k) => {
+            if (typeof k === "string" && !k.startsWith("_"))
+              keys.add(k);
+          });
+        }
+        const globalHelix = getGlobalHelix();
+        if (globalHelix) {
+          Reflect.ownKeys(globalHelix).forEach((k) => {
+            if (typeof k === "string" && !k.startsWith("_"))
+              keys.add(k);
+          });
+        }
+        return Array.from(keys);
+      },
+      getOwnPropertyDescriptor(t, prop) {
+        const activeApp = app || getActiveApp();
+        if (activeApp && prop in activeApp) {
+          return {
+            value: activeApp[prop],
+            writable: false,
+            enumerable: true,
+            configurable: true
+          };
+        }
+        const globalHelix = getGlobalHelix();
+        if (globalHelix && prop in globalHelix) {
+          return {
+            value: globalHelix[prop],
+            writable: false,
+            enumerable: true,
+            configurable: true
+          };
+        }
+        if (prop === "$app") {
+          return {
+            value: app || getActiveApp() || getGlobalHelix() || null,
+            writable: false,
+            enumerable: true,
+            configurable: true
+          };
+        }
+        return void 0;
+      }
+    });
+  }
+  function createModuleInstance(name, definition, app = null) {
+    let raw = definition;
+    if (typeof definition === "function") {
+      try {
+        raw = definition(createModuleContext(app));
+      } catch (err) {
+        handleError(err, `module factory: ${name}`);
+        raw = {};
+      }
+    }
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      warn(`Module "${name}" definition must be an object or a factory function returning an object.`, "module");
+      raw = {};
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(raw);
+    const initialState = {};
+    const baseTarget = {};
+    const methods = {};
+    let mountedHook = null;
+    let destroyHook = null;
+    for (const [key, desc] of Object.entries(descriptors)) {
+      if (key === "mounted" && typeof desc.value === "function") {
+        mountedHook = desc.value;
+        continue;
+      }
+      if ((key === "destroy" || key === "onDestroy" || key === "unmounted") && typeof desc.value === "function") {
+        destroyHook = desc.value;
+        continue;
+      }
+      if (desc.get || desc.set) {
+        Object.defineProperty(baseTarget, key, {
+          get: desc.get,
+          set: desc.set,
+          enumerable: true,
+          configurable: true
+        });
+      } else if (typeof desc.value === "function") {
+        methods[key] = desc.value;
+      } else {
+        baseTarget[key] = desc.value;
+        initialState[key] = cloneValue(toRaw(desc.value));
+      }
+    }
+    let boundApp = app;
+    Object.defineProperty(baseTarget, "$name", {
+      value: name,
+      writable: false,
+      enumerable: false,
+      configurable: true
+    });
+    Object.defineProperty(baseTarget, "$app", {
+      get() {
+        return boundApp || getActiveApp() || getGlobalHelix() || null;
+      },
+      set(newApp) {
+        boundApp = newApp;
+      },
+      enumerable: false,
+      configurable: true
+    });
+    const moduleScopeProto = new Proxy(/* @__PURE__ */ Object.create(null), {
+      get(t, prop, receiver) {
+        if (typeof prop !== "string" || prop === "then")
+          return void 0;
+        const activeApp = boundApp || getActiveApp();
+        if (activeApp && prop in activeApp) {
+          const val = activeApp[prop];
+          return typeof val === "function" ? val.bind(activeApp) : val;
+        }
+        const globalHelix = getGlobalHelix();
+        if (globalHelix && prop in globalHelix) {
+          const val = globalHelix[prop];
+          return typeof val === "function" ? val.bind(globalHelix) : val;
+        }
+        return void 0;
+      },
+      has(t, prop) {
+        if (typeof prop !== "string")
+          return false;
+        const activeApp = boundApp || getActiveApp();
+        if (activeApp && prop in activeApp)
+          return true;
+        const globalHelix = getGlobalHelix();
+        if (globalHelix && prop in globalHelix)
+          return true;
+        return false;
+      }
+    });
+    Object.setPrototypeOf(baseTarget, moduleScopeProto);
+    const reactiveInstance = reactive(baseTarget);
+    for (const [methodName, fn] of Object.entries(methods)) {
+      baseTarget[methodName] = fn.bind(reactiveInstance);
+    }
+    Object.defineProperty(baseTarget, "$reset", {
+      value: function $reset() {
+        for (const [key, val] of Object.entries(initialState)) {
+          reactiveInstance[key] = cloneValue(val);
+        }
+      },
+      writable: true,
+      enumerable: false,
+      configurable: true
+    });
+    if (mountedHook) {
+      Object.defineProperty(baseTarget, "__hx_module_mounted", {
+        value: mountedHook.bind(reactiveInstance),
+        enumerable: false,
+        configurable: true
+      });
+    }
+    if (destroyHook) {
+      Object.defineProperty(baseTarget, "__hx_module_destroy", {
+        value: destroyHook.bind(reactiveInstance),
+        enumerable: false,
+        configurable: true
+      });
+    }
+    return reactiveInstance;
+  }
+  function hasGlobalModule(name) {
+    if (typeof name !== "string")
+      return false;
+    return globalModuleRegistry.has(name) || globalModuleInstances.has(name);
+  }
+  function getGlobalModule(name) {
+    if (typeof name !== "string")
+      return void 0;
+    if (globalModuleInstances.has(name)) {
+      return globalModuleInstances.get(name);
+    }
+    if (globalModuleRegistry.has(name)) {
+      const def = globalModuleRegistry.get(name);
+      const inst = createModuleInstance(name, def, null);
+      globalModuleInstances.set(name, inst);
+      return inst;
+    }
+    return void 0;
+  }
+  function moduleGlobal(name, definition) {
+    if (typeof name !== "string") {
+      warn("Module name must be a string.", "module");
+      return void 0;
+    }
+    if (definition !== void 0) {
+      globalModuleRegistry.set(name, definition);
+      const inst = createModuleInstance(name, definition, null);
+      globalModuleInstances.set(name, inst);
+      return inst;
+    }
+    const activeApp = getActiveApp();
+    if (activeApp && typeof activeApp.hasModule === "function" && activeApp.hasModule(name)) {
+      return activeApp.module(name);
+    }
+    return getGlobalModule(name);
+  }
+  function createModulesProxy(app = null) {
+    return new Proxy(/* @__PURE__ */ Object.create(null), {
+      get(target, prop) {
+        if (typeof prop !== "string" || prop === "then")
+          return void 0;
+        if (app && typeof app.module === "function") {
+          return app.module(prop);
+        }
+        return getGlobalModule(prop);
+      },
+      has(target, prop) {
+        if (typeof prop !== "string")
+          return false;
+        if (app && typeof app.hasModule === "function") {
+          return app.hasModule(prop);
+        }
+        return hasGlobalModule(prop);
+      }
+    });
+  }
   const componentProxyCache = /* @__PURE__ */ new WeakMap();
   let idCounter = 0;
   function uniqueId(prefix = "hx") {
@@ -2073,6 +2383,18 @@
           if (prop === "$root") {
             return (target == null ? void 0 : target.$el) || (target == null ? void 0 : target.root) || null;
           }
+          if (prop === "$app") {
+            return app || typeof window !== "undefined" && window.Helix || typeof globalThis !== "undefined" && globalThis.Helix || null;
+          }
+          if (prop === "$modules") {
+            return app ? app.$modules : createModulesProxy(null);
+          }
+          if (app && typeof app.hasModule === "function" && app.hasModule(prop)) {
+            return app.module(prop);
+          }
+          if (hasGlobalModule(prop)) {
+            return app && typeof app.module === "function" ? app.module(prop) : getGlobalModule(prop);
+          }
           if (app && prop in app) {
             const val = app[prop];
             return isRef(val) ? val.value : val;
@@ -2091,7 +2413,11 @@
         has(target, prop) {
           if (prop in target)
             return true;
-          if (prop === "$dispatch" || prop === "$id" || prop === "$root")
+          if (prop === "$dispatch" || prop === "$id" || prop === "$root" || prop === "$app" || prop === "$modules")
+            return true;
+          if (app && typeof app.hasModule === "function" && app.hasModule(prop))
+            return true;
+          if (hasGlobalModule(prop))
             return true;
           if (app && prop in app)
             return true;
@@ -5628,11 +5954,65 @@ ${rule}`;
     }
     return bindNode;
   }
+  function createAppContextProxy(target, app) {
+    if (!target || typeof target !== "object")
+      return target;
+    return new Proxy(target, {
+      get(t, prop, receiver) {
+        if (prop in t) {
+          const val = t[prop];
+          return isRef(val) ? val.value : val;
+        }
+        if (prop === "$app")
+          return app;
+        if (prop === "$modules")
+          return app ? app.$modules : createModulesProxy(null);
+        if (app && typeof app.hasModule === "function" && app.hasModule(prop)) {
+          return app.module(prop);
+        }
+        if (hasGlobalModule(prop)) {
+          return app && typeof app.module === "function" ? app.module(prop) : getGlobalModule(prop);
+        }
+        if (app && prop in app) {
+          const val = app[prop];
+          return isRef(val) ? val.value : val;
+        }
+        const globalHelix = typeof window !== "undefined" && window.Helix || typeof globalThis !== "undefined" && globalThis.Helix || null;
+        if (globalHelix && prop in globalHelix) {
+          const val = globalHelix[prop];
+          return isRef(val) ? val.value : val;
+        }
+        return void 0;
+      },
+      set(t, prop, value, receiver) {
+        t[prop] = value;
+        return true;
+      },
+      has(t, prop) {
+        if (prop in t)
+          return true;
+        if (prop === "$app" || prop === "$modules")
+          return true;
+        if (app && typeof app.hasModule === "function" && app.hasModule(prop))
+          return true;
+        if (hasGlobalModule(prop))
+          return true;
+        if (app && prop in app)
+          return true;
+        const globalHelix = typeof window !== "undefined" && window.Helix || typeof globalThis !== "undefined" && globalThis.Helix || null;
+        if (globalHelix && prop in globalHelix)
+          return true;
+        return false;
+      }
+    });
+  }
   function createApp(rootComponent = {}) {
     const appComponents = {};
     const appDirectives = {};
     const appPlugins = [];
     const appProvides = /* @__PURE__ */ Object.create(null);
+    const appModuleDefs = /* @__PURE__ */ new Map();
+    const appModules = /* @__PURE__ */ new Map();
     let isMounted = false;
     let rootElement = null;
     let rootInstance = null;
@@ -5644,6 +6024,7 @@ ${rule}`;
       components: appComponents,
       directives: appDirectives,
       provides: appProvides,
+      modules: appModules,
       app: null
     };
     const bindNode = makeBindNode(appContext);
@@ -5809,6 +6190,8 @@ ${rule}`;
           config: appConfig,
           component: app.component.bind(app),
           directive: app.directive.bind(app),
+          module: app.module.bind(app),
+          hasModule: app.hasModule.bind(app),
           removeDirective: app.removeDirective.bind(app),
           removeNamespace: app.removeNamespace.bind(app),
           provide: app.provide.bind(app),
@@ -5899,6 +6282,66 @@ ${rule}`;
       provide(key, value) {
         appProvides[key] = value;
         return app;
+      },
+      module(name, definition) {
+        var _a;
+        if (typeof name !== "string") {
+          warn(`Module name must be a string.`, "module");
+          return void 0;
+        }
+        if (definition !== void 0) {
+          appModuleDefs.set(name, definition);
+          const inst = createModuleInstance(name, definition, app);
+          appModules.set(name, inst);
+          if (isMounted && typeof inst.__hx_module_mounted === "function") {
+            try {
+              inst.__hx_module_mounted();
+            } catch (e) {
+              handleError(e, `module mounted: ${name}`);
+            }
+          }
+          return inst;
+        }
+        if (appModules.has(name)) {
+          return appModules.get(name);
+        }
+        if (appModuleDefs.has(name)) {
+          const def = appModuleDefs.get(name);
+          const inst = createModuleInstance(name, def, app);
+          appModules.set(name, inst);
+          if (isMounted && typeof inst.__hx_module_mounted === "function") {
+            try {
+              inst.__hx_module_mounted();
+            } catch (e) {
+              handleError(e, `module mounted: ${name}`);
+            }
+          }
+          return inst;
+        }
+        if (hasGlobalModule(name)) {
+          const inst = getGlobalModule(name);
+          if (inst) {
+            inst.$app = app;
+            appModules.set(name, inst);
+            if (isMounted && typeof inst.__hx_module_mounted === "function" && !((_a = inst._mountedForApps) == null ? void 0 : _a.has(app))) {
+              if (!inst._mountedForApps)
+                inst._mountedForApps = /* @__PURE__ */ new Set();
+              inst._mountedForApps.add(app);
+              try {
+                inst.__hx_module_mounted();
+              } catch (e) {
+                handleError(e, `module mounted: ${name}`);
+              }
+            }
+            return inst;
+          }
+        }
+        return void 0;
+      },
+      hasModule(name) {
+        if (typeof name !== "string")
+          return false;
+        return appModules.has(name) || appModuleDefs.has(name) || hasGlobalModule(name);
       },
       async mount(rootSelector) {
         var _a, _b;
@@ -6109,7 +6552,7 @@ ${rule}`;
           scope.stop();
           return null;
         }
-        rootCtx = ctx;
+        rootCtx = createAppContextProxy(ctx, app);
         setCurrentInstance(null);
         globalApps.register(rootSelector, rootElement, instance, app);
         if (rootElement.hasAttribute(`${appConfig.prefix}cloak`))
@@ -6117,7 +6560,16 @@ ${rule}`;
         (_b = (_a = rootElement.querySelectorAll) == null ? void 0 : _a.call(rootElement, `[${appConfig.prefix}cloak]`)) == null ? void 0 : _b.forEach((el) => {
           el.removeAttribute(`${appConfig.prefix}cloak`);
         });
-        trace("Initial Mount Binding", () => bindNode(rootElement, ctx, instance));
+        appModules.forEach((mod, modName) => {
+          if (typeof mod.__hx_module_mounted === "function") {
+            try {
+              mod.__hx_module_mounted();
+            } catch (e) {
+              handleError(e, `module mounted: ${modName}`);
+            }
+          }
+        });
+        trace("Initial Mount Binding", () => bindNode(rootElement, rootCtx, instance));
         instance.hooks.beforeMount.forEach((fn) => fn());
         instance.hooks.mount.forEach((fn) => fn());
         isMounted = true;
@@ -6143,6 +6595,15 @@ ${rule}`;
           rootInstance.hooks.destroy.forEach((fn) => fn());
           rootInstance.hooks.unmounted.forEach((fn) => fn());
         }
+        appModules.forEach((mod, modName) => {
+          if (typeof mod.__hx_module_destroy === "function") {
+            try {
+              mod.__hx_module_destroy();
+            } catch (e) {
+              handleError(e, `module destroy: ${modName}`);
+            }
+          }
+        });
         globalApps.unregister(mountedRootSelector, rootElement, rootInstance);
         [...appPlugins].reverse().forEach((p) => {
           if (typeof p.cleanup === "function") {
@@ -6248,6 +6709,10 @@ ${rule}`;
         }
       }
     };
+    const appModulesProxy = createModulesProxy(app);
+    app.$modules = appModulesProxy;
+    app.modules = appModulesProxy;
+    appProvides["$modules"] = appModulesProxy;
     appContext.app = app;
     return app;
   }
@@ -7483,6 +7948,7 @@ ${rule}`;
       installedAt: Date.now(),
       _executed: true
     });
+    syncPluginShortcuts();
     return globalAPI;
   }
   function unuseGlobal(plugin) {
@@ -7725,6 +8191,23 @@ ${rule}`;
     }
     return globalAPI;
   }
+  function syncPluginShortcuts() {
+    if (globalConfig.exposePluginShortcuts === false)
+      return;
+    const root = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
+    if (!root)
+      return;
+    for (const key of Object.keys(globalAPI)) {
+      if (key.startsWith("$") && key !== "$apps") {
+        try {
+          if (root[key] !== globalAPI[key]) {
+            root[key] = globalAPI[key];
+          }
+        } catch (e) {
+        }
+      }
+    }
+  }
   const globalAPI = {
     createApp,
     create: createApp,
@@ -7843,13 +8326,24 @@ ${rule}`;
     enableHtmx: () => enableHtmxIntegration(globalAPI),
     initHtmx: () => initHtmxIntegration(globalAPI),
     devtools: devtoolsAPI,
+    module: moduleGlobal,
+    hasModule: hasGlobalModule,
+    $modules: createModulesProxy(null),
+    modules: createModulesProxy(null),
     _internal: globalInternal,
     $bus: globalBus,
     $apps: globalApps,
-    registry: globalRegistry
+    registry: globalRegistry,
+    syncPluginShortcuts
   };
+  setDefaultGlobalHelix(globalAPI);
+  syncPluginShortcuts();
+  const globalRoot = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
+  if (globalRoot) {
+    globalRoot.Helix = globalAPI;
+    globalRoot.helix = globalAPI;
+  }
   if (typeof window !== "undefined") {
-    window.Helix = globalAPI;
     initDevtools();
     initHtmxIntegration(globalAPI);
   }
@@ -7900,6 +8394,7 @@ ${rule}`;
   exports.getCurrentScope = getCurrentScope;
   exports.getProfileData = getProfileData;
   exports.getTransitionDurations = getTransitionDurations;
+  exports.hasModule = hasGlobalModule;
   exports.id = id;
   exports.initHtmx = initHtmxIntegration;
   exports.inject = inject;
@@ -7920,6 +8415,8 @@ ${rule}`;
   exports.matchesKey = matchesKey;
   exports.measureTrace = measureTrace;
   exports.memo = memo;
+  exports.module = moduleGlobal;
+  exports.modules = createModulesProxy;
   exports.mount = createAndMount;
   exports.namespace = namespaceGlobal;
   exports.nextFrame = nextFrame;
@@ -7964,6 +8461,7 @@ ${rule}`;
   exports.shallowReadonly = shallowReadonly;
   exports.shallowRef = shallowRef;
   exports.simpleEffect = simpleEffect;
+  exports.syncPluginShortcuts = syncPluginShortcuts;
   exports.toRaw = toRaw;
   exports.toRef = toRef;
   exports.toRefs = toRefs;

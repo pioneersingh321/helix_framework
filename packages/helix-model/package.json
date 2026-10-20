@@ -1,13 +1,15 @@
 {
   "name": "helix-model",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "Model plugin for Helix.js framework",
   "main": "dist/helix-model.js",
   "module": "dist/helix-model.js",
   "files": [
     "dist"
   ],
+  "type": "module",
   "scripts": {
+    "test": "node test-model.js",
     "build": "vite build && vite build --mode min && node post-build.js"
   },
   "devDependencies": {

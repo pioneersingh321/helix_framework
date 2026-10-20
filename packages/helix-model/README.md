@@ -239,6 +239,7 @@ Helix.use(HelixModelPlugin, {
 | :--- | :--- |
 | `.get(key?, defaultValue?)` | Execute query and return final array result |
 | `.all()` / `.toArray()` | Alias for `.get()` |
+| `.findAll(limit?, offset?)` | CI4 & Laravel style query execution: returns all items, with optional `limit` & `offset` |
 | `.toJSON()` / `.toJson()` | Export result as JSON string or parsed object |
 
 ---
